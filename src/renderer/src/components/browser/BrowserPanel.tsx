@@ -1,0 +1,269 @@
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { BrowserState, DesignPick } from "@shared/browser";
+import type { ChatMessage } from "@shared/types";
+import { DesignPickBar } from "../agent/DesignPickBar";
+import { cn } from "../../lib/cn";
+import {
+  ArrowUpIcon,
+  ChevronDownIcon,
+  EyeIcon,
+  PencilIcon,
+  RefreshIcon,
+  SquareStopIcon,
+  TerminalIcon,
+  XIcon,
+} from "../icons";
+
+const EMPTY: BrowserState = {
+  url: "",
+  title: "",
+  loading: false,
+  canGoBack: false,
+  canGoForward: false,
+  devtoolsOpen: false,
+  designMode: false,
+};
+
+function displayUrl(url: string): string {
+  if (!url) return "";
+  return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+}
+
+/**
+ * The embedded browser.
+ *
+ * The page itself is a native `WebContentsView` owned by the main process — it
+ * composites *above* the renderer, so it cannot be styled or overlapped. All we
+ * control is this chrome, plus a placeholder div whose rect we report so the
+ * host can position the view over it.
+ *
+ * That is also why the top bar exists in the DOM at all: address bar, design
+ * toggle, devtools toggle and the pick chips are ordinary React.
+ */
+export function BrowserPanel({
+  state,
+  expanded,
+  onExpandedChange,
+  designPick,
+  recent,
+  onAddToChat,
+  onAskAbout,
+  onClearPick,
+}: {
+  state: BrowserState;
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
+  designPick: DesignPick | null;
+  /** recent messages, so the pick's mini-chat shows real history */
+  recent: ChatMessage[];
+  onAddToChat: (pick: DesignPick) => void;
+  onAskAbout: (pick: DesignPick, instruction: string) => void;
+  onClearPick: () => void;
+}) {
+  const [draft, setDraft] = useState(displayUrl(state.url));
+  const [editing, setEditing] = useState(false);
+  const [instruction, setInstruction] = useState("");
+  const placeholderRef = useRef<HTMLDivElement>(null);
+  const aliveRef = useRef(true);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+      void window.pi.setBrowserVisible(false);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!editing) setDraft(displayUrl(state.url));
+  }, [state.url, editing]);
+
+  // Report the placeholder rect whenever layout changes; the host matches it.
+  const syncBounds = useCallback(() => {
+    const node = placeholderRef.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return;
+    void window.pi.setBrowserBounds({
+      x: Math.round(rect.left),
+      y: Math.round(rect.top),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    syncBounds();
+    const node = placeholderRef.current;
+    if (!node) return;
+    const observer = new ResizeObserver(syncBounds);
+    observer.observe(node);
+    window.addEventListener("resize", syncBounds);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", syncBounds);
+    };
+  }, [syncBounds, expanded]);
+
+  useLayoutEffect(() => {
+    const id = window.setInterval(syncBounds, 400);
+    return () => window.clearInterval(id);
+  }, [syncBounds]);
+
+  const navigate = (value?: string) => {
+    const next = (value ?? draft).trim();
+    if (!next) return;
+    setEditing(false);
+    void window.pi.navigateBrowser(next);
+  };
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col bg-page">
+      {/* top bar — nav · address · design · devtools */}
+      <div className="flex h-[38px] shrink-0 items-center gap-1 border-b border-line px-2">
+        <button
+          type="button"
+          aria-label="Back"
+          disabled={!state.canGoBack}
+          onClick={() => void window.pi.browserBack()}
+          className="pressable flex size-7 items-center justify-center rounded-[6px] text-ink-2 hover:bg-hover disabled:opacity-35"
+        >
+          <ArrowUpIcon size={14} className="-rotate-90" />
+        </button>
+        <button
+          type="button"
+          aria-label="Forward"
+          disabled={!state.canGoForward}
+          onClick={() => void window.pi.browserForward()}
+          className="pressable flex size-7 items-center justify-center rounded-[6px] text-ink-2 hover:bg-hover disabled:opacity-35"
+        >
+          <ArrowUpIcon size={14} className="rotate-90" />
+        </button>
+        <button
+          type="button"
+          aria-label={state.loading ? "Stop" : "Reload"}
+          onClick={() => (state.loading ? void window.pi.browserStop() : void window.pi.browserReload())}
+          className="pressable flex size-7 items-center justify-center rounded-[6px] text-ink-2 hover:bg-hover"
+        >
+          {state.loading ? <SquareStopIcon size={12} /> : <RefreshIcon size={14} />}
+        </button>
+
+        <div className="mx-1 flex h-[26px] min-w-0 flex-1 items-center gap-2 rounded-[7px] bg-field px-2.5 shadow-hairline">
+          <span
+            className={cn("size-1.5 shrink-0 rounded-full", state.error ? "bg-red" : state.loading ? "pulse-dot bg-accent" : "bg-green")}
+          />
+          <input
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onFocus={() => setEditing(true)}
+            onBlur={() => setEditing(false)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                navigate();
+              }
+              if (event.key === "Escape") {
+                setEditing(false);
+                setDraft(displayUrl(state.url));
+              }
+            }}
+            placeholder="Enter a URL, or ask Pi to open one"
+            spellCheck={false}
+            className="min-w-0 flex-1 bg-transparent font-mono text-[11.5px] text-ink outline-none placeholder:text-ink-3"
+          />
+          {state.title ? (
+            <span className="hidden max-w-52 shrink-0 truncate text-[11px] text-ink-3 lg:inline">{state.title}</span>
+          ) : null}
+        </div>
+
+        {designPick ? (
+          <div
+            className="flex items-center gap-1.5 rounded-chip bg-accent-tint px-2 py-1"
+            style={{ animation: "pop-in 200ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "right center" }}
+          >
+            <span className="font-mono text-[10.5px] text-accent-ink">
+              {designPick.component ? `${designPick.component} · ` : ""}
+              {designPick.tag}
+            </span>
+            <button
+              type="button"
+              onClick={() => onClearPick()}
+              aria-label="Clear selection"
+              className="pressable flex size-4 items-center justify-center rounded-[4px] text-accent-ink hover:bg-accent/20"
+            >
+              <XIcon size={10} />
+            </button>
+          </div>
+        ) : null}
+
+        <button
+          type="button"
+          aria-label="Design mode"
+          title="Design mode (Shift+Ctrl+D) — pick an element and hand it to the agent"
+          onClick={() => void window.pi.setDesignMode(!state.designMode)}
+          className={cn(
+            "pressable flex size-7 items-center justify-center rounded-[6px]",
+            state.designMode ? "bg-accent text-white" : "text-ink-2 hover:bg-hover",
+          )}
+        >
+          <PencilIcon size={14} />
+        </button>
+        <button
+          type="button"
+          aria-label="Toggle DevTools"
+          title="Toggle DevTools"
+          onClick={() => void window.pi.toggleDevTools()}
+          className={cn(
+            "pressable flex size-7 items-center justify-center rounded-[6px]",
+            state.devtoolsOpen ? "bg-field text-ink" : "text-ink-2 hover:bg-hover",
+          )}
+        >
+          <TerminalIcon size={14} />
+        </button>
+        <button
+          type="button"
+          aria-label={expanded ? "Return to the dock" : "Open fullscreen"}
+          title={expanded ? "Return to the dock" : "Open fullscreen"}
+          onClick={() => onExpandedChange(!expanded)}
+          className="pressable flex size-7 items-center justify-center rounded-[6px] text-ink-2 hover:bg-hover"
+        >
+          <EyeIcon size={14} />
+        </button>
+      </div>
+
+      {state.error ? (
+        <div className="shrink-0 border-b border-red-tint bg-red-tint px-3 py-1.5 text-[11.5px] text-red">{state.error}</div>
+      ) : null}
+
+      {/* the native view is positioned over this box */}
+      <div ref={placeholderRef} className="relative min-h-0 flex-1">
+        {!state.url ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+            <div className="text-[13px] font-medium text-ink">Nothing loaded</div>
+            <p className="max-w-sm text-[12px] text-ink-3">
+              Enter a URL above, or let Pi open one. The page renders in an embedded Chromium view — its own session, so site
+              logins persist between restarts.
+            </p>
+          </div>
+        ) : null}
+
+        {designPick ? (
+          <DesignPickBar
+            pick={designPick}
+            recent={recent}
+            onAction={(action, instruction) => onAskAbout(designPick, instruction ?? action)}
+            onSend={(text) => onAskAbout(designPick, text)}
+            onDismiss={onClearPick}
+          />
+        ) : null}
+      </div>
+
+      {!state.url ? (
+        <div className="flex shrink-0 items-center gap-2 border-t border-line px-3 py-2 text-[11px] text-ink-3">
+          <ChevronDownIcon size={11} className="-rotate-90" />
+          Shift+Ctrl+D for design mode · the `&gt;_` button docks DevTools on the right
+        </div>
+      ) : null}
+    </div>
+  );
+}

@@ -1,0 +1,371 @@
+/* ─────────────────────────────────────────────────────────
+ * Style entry
+ *
+ * Order matters:
+ *   1. Tailwind
+ *   2. Beautiful UI foundation, vendored verbatim from the component
+ *      registry (MIT). This is the authority for tokens, @theme mappings,
+ *      keyframes and component CSS — do not hand-edit it.
+ *   3. The app shell + the motion layer this desktop adds on top.
+ * ───────────────────────────────────────────────────────── */
+
+@import "tailwindcss";
+@import "shadow-plugin/unprefixed";
+/* Geist carries Latin/numerals; CJK falls through to the system faces in
+   `--font-cjk` below, because none of these files ship CJK glyphs. */
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+@import "./styles/foundation-body.css";
+@import "./styles/records-table.css";
+@import "./styles/hljs-github.css";
+
+/* ─────────────────────────────────────────────────────────
+ * App shell
+ * The foundation is framework-agnostic and expects the host to supply the
+ * two font faces and its own page chrome. A desktop window owns its whole
+ * surface, so the site's striped page background is dropped here.
+ * ───────────────────────────────────────────────────────── */
+
+:root {
+  --font-inter: "Geist Variable";
+  --font-mono-face: "Geist Mono Variable";
+  /* CJK stack, best first. PingFang is macOS, HarmonyOS Sans and Microsoft
+     YaHei are the Windows answers; the platform picks whichever exists. */
+  --font-cjk: "PingFang SC", "HarmonyOS Sans SC", "HarmonyOS Sans",
+    "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  /* the foundation's `@theme inline` sets these two; redeclaring them here
+     (later in the cascade, same specificity) appends the CJK fallbacks, so a
+     Chinese glyph resolves through PingFang → HarmonyOS → YaHei rather than
+     the browser's default serif-ish fallback. */
+  --font-sans: var(--font-inter), var(--font-cjk);
+  --font-mono: var(--font-mono-face), "PingFang SC", "HarmonyOS Sans SC",
+    "Microsoft YaHei UI", ui-monospace, monospace;
+}
+
+html {
+  font-size: 14px;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  background-image: none;
+  background-attachment: scroll;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  letter-spacing: -0.01em;
+  overflow: hidden;
+}
+
+#root {
+  height: 100vh;
+}
+
+/* Electron chrome */
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* ─────────────────────────────────────────────────────────
+ * Motion layer
+ * Everything below is additive: the curves, the press grammar, the shared
+ * glide surface, and the entrance choreography used across the app.
+ * ───────────────────────────────────────────────────────── */
+
+:root {
+  --ease-out-strong-css: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong-css: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-link-css: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* The `--ease-*` theme namespace does not emit a utility for custom names, and
+ * these curves are the whole motion system — so declare them explicitly. */
+.ease-out-strong {
+  transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.ease-in-out-strong {
+  transition-timing-function: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+.ease-link {
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Every clickable control shares one press grammar. Opacity runs on 120ms
+ * ease-out while transform runs on 140ms of the strong curve — that split is
+ * what keeps press feedback crisp instead of floaty. */
+.pressable {
+  transition-property: transform, background-color, color, opacity, box-shadow, border-color;
+  transition-duration: 140ms, 120ms, 120ms, 120ms, 140ms, 120ms;
+  transition-timing-function:
+    cubic-bezier(0.23, 1, 0.32, 1), ease-out, ease-out, ease-out,
+    cubic-bezier(0.23, 1, 0.32, 1), ease-out;
+}
+
+.pressable:not(:disabled):active {
+  transform: scale(0.96);
+}
+
+.pressable-soft:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+/* Entrance choreography — stagger is capped at five steps so long lists never
+ * make the user wait for the last row. */
+.stagger {
+  animation: fade-up 420ms var(--ease-out-strong-css) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+.stagger-pop {
+  animation: pop-in 260ms var(--ease-out-strong-css) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+.view-enter {
+  animation: view-enter 320ms var(--ease-out-strong-css) both;
+}
+
+.row-enter {
+  animation: row-enter 380ms var(--ease-out-strong-css) both;
+  animation-delay: calc(var(--i, 0) * 35ms);
+}
+
+.animate-fade-in {
+  animation: fade-in 220ms ease-out both;
+}
+
+.animate-pop-in {
+  animation: pop-in 220ms var(--ease-out-strong-css) both;
+}
+
+.animate-slide-down {
+  animation: slide-down 200ms var(--ease-out-strong-css) both;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 260ms var(--ease-out-strong-css) both;
+}
+
+/* Expand / collapse: 0fr → 1fr on grid-template-rows animates height without
+ * hard-coding a pixel value. Opacity leads, height follows. */
+.collapse-grid {
+  display: grid;
+  transition:
+    grid-template-rows 300ms var(--ease-out-strong-css),
+    opacity 180ms ease-out;
+}
+
+.collapse-grid[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.collapse-grid[data-open="false"] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+/* One shared surface that travels between rows instead of every row painting
+ * its own hover background. */
+.glide-layer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: 7px;
+  background: var(--hover-2);
+  pointer-events: none;
+  transition:
+    top 240ms var(--ease-out-strong-css),
+    height 180ms var(--ease-out-strong-css),
+    opacity 120ms ease-out;
+}
+
+.glide-row {
+  position: relative;
+  z-index: 1;
+}
+
+/* The conversation you just picked: a brief accent wash under the raised
+ * surface, so the click has an answer before the session finishes loading.
+ * `row-picked` outlasts the wash and holds the row's text at full contrast. */
+@keyframes picked-wash {
+  from {
+    background-color: var(--accent-tint);
+  }
+  to {
+    background-color: var(--surface);
+  }
+}
+
+.row-picked {
+  animation: picked-wash 900ms var(--ease-out-strong-css) both;
+}
+
+/* Busy labels sweep a highlight instead of pulsing opacity. */
+.shimmer-text {
+  background-image: linear-gradient(90deg, var(--ink-3) 35%, var(--ink) 50%, var(--ink-3) 65%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer-text 1.4s linear infinite;
+}
+
+.spin-fast {
+  animation: spin 700ms linear infinite;
+}
+
+/* The only thing in the UI allowed to loop forever. */
+.pulse-dot {
+  animation: live-pulse 1.1s ease-in-out infinite;
+}
+
+/* ── left pane: 224px expanded ↔ 52px collapsed ───────────
+ * The copy leaves first and the rows narrow after it, so the icons stay put
+ * instead of re-centering twice. App-owned: this replaced the vendored
+ * SidebarNav stylesheet when the app stopped using that primitive. */
+.side-pane-row {
+  width: 208px;
+  transition: width 280ms var(--ease-link-css);
+}
+
+/* the header row stops short of the collapse control */
+.side-pane-row-head {
+  width: 164px;
+  transition: width 280ms var(--ease-link-css);
+}
+
+.side-pane-copy {
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    opacity 180ms ease-out,
+    transform 180ms var(--ease-link-css);
+}
+
+.side-pane-collapse,
+.side-pane-expand {
+  transition:
+    opacity 180ms ease-out,
+    background-color 150ms ease-out,
+    color 150ms ease-out;
+}
+
+.side-pane-expand {
+  opacity: 0;
+  pointer-events: none;
+}
+
+[data-side-pane="collapsed"] .side-pane-row,
+[data-side-pane="collapsed"] .side-pane-row-head {
+  width: 36px;
+}
+
+[data-side-pane="collapsed"] .side-pane-copy {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-8px);
+}
+
+[data-side-pane="collapsed"] .side-pane-collapse {
+  opacity: 0;
+  pointer-events: none;
+}
+
+[data-side-pane="collapsed"] .side-pane-expand {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@keyframes row-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(1px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes view-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.998);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+}
+
+/* Thin scrollbars for transcript and side panels. */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--line-strong) 80%, transparent);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--line-strong);
+  background-clip: content-box;
+}
+
+/* The vendored foundation dims scrollbars for the gallery; restore them here. */
+.records-scroll {
+  scrollbar-width: thin;
+}

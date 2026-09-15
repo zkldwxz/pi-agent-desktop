@@ -1,0 +1,295 @@
+{
+ "foundation": {
+  "type": "registry:style",
+  "deps": [],
+  "registryDeps": [],
+  "files": [
+   "app/beautifui/foundation.css -> app/beautifui/foundation.css"
+  ]
+ },
+ "button": {
+  "type": "registry:ui",
+  "deps": [
+   "class-variance-authority"
+  ],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json"
+  ],
+  "files": [
+   "components/atoms/Button.tsx -> components/atoms/Button.tsx"
+  ]
+ },
+ "glide-menu": {
+  "type": "registry:ui",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json"
+  ],
+  "files": [
+   "components/primitives/GlideMenu.tsx -> components/primitives/GlideMenu.tsx"
+  ]
+ },
+ "entity-chip": {
+  "type": "registry:ui",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json"
+  ],
+  "files": [
+   "components/atoms/EntityChip.tsx -> components/atoms/EntityChip.tsx"
+  ]
+ },
+ "value-pill": {
+  "type": "registry:ui",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json"
+  ],
+  "files": [
+   "components/atoms/ValuePill.tsx -> components/atoms/ValuePill.tsx"
+  ]
+ },
+ "shimmer": {
+  "type": "registry:ui",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json"
+  ],
+  "files": [
+   "components/atoms/Shimmer.tsx -> components/atoms/Shimmer.tsx"
+  ]
+ },
+ "stream-text": {
+  "type": "registry:ui",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json"
+  ],
+  "files": [
+   "components/atoms/StreamText.tsx -> components/atoms/StreamText.tsx"
+  ]
+ },
+ "loading-state": {
+  "type": "registry:component",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json"
+  ],
+  "files": [
+   "components/primitives/LoadingState.tsx -> components/primitives/LoadingState.tsx"
+  ]
+ },
+ "thinking-state": {
+  "type": "registry:component",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json"
+  ],
+  "files": [
+   "components/primitives/ThinkingState.tsx -> components/primitives/ThinkingState.tsx"
+  ]
+ },
+ "streaming-text": {
+  "type": "registry:component",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json"
+  ],
+  "files": [
+   "components/primitives/StreamingText.tsx -> components/primitives/StreamingText.tsx"
+  ]
+ },
+ "approval-card": {
+  "type": "registry:component",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json",
+   "https://www.beautifului.dev/r/button.json",
+   "https://www.beautifului.dev/r/glide-menu.json"
+  ],
+  "files": [
+   "components/primitives/ApprovalCard.tsx -> components/primitives/ApprovalCard.tsx"
+  ]
+ },
+ "tool-chips": {
+  "type": "registry:component",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json"
+  ],
+  "files": [
+   "components/primitives/ToolChips.tsx -> components/primitives/ToolChips.tsx"
+  ]
+ },
+ "task-rows": {
+  "type": "registry:component",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json"
+  ],
+  "files": [
+   "components/primitives/TaskRows.tsx -> components/primitives/TaskRows.tsx"
+  ]
+ },
+ "chat-composer": {
+  "type": "registry:component",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json"
+  ],
+  "files": [
+   "components/primitives/ChatComposer.tsx -> components/primitives/ChatComposer.tsx"
+  ]
+ },
+ "prompt-bar": {
+  "type": "registry:component",
+  "deps": [
+   "glimm"
+  ],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json"
+  ],
+  "files": [
+   "components/primitives/PromptBar.tsx -> components/primitives/PromptBar.tsx"
+  ]
+ },
+ "recommendation-card": {
+  "type": "registry:component",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json",
+   "https://www.beautifului.dev/r/button.json",
+   "https://www.beautifului.dev/r/entity-chip.json",
+   "https://www.beautifului.dev/r/value-pill.json"
+  ],
+  "files": [
+   "components/primitives/RecommendationCard.tsx -> components/primitives/RecommendationCard.tsx"
+  ]
+ },
+ "context-cards": {
+  "type": "registry:component",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json"
+  ],
+  "files": [
+   "components/primitives/ContextCards.tsx -> components/primitives/ContextCards.tsx"
+  ]
+ },
+ "diff-table": {
+  "type": "registry:component",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json",
+   "https://www.beautifului.dev/r/button.json"
+  ],
+  "files": [
+   "components/primitives/DiffTable.tsx -> components/primitives/DiffTable.tsx"
+  ]
+ },
+ "records-table": {
+  "type": "registry:component",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json",
+   "https://www.beautifului.dev/r/glide-menu.json"
+  ],
+  "files": [
+   "components/primitives/RecordsTable.tsx -> components/primitives/RecordsTable.tsx",
+   "app/beautifui/records-table.css -> app/beautifui/records-table.css"
+  ]
+ },
+ "filter-table": {
+  "type": "registry:component",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json"
+  ],
+  "files": [
+   "components/primitives/FilterTable.tsx -> components/primitives/FilterTable.tsx"
+  ]
+ },
+ "sidebar-nav": {
+  "type": "registry:component",
+  "deps": [
+   "@central-icons-react/round-outlined-radius-2-stroke-2"
+  ],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json",
+   "https://www.beautifului.dev/r/glide-menu.json"
+  ],
+  "files": [
+   "components/primitives/SidebarNav.tsx -> components/primitives/SidebarNav.tsx",
+   "app/beautifui/sidebar-nav.css -> app/beautifui/sidebar-nav.css"
+  ]
+ },
+ "search": {
+  "type": "registry:component",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json",
+   "https://www.beautifului.dev/r/glide-menu.json"
+  ],
+  "files": [
+   "components/primitives/SearchList.tsx -> components/primitives/SearchList.tsx"
+  ]
+ },
+ "flowchart": {
+  "type": "registry:component",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json"
+  ],
+  "files": [
+   "components/primitives/Flowchart.tsx -> components/primitives/Flowchart.tsx"
+  ]
+ },
+ "insight-cards": {
+  "type": "registry:component",
+  "deps": [
+   "liveline"
+  ],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json"
+  ],
+  "files": [
+   "components/primitives/InsightCards.tsx -> components/primitives/InsightCards.tsx"
+  ]
+ },
+ "code-block": {
+  "type": "registry:component",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json"
+  ],
+  "files": [
+   "components/primitives/CodeBlock.tsx -> components/primitives/CodeBlock.tsx"
+  ]
+ },
+ "fine-tune-card": {
+  "type": "registry:component",
+  "deps": [],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json",
+   "https://www.beautifului.dev/r/glide-menu.json"
+  ],
+  "files": [
+   "components/primitives/FineTuneCard.tsx -> components/primitives/FineTuneCard.tsx"
+  ]
+ },
+ "selection-actions": {
+  "type": "registry:component",
+  "deps": [
+   "iconoir-react"
+  ],
+  "registryDeps": [
+   "https://www.beautifului.dev/r/foundation.json",
+   "https://www.beautifului.dev/r/button.json",
+   "https://www.beautifului.dev/r/shimmer.json",
+   "https://www.beautifului.dev/r/stream-text.json"
+  ],
+  "files": [
+   "components/primitives/SelectionActions.tsx -> components/primitives/SelectionActions.tsx"
+  ]
+ }
+}

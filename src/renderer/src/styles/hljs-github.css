@@ -1,0 +1,208 @@
+/* ══════════════════════════════════════════════════════════
+ * CODE HIGHLIGHTING — GitHub, light + dark in one file
+ *
+ * Generated from highlight.js styles/github.css and styles/github-dark.css
+ * (MIT). The two themes key off the same `.hljs-*` classes, so they are scoped
+ * to coexist: light under :root, dark under .dark. The page-background rules
+ * are dropped — `CodeBlock` owns the surface, these tokens only colour text.
+ *
+ * Regenerate by re-running the transform rather than hand-editing colours.
+ * ══════════════════════════════════════════════════════════ */
+
+:root .hljs {
+  color: #24292e
+}
+
+:root .hljs-doctag,
+:root .hljs-keyword,
+:root .hljs-meta .hljs-keyword,
+:root .hljs-template-tag,
+:root .hljs-template-variable,
+:root .hljs-type,
+:root .hljs-variable.language_ {
+  color: #d73a49
+}
+
+:root .hljs-title,
+:root .hljs-title.class_,
+:root .hljs-title.class_.inherited__,
+:root .hljs-title.function_ {
+  color: #6f42c1
+}
+
+:root .hljs-attr,
+:root .hljs-attribute,
+:root .hljs-literal,
+:root .hljs-meta,
+:root .hljs-number,
+:root .hljs-operator,
+:root .hljs-variable,
+:root .hljs-selector-attr,
+:root .hljs-selector-class,
+:root .hljs-selector-id {
+  color: #005cc5
+}
+
+:root .hljs-regexp,
+:root .hljs-string,
+:root .hljs-meta .hljs-string {
+  color: #032f62
+}
+
+:root .hljs-built_in,
+:root .hljs-symbol {
+  color: #e36209
+}
+
+:root .hljs-comment,
+:root .hljs-code,
+:root .hljs-formula {
+  color: #6a737d
+}
+
+:root .hljs-name,
+:root .hljs-quote,
+:root .hljs-selector-tag,
+:root .hljs-selector-pseudo {
+  color: #22863a
+}
+
+:root .hljs-subst {
+  color: #24292e
+}
+
+:root .hljs-section {
+  color: #005cc5;
+  font-weight: bold
+}
+
+:root .hljs-bullet {
+  color: #735c0f
+}
+
+:root .hljs-emphasis {
+  color: #24292e;
+  font-style: italic
+}
+
+:root .hljs-strong {
+  color: #24292e;
+  font-weight: bold
+}
+
+:root .hljs-addition {
+  color: #22863a
+}
+
+:root .hljs-deletion {
+  color: #b31d28
+}
+
+:root .hljs-char.escape_,
+:root .hljs-link,
+:root .hljs-params,
+:root .hljs-property,
+:root .hljs-punctuation,
+:root .hljs-tag {
+  
+}
+
+/* ── dark ─────────────────────────────────────────────────── */
+
+.dark .hljs {
+  color: #c9d1d9
+}
+
+.dark .hljs-doctag,
+.dark .hljs-keyword,
+.dark .hljs-meta .hljs-keyword,
+.dark .hljs-template-tag,
+.dark .hljs-template-variable,
+.dark .hljs-type,
+.dark .hljs-variable.language_ {
+  color: #ff7b72
+}
+
+.dark .hljs-title,
+.dark .hljs-title.class_,
+.dark .hljs-title.class_.inherited__,
+.dark .hljs-title.function_ {
+  color: #d2a8ff
+}
+
+.dark .hljs-attr,
+.dark .hljs-attribute,
+.dark .hljs-literal,
+.dark .hljs-meta,
+.dark .hljs-number,
+.dark .hljs-operator,
+.dark .hljs-variable,
+.dark .hljs-selector-attr,
+.dark .hljs-selector-class,
+.dark .hljs-selector-id {
+  color: #79c0ff
+}
+
+.dark .hljs-regexp,
+.dark .hljs-string,
+.dark .hljs-meta .hljs-string {
+  color: #a5d6ff
+}
+
+.dark .hljs-built_in,
+.dark .hljs-symbol {
+  color: #ffa657
+}
+
+.dark .hljs-comment,
+.dark .hljs-code,
+.dark .hljs-formula {
+  color: #8b949e
+}
+
+.dark .hljs-name,
+.dark .hljs-quote,
+.dark .hljs-selector-tag,
+.dark .hljs-selector-pseudo {
+  color: #7ee787
+}
+
+.dark .hljs-subst {
+  color: #c9d1d9
+}
+
+.dark .hljs-section {
+  color: #1f6feb;
+  font-weight: bold
+}
+
+.dark .hljs-bullet {
+  color: #f2cc60
+}
+
+.dark .hljs-emphasis {
+  color: #c9d1d9;
+  font-style: italic
+}
+
+.dark .hljs-strong {
+  color: #c9d1d9;
+  font-weight: bold
+}
+
+.dark .hljs-addition {
+  color: #aff5b4
+}
+
+.dark .hljs-deletion {
+  color: #ffdcd7
+}
+
+.dark .hljs-char.escape_,
+.dark .hljs-link,
+.dark .hljs-params,
+.dark .hljs-property,
+.dark .hljs-punctuation,
+.dark .hljs-tag {
+  
+}
