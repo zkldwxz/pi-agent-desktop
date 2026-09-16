@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState, type ReactNode } from "react";
+import { Suspense, lazy, memo, useEffect, useState, type ReactNode } from "react";
 import type { ChatMessage, HostState } from "@shared/types";
 import type { FileEntry } from "@shared/workspace";
 import { cn } from "../../lib/cn";
@@ -62,7 +62,7 @@ function baseName(path: string): string {
  * strip that used to hold a second toggle against the window edge is gone, so
  * there is exactly one control for one panel.
  */
-export function ToolDock({
+export const ToolDock = memo(function ToolDock({
   state,
   open,
   onOpenChange,
@@ -94,6 +94,8 @@ export function ToolDock({
   /** the native browser view needs the whole window, so it leaves the dock */
   onOpenBrowser: () => void;
 }) {
+  // (the memo is what keeps a streaming answer from re-rendering this subtree
+  // on every token — its inputs are deferred by the app)
   const [showAll, setShowAll] = useState(false);
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const width = open ? (tool ? WIDTH_OPEN : WIDTH_COMPACT) : 0;
@@ -137,7 +139,7 @@ export function ToolDock({
         {open ? (
           <div key={tool ?? "compact"} className="view-enter flex min-h-0 flex-1 flex-col">
             {tool ? (
-              <header className="flex h-[38px] shrink-0 items-center gap-2 border-b border-line px-3">
+              <header className="flex h-[42px] shrink-0 items-center gap-2 border-b border-line px-3">
                 <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">
                   {TOOLS.find((entry) => entry.key === tool)?.label}
                 </span>
@@ -228,4 +230,4 @@ export function ToolDock({
           toggle against the window edge would be two controls for one panel. */}
     </aside>
   );
-}
+});

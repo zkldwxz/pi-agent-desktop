@@ -56,12 +56,26 @@ export function ModeToggle({
  * you recognise rather than read — each card paints its own page, surface and
  * ink so the difference is visible before you commit to it.
  */
+const SCALE_OPTIONS = [
+  { value: 0.8, label: "80%", desc: "Ultra" },
+  { value: 0.85, label: "85%", desc: "Compact" },
+  { value: 0.9, label: "90%", desc: "2K/4K pick" },
+  { value: 0.95, label: "95%", desc: "Slightly tight" },
+  { value: 1.0, label: "100%", desc: "Default" },
+  { value: 1.1, label: "110%", desc: "Large" },
+  { value: 1.25, label: "125%", desc: "XL" },
+];
+
 export function AppearanceSection({
   mode,
   onMode,
+  zoomFactor = 1.0,
+  onZoomFactor,
 }: {
   mode: ColorMode;
   onMode: (mode: ColorMode) => void;
+  zoomFactor?: number;
+  onZoomFactor?: (factor: number) => void;
 }) {
   return (
     <section className="flex flex-col gap-2">
@@ -110,6 +124,34 @@ export function AppearanceSection({
           );
         })}
       </div>
+
+      {onZoomFactor ? (
+        <div className="mt-4 flex flex-col gap-2">
+          <div className="flex items-baseline justify-between px-0.5">
+            <h2 className="text-[12.5px] font-medium text-ink">Interface scale</h2>
+            <span className="text-[11px] text-ink-3">Ctrl + / Ctrl - to adjust, Ctrl 0 to reset</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+            {SCALE_OPTIONS.map((opt) => {
+              const active = Math.abs(opt.value - zoomFactor) < 0.02;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => onZoomFactor(opt.value)}
+                  className={cn(
+                    "pressable flex flex-col items-center justify-center gap-0.5 rounded-[8px] p-2 text-center shadow-hairline",
+                    active ? "bg-ink font-medium text-canvas" : "bg-surface text-ink-2 hover:bg-hover",
+                  )}
+                >
+                  <span className="text-[12.5px]">{opt.label}</span>
+                  <span className={cn("text-[9.5px]", active ? "text-canvas/75" : "text-ink-3")}>{opt.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

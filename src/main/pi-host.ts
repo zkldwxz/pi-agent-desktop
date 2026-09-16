@@ -1,3 +1,5 @@
+import { existsSync, readdirSync, rmSync } from "node:fs";
+import { dirname } from "node:path";
 import {
   type ExtensionAPI,
   AgentSession,
@@ -409,6 +411,42 @@ export class PiHost {
     } catch {
       return this.sessions;
     }
+  }
+
+  /** Delete all session files belonging to a workspace, removing it from history. */
+  async deleteWorkspace(workspaceCwd: string): Promise<void> {
+    const normalized = workspaceCwd.replace(/[\\/]+$/, "").replace(/\\/g, "/");
+    const all = await SessionManager.listAll();
+    const matches = all.filter((s) => {
+      const c = (s.cwd || "").replace(/[\\/]+$/, "").replace(/\\/g, "/");
+      return c === normalized;
+    });
+    const dirSet = new Set<string>();
+    for (const s of matches) {
+      if (s.path && existsSync(s.path)) {
+        try {
+          rmSync(s.path, { force: true });
+        } catch {
+          /* ignore deletion error */
+        }
+        dirSet.add(dirname(s.path));
+      }
+    }
+    for (const dir of dirSet) {
+      try {
+        if (existsSync(dir) && readdirSync(dir).length === 0) {
+          rmSync(dir, { recursive: true, force: true });
+        }
+      } catch {
+        /* ignore directory removal error */
+      }
+    }
+    const currentNorm = this.cwd.replace(/[\\/]+$/, "").replace(/\\/g, "/");
+    if (currentNorm === normalized) {
+      await this.newSession();
+    }
+    await this.refreshSessions();
+    this.emit();
   }
 
   /** Tool names the session exposes — used to confirm extensions registered. */

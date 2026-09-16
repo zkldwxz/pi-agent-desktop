@@ -213,6 +213,9 @@ function registerIpc(): void {
   });
 
   ipcMain.handle("pi:listAllSessions", async () => (await host?.allSessions()) ?? []);
+  ipcMain.handle("pi:deleteWorkspace", async (_event, cwd: string) => {
+    await host?.deleteWorkspace(cwd);
+  });
 
   /** Sizes of what is filling the context window, for the model menu. */
   ipcMain.handle("pi:contextBreakdown", () => host?.contextBreakdown() ?? { parts: [], used: null, contextWindow: 0, percent: null });

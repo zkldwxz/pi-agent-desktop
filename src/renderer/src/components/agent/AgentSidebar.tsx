@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { HostState, SessionListItem } from "@shared/types";
 import {
@@ -21,10 +21,13 @@ import { WorkspaceList, type WorkspacePrefs } from "./WorkspaceList";
 const PREFS_KEY = "pi-workspace-prefs";
 const RENAME_KEY = "pi-workspace-names";
 const READ_KEY = "pi-workspace-read";
+const SIDEBAR_WIDTH_KEY = "pi-sidebar-width";
 
 const DEFAULT_PREFS: WorkspacePrefs = { group: "workspace", order: "recent", show: 3, statusFilter: "all" };
 
-const WIDTH_EXPANDED = 232;
+const DEFAULT_SIDEBAR_WIDTH = 232;
+const MIN_SIDEBAR_WIDTH = 180;
+const MAX_SIDEBAR_WIDTH = 480;
 const WIDTH_COLLAPSED = 52;
 
 /** Views this pane can reach. Browser and usage live inside Customize / Settings. */
@@ -70,7 +73,7 @@ function RailRow({
       hint={hint}
       active={active}
       onClick={onClick}
-      className="side-pane-row"
+      className="side-pane-row h-8.5"
       copyClassName="side-pane-copy"
     />
   );
@@ -104,6 +107,7 @@ export function AgentSidebar({
   onSelect,
   onPickCwd,
   onSearch,
+  onNewInWorkspace,
 }: {
   state: HostState;
   view: SidebarView;
@@ -112,6 +116,7 @@ export function AgentSidebar({
   onSelect: (path: string) => void;
   onPickCwd: () => void;
   onSearch: () => void;
+  onNewInWorkspace?: (cwd: string) => void;
 }) {
   const [all, setAll] = useState<SessionListItem[]>(state.sessions);
   const [prefs, setPrefs] = useState<WorkspacePrefs>(() => load(PREFS_KEY, DEFAULT_PREFS));
@@ -121,6 +126,55 @@ export function AgentSidebar({
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuAt, setMenuAt] = useState({ top: 0, left: 0 });
   const switcherRef = useRef<HTMLButtonElement>(null);
+
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    const loaded = load(SIDEBAR_WIDTH_KEY, DEFAULT_SIDEBAR_WIDTH);
+    return typeof loaded === "number" && !isNaN(loaded)
+      ? Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, loaded))
+      : DEFAULT_SIDEBAR_WIDTH;
+  });
+  const [isResizing, setIsResizing] = useState(false);
+
+  // while dragging, lock the cursor and kill text selection app-wide
+  useEffect(() => {
+    if (!isResizing) return;
+    const { cursor, userSelect } = document.body.style;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    return () => {
+      document.body.style.cursor = cursor;
+      document.body.style.userSelect = userSelect;
+    };
+  }, [isResizing]);
+
+  const onStartResize = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      if (collapsed) return;
+      setIsResizing(true);
+      const startX = e.clientX;
+      const startWidth = sidebarWidth;
+
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        const delta = moveEvent.clientX - startX;
+        const next = Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, startWidth + delta));
+        setSidebarWidth(next);
+      };
+
+      const onMouseUp = (upEvent: MouseEvent) => {
+        window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("mouseup", onMouseUp);
+        setIsResizing(false);
+        const delta = upEvent.clientX - startX;
+        const finalWidth = Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, startWidth + delta));
+        localStorage.setItem(SIDEBAR_WIDTH_KEY, JSON.stringify(finalWidth));
+      };
+
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+    },
+    [collapsed, sidebarWidth],
+  );
 
   // one fetch for every project's sessions; grouping by workspace needs them all
   useEffect(() => {
@@ -182,15 +236,17 @@ export function AgentSidebar({
     <aside
       data-side-pane={collapsed ? "collapsed" : "open"}
       aria-label="Sessions"
-      className="relative flex h-full shrink-0 flex-col overflow-hidden border-r border-line bg-canvas"
+      className="relative flex h-full shrink-0 flex-col overflow-hidden border-r border-line bg-canvas select-none"
       style={{
-        width: collapsed ? WIDTH_COLLAPSED : WIDTH_EXPANDED,
-        transition: "width 280ms cubic-bezier(0.16, 1, 0.3, 1)",
+        width: collapsed ? WIDTH_COLLAPSED : sidebarWidth,
+        transition: isResizing ? "none" : "width 280ms cubic-bezier(0.16, 1, 0.3, 1)",
       }}
     >
       <div className="flex min-h-0 flex-1 flex-col">
-        {/* project row — the switcher opens a list of this machine's folders */}
-        <div className="relative mb-1 h-10 shrink-0">
+        {/* project row — the switcher opens a list of this machine's folders.
+            Its 42px height and bottom hairline continue the chat header's rule
+            across the window instead of the line stopping at the pane edge. */}
+        <div className="relative h-[42px] shrink-0 border-b border-line">
           <button
             ref={switcherRef}
             type="button"
@@ -203,7 +259,7 @@ export function AgentSidebar({
               setMenuOpen((open) => !open);
             }}
             title={`${workspace.name} — switch project`}
-            className="side-pane-row side-pane-row-head absolute left-2 top-1 flex h-8 items-center rounded-[8px] px-1.5 text-left transition-[background-color] duration-100 hover:bg-hover-2"
+            className="side-pane-row side-pane-row-head absolute left-2 top-[5px] flex h-8 items-center rounded-[8px] px-1.5 text-left transition-[background-color] duration-100 hover:bg-hover-2"
           >
             <span className="flex size-5 shrink-0 items-center justify-center rounded-[5px] bg-field text-[9.5px] font-semibold text-ink-2">
               {workspace.monogram}
@@ -222,7 +278,7 @@ export function AgentSidebar({
             aria-hidden={collapsed}
             tabIndex={collapsed ? -1 : 0}
             onClick={() => setCollapsed(true)}
-            className="side-pane-collapse absolute right-2 top-1 flex size-8 items-center justify-center rounded-[8px] text-ink-3 transition-[opacity,background-color,color] duration-150 hover:bg-hover-2 hover:text-ink"
+            className="side-pane-collapse absolute right-2 top-[5px] flex size-8 items-center justify-center rounded-[8px] text-ink-3 transition-[opacity,background-color,color] duration-150 hover:bg-hover-2 hover:text-ink"
           >
             <PanelLeftIcon size={16} />
           </button>
@@ -233,14 +289,14 @@ export function AgentSidebar({
             aria-hidden={!collapsed}
             tabIndex={collapsed ? 0 : -1}
             onClick={() => setCollapsed(false)}
-            className="side-pane-expand absolute left-2 top-1 flex size-8 items-center justify-center rounded-[8px] text-ink-3 transition-[opacity,background-color,color] duration-150 hover:bg-hover-2 hover:text-ink"
+            className="side-pane-expand absolute left-2 top-[5px] flex size-8 items-center justify-center rounded-[8px] text-ink-3 transition-[opacity,background-color,color] duration-150 hover:bg-hover-2 hover:text-ink"
           >
             <PanelLeftIcon size={16} className="rotate-180" />
           </button>
         </div>
 
         {/* views — this row of five is what the icon rail used to be */}
-        <div className="flex flex-col gap-px px-2 pt-0.5">
+        <div className="flex flex-col gap-1 px-2 pt-2">
           <RailRow icon={<EditIcon size={16} />} label="New Agent" onClick={onNew} />
           <RailRow
             icon={<HomeIcon size={16} />}
@@ -263,7 +319,7 @@ export function AgentSidebar({
           />
         </div>
 
-        <div className="mt-3 flex min-h-0 flex-1 flex-col">
+        <div className="mt-3.5 flex min-h-0 flex-1 flex-col border-t border-line/60 pt-1.5">
           <WorkspaceList
             sessions={all}
             prefs={prefs}
@@ -277,11 +333,12 @@ export function AgentSidebar({
             onSelect={openSession}
             onRename={(key, label) => setRenamed((current) => ({ ...current, [key]: label }))}
             onAddFolder={onPickCwd}
+            onNewInWorkspace={onNewInWorkspace}
           />
         </div>
 
         {/* account */}
-        <div className="side-pane-copy flex w-[216px] shrink-0 items-center gap-2 border-t border-line px-2.5 py-2">
+        <div className="side-pane-copy flex w-full shrink-0 items-center gap-2 border-t border-line px-3 py-2.5">
           <div className="flex size-[22px] shrink-0 items-center justify-center rounded-full bg-ink text-[9px] font-semibold text-canvas">
             PI
           </div>
@@ -299,6 +356,27 @@ export function AgentSidebar({
           </button>
         </div>
       </div>
+
+      {/* resizer handle */}
+      {!collapsed ? (
+        <div
+          onMouseDown={onStartResize}
+          onDoubleClick={() => {
+            setSidebarWidth(DEFAULT_SIDEBAR_WIDTH);
+            localStorage.setItem(SIDEBAR_WIDTH_KEY, JSON.stringify(DEFAULT_SIDEBAR_WIDTH));
+          }}
+          title="Drag to resize, double-click to reset"
+          className="group/resizer absolute inset-y-0 right-0 z-30 w-1.5 cursor-col-resize"
+        >
+          {/* one 1px line that appears on hover — not a painted strip plus a bar */}
+          <div
+            className={cn(
+              "mx-auto h-full w-px transition-colors duration-150",
+              isResizing ? "bg-accent" : "bg-transparent group-hover/resizer:bg-accent/50",
+            )}
+          />
+        </div>
+      ) : null}
 
       {menuOpen
         ? createPortal(

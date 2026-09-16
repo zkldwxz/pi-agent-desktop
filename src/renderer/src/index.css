@@ -232,13 +232,13 @@ body {
  * instead of re-centering twice. App-owned: this replaced the vendored
  * SidebarNav stylesheet when the app stopped using that primitive. */
 .side-pane-row {
-  width: 208px;
+  width: 100%;
   transition: width 280ms var(--ease-link-css);
 }
 
 /* the header row stops short of the collapse control */
 .side-pane-row-head {
-  width: 164px;
+  width: calc(100% - 46px);
   transition: width 280ms var(--ease-link-css);
 }
 
@@ -346,6 +346,13 @@ body {
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
+}
+
+/* Crisp text reveal: eliminate GPU-heavy blur & gradient masks */
+.stream-tail {
+  filter: none !important;
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
 }
 
 .scrollbar-thin::-webkit-scrollbar {

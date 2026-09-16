@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ChatMessage } from "@shared/types";
-import { buildTurns, type DiffLine } from "../../lib/agent-view";
+import { buildTurns, toolSignature, type DiffLine, type TurnView } from "../../lib/agent-view";
 import { cn } from "../../lib/cn";
 import { ChevronDownIcon, FilePenIcon } from "../icons";
 
@@ -15,9 +15,9 @@ export interface ChangeEntry {
 }
 
 /** Every file this session wrote to, with its line delta and its diff hunks. */
-export function collectChanges(messages: ChatMessage[]): ChangeEntry[] {
+export function collectChanges(turns: TurnView[]): ChangeEntry[] {
   const byFile = new Map<string, ChangeEntry>();
-  for (const turn of buildTurns(messages, [])) {
+  for (const turn of turns) {
     for (const run of turn.toolRuns) {
       if (run.icon !== "write") continue;
       // a path-less edit still needs a unique row label
@@ -71,7 +71,11 @@ export function ChangesPanel({
   activeFile?: string;
   onOpen: (change: ChangeEntry) => void;
 }) {
-  const changes = useMemo(() => collectChanges(messages), [messages]);
+  const turns = useMemo(() => buildTurns(messages, []), [messages]);
+  // the edits only move when a tool call lands — a streaming answer must not
+  // re-render this panel, so the memo keys on the work signature instead
+  const signature = toolSignature(turns);
+  const changes = useMemo(() => collectChanges(turns), [signature]); // eslint-disable-line react-hooks/exhaustive-deps
   const totals = useMemo(
     () => changes.reduce((acc, change) => ({ add: acc.add + change.add, del: acc.del + change.del }), { add: 0, del: 0 }),
     [changes],

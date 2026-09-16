@@ -58,7 +58,7 @@ export function SessionOutline({
               </span>
               <span className="min-w-0 flex-1">
                 <span className={cn("block truncate text-[12px]", active ? "font-medium text-ink" : "text-ink-2")}>
-                  {turn.prompt || turn.fullText.split("\n")[0] || "Session start"}
+                  {turn.prompt || turn.lead.split("\n")[0] || "Session start"}
                 </span>
                 <span className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] text-ink-3">
                   {running ? (

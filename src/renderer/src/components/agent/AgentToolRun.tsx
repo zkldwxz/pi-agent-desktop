@@ -5,7 +5,7 @@ import ToolChips, {
   type ToolStep,
 } from "../beautiful/primitives/ToolChips";
 import { LoaderIcon } from "../icons";
-import { buildToolGroups, type ToolGroupView, type ToolRun, type TurnView } from "../../lib/agent-view";
+import { groupRuns, type ToolGroupView, type ToolRun } from "../../lib/agent-view";
 
 /**
  * The tool run, as one summary row per kind of work.
@@ -17,8 +17,8 @@ import { buildToolGroups, type ToolGroupView, type ToolRun, type TurnView } from
  * run settles and expands on click; inside it each call is still an expandable
  * row, and the edit group still carries its file-diff chips and hover preview.
  */
-export function AgentToolRun({ turn }: { turn: TurnView }) {
-  const groups = useMemo(() => buildToolGroups(turn), [turn]);
+export function AgentToolRun({ runs }: { runs: ToolRun[] }) {
+  const groups = useMemo(() => groupRuns(runs), [runs]);
   if (!groups.length) return null;
 
   return (

@@ -38,8 +38,8 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <Card index={index}>
-      <div className="border-b border-line px-3 py-2 text-[12.5px] font-medium text-ink">{title}</div>
+    <Card index={index} className="overflow-hidden">
+      <div className="border-b border-line px-4 py-3 text-[13px] font-medium text-ink">{title}</div>
       <GlideList rowSelector="[data-row]" highlightClassName="bg-hover" radius={6}>
         {children}
       </GlideList>
@@ -59,13 +59,13 @@ function Row({
   return (
     <div
       data-row
-      className="relative z-10 flex items-center gap-3 border-b border-line px-3 py-2.5 last:border-0"
+      className="relative z-10 flex items-center gap-4 border-b border-line px-4 py-3.5 last:border-0"
     >
       <div className="min-w-0 flex-1">
         <div className="text-[12.5px] text-ink">{title}</div>
-        {hint ? <div className="truncate text-[10.5px] text-ink-3">{hint}</div> : null}
+        {hint ? <div className="mt-0.5 truncate text-[11px] text-ink-3">{hint}</div> : null}
       </div>
-      <div className="flex shrink-0 items-center gap-1.5">{children}</div>
+      <div className="flex shrink-0 items-center gap-2">{children}</div>
     </div>
   );
 }
@@ -155,6 +155,8 @@ export function SettingsView({
   state,
   colorMode,
   onColorMode,
+  zoomFactor,
+  onZoomFactor,
   onUpdate,
   onReload,
   onBack,
@@ -168,6 +170,8 @@ export function SettingsView({
   state: HostState;
   colorMode: ColorMode;
   onColorMode: (mode: ColorMode) => void;
+  zoomFactor?: number;
+  onZoomFactor?: (factor: number) => void;
   onUpdate: (patch: Partial<RuntimeSettings>) => void;
   onReload: () => void;
   /** leave settings and return to the conversation */
@@ -211,20 +215,20 @@ export function SettingsView({
           height of the window because settings *is* this rail: the session
           pane stands down for this view rather than the app opening a small
           settings panel inside the agent shell. */}
-      <nav className="flex w-[232px] shrink-0 flex-col border-r border-line bg-canvas">
+      <nav className="flex w-[248px] shrink-0 flex-col border-r border-line bg-canvas">
         {/* Back: settings is a place you enter from the shell, so the first thing
             in the rail is the way out of it rather than a category. */}
-        <div className="shrink-0 px-2 pt-2">
+        <div className="shrink-0 px-3 pt-3.5 pb-1">
           <NavRow
             icon={<ArrowLeftIcon size={15} />}
             label="Back"
             onClick={onBack}
-            className="text-ink-2"
+            className="h-8.5 text-ink-2"
             data-nav-back
           />
         </div>
-        <div className="shrink-0 p-2">
-          <label className="flex h-8 items-center gap-1.5 rounded-[7px] bg-surface px-2 shadow-hairline transition-shadow duration-150 focus-within:shadow-btn">
+        <div className="shrink-0 px-3 py-2">
+          <label className="flex h-8.5 items-center gap-2 rounded-[8px] bg-surface px-2.5 shadow-hairline transition-shadow duration-150 focus-within:shadow-btn">
             <SearchIcon size={13} className="shrink-0 text-ink-3" />
             <input
               value={query}
@@ -249,15 +253,15 @@ export function SettingsView({
             </label>
           </div>
 
-          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-3 pb-3">
             {groups.map((group, groupIndex) => (
               <div key={group.label ?? "top"}>
                 {group.label ? (
-                  <div className="px-2 pt-3 pb-1 text-[10.5px] tracking-[0.4px] text-ink-3">{group.label}</div>
+                  <div className="px-2 pt-4 pb-1.5 text-[10.5px] font-medium tracking-[0.4px] text-ink-3 uppercase">{group.label}</div>
                 ) : (
-                  groupIndex > 0 && <div className="pt-1" />
+                  groupIndex > 0 && <div className="pt-2" />
                 )}
-                <GlideList rowSelector="[data-cat]" highlightClassName="bg-hover-2" radius={7}>
+                <GlideList rowSelector="[data-cat]" highlightClassName="bg-hover-2" radius={7} className="flex flex-col gap-1">
                   {group.items.map((entry) => {
                     const active = category === entry.key;
                     return (
@@ -268,12 +272,13 @@ export function SettingsView({
                         active={active}
                         icon={entry.icon}
                         label={entry.label}
+                        className="h-8.5"
                         onClick={() => setCategory(entry.key)}
                       />
                     );
                   })}
                 </GlideList>
-                {groupIndex < groups.length - 1 ? <div className="my-1.5 h-px bg-line" /> : null}
+                {groupIndex < groups.length - 1 ? <div className="my-2.5 h-px bg-line/80" /> : null}
               </div>
             ))}
             {!groups.length ? (
@@ -284,12 +289,13 @@ export function SettingsView({
 
             {/* the reference's trailing external row: jump to the files behind
                 these settings */}
-            <div className="my-1.5 h-px bg-line" />
+            <div className="my-2.5 h-px bg-line/80" />
             <NavRow
               icon={<FilePenIcon size={13} />}
               label="Transcript"
               disabled={!sessionFile}
               title={sessionFile ?? "No session file yet"}
+              className="h-8.5"
               onClick={() => sessionFile && void window.pi.showItem(sessionFile)}
               trailing={
                 <svg
@@ -327,10 +333,10 @@ export function SettingsView({
           <div key={category} className="view-enter scrollbar-thin min-h-0 flex-1 overflow-y-auto">
           {/* the usage dashboards own the full width — charts and tables do not
               read well squeezed into the settings column */}
-          <div className={cn("mx-auto flex w-full flex-col gap-3 p-4", category === "usage" ? "max-w-[1100px]" : "max-w-[720px]")}>
+          <div className={cn("mx-auto flex w-full flex-col gap-6 p-6", category === "usage" ? "max-w-[1100px]" : "max-w-[760px]")}>
           {category === "appearance" ? (
-          <div className="flex flex-col gap-5">
-            <AppearanceSection mode={colorMode} onMode={onColorMode} />
+          <div className="flex flex-col gap-6">
+            <AppearanceSection mode={colorMode} onMode={onColorMode} zoomFactor={zoomFactor} onZoomFactor={onZoomFactor} />
 
             {/* reserved: accent themes are not built yet */}
             <section className="flex flex-col gap-2">

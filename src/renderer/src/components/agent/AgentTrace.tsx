@@ -1,36 +1,39 @@
 import ThinkingState from "../beautiful/primitives/ThinkingState";
-import type { TurnView } from "../../lib/agent-view";
-import { traceLabel, traceRows } from "../../lib/agent-view";
 
 /**
- * The agent's reasoning trace.
+ * One reasoning beat of the turn.
  *
- * This is the *thinking* only: `ThinkingState`'s Reasoning variant, one row per
- * reasoning paragraph. The tool calls the agent made are not repeated here — they
- * are bucketed into summary rows by `AgentToolRun` below, which is what stopped
- * the transcript from printing every `Read` twice.
- *
- * While the agent is reasoning the trace is open and its header shimmers; the
- * moment it settles the header becomes a one-line label ("Thought") and the rows
- * collapse, so a finished turn leads with the answer.
+ * A turn can think several times — before the first tool call, between calls,
+ * before the answer — and each beat renders as its own trace in the position
+ * it happened, rather than every paragraph concatenated into one block at the
+ * top. While the beat is the live one the header shimmers; once the turn moves
+ * past it the header settles to "Thought" and the rows collapse.
  */
-export function AgentTrace({ turn }: { turn: TurnView }) {
-  if (!turn.traceVariant) return null;
-
-  const rows = traceRows(turn);
+export function AgentTrace({
+  text,
+  working,
+}: {
+  text: string;
+  /** true only for the beat the agent is currently producing */
+  working: boolean;
+}) {
+  const rows = text
+    .split(/\n{2,}/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .slice(0, 6)
+    .map((primary, index) => ({ id: `reason-${index}`, primary }));
   if (!rows.length) return null;
-
-  const label = traceLabel(turn.traceVariant, turn.streaming, rows.length);
 
   return (
     <div className="w-full max-w-[560px]">
       <ThinkingState
-        variant={turn.traceVariant}
+        variant="Reasoning"
         rows={rows}
-        active={label.active}
-        done={label.done}
+        active="Thinking"
+        done={working ? "Thinking" : "Thought"}
         instant
-        working={turn.streaming}
+        working={working}
       />
     </div>
   );

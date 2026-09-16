@@ -47,6 +47,19 @@ export interface DiffLine {
 
 export type TraceVariant = "Steps" | "Reasoning" | "Search" | "Coding";
 
+/**
+ * One beat of a turn, in the order the agent actually produced it.
+ *
+ * The aggregated fields below (`thinking`, `toolRuns`, `fullText`) are what the
+ * panels summarise; the transcript renders `items` instead, so a turn reads
+ * thought → search → thought → edit → answer in the order it happened rather
+ * than all thinking first and all text last.
+ */
+export type TurnItem =
+  | { kind: "thinking"; key: string; text: string }
+  | { kind: "tools"; key: string; runs: ToolRun[] }
+  | { kind: "text"; key: string; text: string };
+
 /** How a run is bucketed into a summary row. */
 export type ToolBucket = "explore" | "edit" | "other";
 
@@ -80,13 +93,13 @@ export interface TurnView {
   timestamp: number;
   /** user prompt */
   prompt?: string;
-  /** assistant segments (prose + code fences) */
-  segments: TextSegment[];
-  /** assistant plain text, used for the streaming pass */
+  /** assistant plain text, aggregated across the turn — panels summarise this */
   fullText: string;
-  thinking: string;
   toolRuns: ToolRun[];
-  traceVariant: TraceVariant | null;
+  /** the turn in production order — what the transcript renders */
+  items: TurnItem[];
+  /** the turn's opening prose, kept for outline rows and canvas captions */
+  lead: string;
   sources: { name: string; domain: string; href: string; image: string }[];
   followUps: string[];
   streaming: boolean;
@@ -140,6 +153,13 @@ function truncate(value: string, max = 64): string {
  * change at line 35 is numbered 35 and not "wherever the previous hunk ended".
  */
 export function parseUnifiedDiff(
+  patch: string,
+  limit = 60,
+): { lines: DiffLine[]; add: number; del: number } {
+  return parseDiff(patch, limit);
+}
+
+function parseDiff(
   patch: string,
   limit = 60,
 ): { lines: DiffLine[]; add: number; del: number } {
@@ -246,7 +266,9 @@ export function buildToolRun(
       run.chip = file ? baseName(file) : "(no path)";
       const patch = typeof meta.patch === "string" ? meta.patch : typeof meta.diff === "string" ? meta.diff : "";
       if (patch) {
-        const parsed = parseUnifiedDiff(patch, 40);
+        // every token rebuilds every run; the patch itself never changes,
+        // so the parse is memoized on the patch text
+        const parsed = parseDiffCached(patch);
         run.diffLines = parsed.lines;
         run.add = parsed.add;
         run.del = parsed.del;
@@ -319,14 +341,6 @@ export function buildLiveToolRun(activity: ToolActivity): ToolRun {
   );
 }
 
-function thinkingVariant(thinking: string): TraceVariant | null {
-  // The trace carries the *thinking*, and nothing else. Tool calls used to be
-  // listed here as well (Coding / Steps / Search rows), which printed the same
-  // Read / Edit / Run rows a second time — once in the trace and again in the
-  // tool run below it. Those rows now live in `buildToolGroups`, collapsed.
-  return thinking.trim() ? "Reasoning" : null;
-}
-
 const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
 
 /** Which summary row a call belongs to: file edits, exploration, or anything else. */
@@ -350,9 +364,14 @@ function bucketOf(run: ToolRun): ToolBucket {
  * group does not recognise counts calls.
  */
 export function buildToolGroups(turn: TurnView): ToolGroupView[] {
+  return groupRuns(turn.toolRuns);
+}
+
+/** Group one run of consecutive calls — see `buildToolGroups`. */
+export function groupRuns(runs: ToolRun[]): ToolGroupView[] {
   const groups: ToolGroupView[] = [];
 
-  for (const run of turn.toolRuns) {
+  for (const run of runs) {
     const bucket = bucketOf(run);
     const last = groups.at(-1);
     if (last && last.bucket === bucket) {
@@ -420,34 +439,6 @@ function groupLabel(group: ToolGroupView): string {
   return `Explored · ${parts.join(", ")}`;
 }
 
-/** Rows for the ThinkingState trace — the reasoning prose, nothing else. */
-export function traceRows(turn: TurnView): { id?: string; primary: string; secondary?: string; mono?: boolean; add?: number; del?: number; href?: string }[] {
-  if (turn.traceVariant === "Reasoning") {
-    return turn.thinking
-      .split(/\n{2,}/)
-      .map((line) => line.replace(/\s+/g, " ").trim())
-      .filter(Boolean)
-      .slice(0, 6)
-      .map((primary, index) => ({ id: `reason-${index}`, primary }));
-  }
-  if (turn.traceVariant === "Search") {
-    return turn.sources.map((source) => ({
-      id: source.domain,
-      primary: source.name,
-      secondary: source.domain,
-      href: source.href,
-    }));
-  }
-  return turn.toolRuns.map((run) => ({
-    id: run.toolCallId || `${run.toolName}-${run.chip}`,
-    primary: run.label,
-    secondary: run.chip,
-    mono: run.mono,
-    add: run.add,
-    del: run.del,
-  }));
-}
-
 const FENCE = /```([a-zA-Z0-9+-]*)\n([\s\S]*?)(?:```|$)/g;
 
 /**
@@ -459,6 +450,10 @@ const FENCE = /```([a-zA-Z0-9+-]*)\n([\s\S]*?)(?:```|$)/g;
  * message a hit. Measured on a 600-message session at 60 tok/s, this takes the
  * per-token cost from ~3.7ms to ~0.11ms.
  */
+/** Patch text → parsed diff. The transcript rebuilds runs on every token and
+ *  a session can carry hundreds of hunks; the patch is immutable, so parse once. */
+const parseDiffCached = memoizeByInput((patch: string) => parseDiff(patch, 40), 300);
+
 function memoizeByInput<T>(compute: (input: string) => T, limit = 400): (input: string) => T {
   const cache = new Map<string, T>();
   return (input: string) => {
@@ -547,10 +542,72 @@ function harvestSources(text: string | undefined): TurnView["sources"] {
  * Group the flat message log into conversational turns.
  * A turn is one user prompt plus everything the agent produced for it.
  */
+/**
+ * Cache on the message log itself.
+ *
+ * Every derived view in the shell reads the same log — the transcript, the
+ * composer, the changes list, the canvas, the outline, the next-step card —
+ * and each used to re-parse the whole conversation on every streamed token.
+ * The state array's identity is stable between updates, so one cache keyed on
+ * it (plus the live-activity array) collapses all of those rebuilds into one,
+ * and skips the rebuild entirely for updates that did not touch the log.
+ */
+const turnsCache = new WeakMap<ChatMessage[], Map<ToolActivity[] | null, TurnView[]>>();
+
 export function buildTurns(messages: ChatMessage[], live: ToolActivity[]): TurnView[] {
+  let byLive = turnsCache.get(messages);
+  if (!byLive) {
+    byLive = new Map();
+    turnsCache.set(messages, byLive);
+  }
+  const key = live.length ? live : null;
+  const hit = byLive.get(key);
+  if (hit) return hit;
+  const built = buildTurnsUncached(messages, live);
+  byLive.set(key, built);
+  return built;
+}
+
+/**
+ * A cheap content signature of the *work* in a turn log — the tool calls and
+ * their results, not the prose. The changes, canvas and task panels derive
+ * from this and only from this, so keying their memos on it means a streaming
+ * answer (pure text) no longer re-renders them at all.
+ */
+export function toolSignature(turns: TurnView[]): string {
+  let out = String(turns.length);
+  for (const turn of turns) {
+    // whether a turn has spoken at all matters to the canvas caption; it flips
+    // once per turn, not once per token
+    out += `|${turn.toolRuns.length}${turn.fullText ? "t" : "-"}`;
+    for (const run of turn.toolRuns) {
+      out += `${run.status === "running" ? "r" : run.status === "error" ? "e" : "d"}${run.add ?? ""}.${run.del ?? ""}`;
+    }
+  }
+  return out;
+}
+
+function buildTurnsUncached(messages: ChatMessage[], live: ToolActivity[]): TurnView[] {
   const turns: TurnView[] = [];
   let current: TurnView | null = null;
   const runsById = new Map<string, ToolRun>();
+
+  /** Append one beat to the turn's timeline, merging with the previous beat
+   *  when it is the same kind — consecutive tool calls stay one group. */
+  const appendItem = (turn: TurnView, item: TurnItem): void => {
+    const last = turn.items.at(-1);
+    if (last && last.kind === item.kind) {
+      if (last.kind === "thinking" && item.kind === "thinking") {
+        last.text = last.text ? `${last.text}\n\n${item.text}` : item.text;
+      } else if (last.kind === "text" && item.kind === "text") {
+        last.text = last.text ? `${last.text}\n${item.text}` : item.text;
+      } else if (last.kind === "tools" && item.kind === "tools") {
+        last.runs.push(...item.runs);
+      }
+      return;
+    }
+    turn.items.push(item);
+  };
 
   // a turn's fork address is the count of prompts before it
   let promptCount = 0;
@@ -560,11 +617,10 @@ export function buildTurns(messages: ChatMessage[], live: ToolActivity[]): TurnV
       key,
       userIndex: Math.max(0, promptCount - 1),
       timestamp,
-      segments: [],
       fullText: "",
-      thinking: "",
       toolRuns: [],
-      traceVariant: null,
+      items: [],
+      lead: "",
       sources: [],
       followUps: [],
       streaming: false,
@@ -581,11 +637,10 @@ export function buildTurns(messages: ChatMessage[], live: ToolActivity[]): TurnV
         userIndex: promptCount,
         timestamp: message.timestamp,
         prompt: message.text,
-        segments: [],
         fullText: "",
-        thinking: "",
         toolRuns: [],
-        traceVariant: null,
+        items: [],
+        lead: "",
         sources: [],
         followUps: [],
         streaming: false,
@@ -617,8 +672,11 @@ export function buildTurns(messages: ChatMessage[], live: ToolActivity[]): TurnV
       if (run) {
         Object.assign(run, rebuilt);
       } else {
+        // a result whose call block never reached us (history resumed mid-turn):
+        // it still needs a timeline home, appended to the latest tool group
         turn.toolRuns.push(rebuilt);
         runsById.set(rebuilt.toolCallId, rebuilt);
+        appendItem(turn, { kind: "tools", key: rebuilt.toolCallId, runs: [rebuilt] });
       }
       const harvested = harvestSources(message.text);
       if (harvested.length) {
@@ -632,32 +690,42 @@ export function buildTurns(messages: ChatMessage[], live: ToolActivity[]): TurnV
 
     if (message.role === "bashExecution") {
       const turn = ensure(message.timestamp, message.key);
-      turn.toolRuns.push(
-        buildToolRun("bash", undefined, message.text, undefined, "done", message.key),
-      );
+      const run = buildToolRun("bash", undefined, message.text, undefined, "done", message.key);
+      turn.toolRuns.push(run);
+      appendItem(turn, { kind: "tools", key: run.toolCallId, runs: [run] });
       continue;
     }
 
     if (message.role !== "assistant") continue;
 
     const turn = ensure(message.timestamp, message.key);
+    // Blocks arrive in production order; flush pending prose at every
+    // thinking/tool boundary so the timeline keeps that order.
+    let prose = "";
+    const flushProse = (fallback = ""): void => {
+      const body = prose || fallback;
+      prose = "";
+      if (!body.trim()) return;
+      appendItem(turn, { kind: "text", key: `${message.key}-x${turn.items.length}`, text: body });
+      turn.fullText = turn.fullText ? `${turn.fullText}\n\n${body}` : body;
+      if (!turn.lead) turn.lead = body;
+    };
     for (const block of message.blocks) {
       if (block.type === "thinking") {
-        turn.thinking = turn.thinking ? `${turn.thinking}\n\n${block.text}` : block.text;
+        flushProse();
+        appendItem(turn, { kind: "thinking", key: `${message.key}-t${turn.items.length}`, text: block.text });
       } else if (block.type === "toolCall") {
+        flushProse();
         const run = buildToolRun(block.name, block.arguments, undefined, undefined, "running", block.id);
         turn.toolRuns.push(run);
         runsById.set(block.id, run);
+        appendItem(turn, { kind: "tools", key: block.id, runs: [run] });
+      } else if (block.type === "text") {
+        prose = prose ? `${prose}\n${block.text}` : block.text;
       }
     }
-    const text = message.blocks
-      .filter((block) => block.type === "text")
-      .map((block) => (block.type === "text" ? block.text : ""))
-      .join("\n");
-    const body = text || message.text;
-    if (body) {
-      turn.fullText = turn.fullText ? `${turn.fullText}\n\n${body}` : body;
-    }
+    // a message with no text block still carries its prose in `text`
+    flushProse(message.blocks.some((block) => block.type === "text") ? "" : message.text);
     if (message.streaming) turn.streaming = true;
     if (message.usage) turn.usage = message.usage;
   }
@@ -669,36 +737,14 @@ export function buildTurns(messages: ChatMessage[], live: ToolActivity[]): TurnV
       ensure(Date.now(), `live-${live[0].toolCallId}`);
     for (const activity of live) {
       if (turn.toolRuns.some((run) => run.toolCallId === activity.toolCallId)) continue;
-      turn.toolRuns.push(buildLiveToolRun(activity));
+      const run = buildLiveToolRun(activity);
+      turn.toolRuns.push(run);
+      appendItem(turn, { kind: "tools", key: run.toolCallId, runs: [run] });
     }
     if (!current) turn.streaming = true;
   }
 
-  for (const turn of turns) {
-    turn.segments = splitSegments(turn.fullText);
-    turn.traceVariant = thinkingVariant(turn.thinking);
-    if (turn.traceVariant === "Search") {
-      turn.followUps = [];
-    }
-  }
-
   return turns;
-}
-
-/** Which ThinkingState variant fits the run, falling back to the step list. */
-export function traceLabel(variant: TraceVariant | null, streaming: boolean, count: number): { active: string; done: string } {
-  switch (variant) {
-    case "Search":
-      return { active: "Searching the web", done: `Searched the web` };
-    case "Coding":
-      return { active: "Running tools", done: `Ran ${count} tool${count === 1 ? "" : "s"}` };
-    case "Reasoning":
-      return { active: "Thinking", done: streaming ? "Thinking" : "Thought" };
-    case "Steps":
-      return { active: "Thinking", done: `Thought · ${count} steps` };
-    default:
-      return { active: "Thinking", done: "Thought" };
-  }
 }
 
 /** Parsed diff lines → the row shape `CodeBlock` renders in Diff view.

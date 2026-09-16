@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { ChatMessage, HostState } from "@shared/types";
 import TaskRows, { type TaskRow } from "../beautiful/primitives/TaskRows";
-import { buildTurns } from "../../lib/agent-view";
+import { buildTurns, toolSignature } from "../../lib/agent-view";
 import { SessionOutline } from "./SessionOutline";
 import { EmptyState } from "../ui";
 import { cn } from "../../lib/cn";
@@ -29,6 +29,11 @@ export function TodoPanel({
   messages: ChatMessage[];
   onJumpToTurn: (key: string) => void;
 }) {
+  const turns = useMemo(() => buildTurns(messages, []), [messages]);
+  // the fallback list is derived from tool runs; keyed on the work signature so
+  // a streaming answer does not re-sort and re-render it on every token
+  const signature = toolSignature(turns);
+
   const rows = useMemo<TaskRow[]>(() => {
     if (state.todos.length) {
       return state.todos.map((todo, index) => ({
@@ -41,7 +46,7 @@ export function TodoPanel({
       }));
     }
     // fallback: what the agent has actually touched this session
-    const runs = buildTurns(messages, []).flatMap((turn) => turn.toolRuns);
+    const runs = turns.flatMap((turn) => turn.toolRuns);
     return runs.slice(-14).map((run, index) => ({
       key: run.toolCallId || `run-${index}`,
       label: run.label,
@@ -50,7 +55,7 @@ export function TodoPanel({
       step: run.status === "running" ? index + 1 : undefined,
       details: run.detail.slice(0, 4).map((line) => ({ label: line.text, meta: "" })),
     }));
-  }, [state.todos, messages]);
+  }, [state.todos, signature]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [view, setView] = useState<0 | 1>(0);
   const derived = !state.todos.length;

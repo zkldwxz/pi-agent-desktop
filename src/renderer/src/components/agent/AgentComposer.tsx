@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { ChatMessage, HostState } from "@shared/types";
 import PromptBar from "../beautiful/primitives/PromptBar";
-import { buildTurns } from "../../lib/agent-view";
+import { buildTurns, toolSignature } from "../../lib/agent-view";
 import { ModelThinkingControl } from "./ModelThinkingControl";
 import { CacheRing } from "./CacheRing";
 import { ContextBadge } from "../panel/ContextBadge";
@@ -62,9 +62,10 @@ export function AgentComposer({
     [state.commands],
   );
 
+  // the @-mention catalogue only moves when a tool call lands; keying it on the
+  // work signature keeps a plain streaming answer from re-scanning the log
+  const signature = toolSignature(useMemo(() => buildTurns(messages, []), [messages]));
   const sources = useMemo(() => {
-    const turns = buildTurns(messages, []);
-    const files = turns.flatMap((turn) => turn.toolRuns.map((run) => run.chip)).filter(Boolean);
     const touched = recentFiles(messages);
     const entries = [
       { key: "agents", name: "AGENTS.md", desc: "project context the agent reads first", glyph: "clip" },
@@ -77,15 +78,14 @@ export function AgentComposer({
       seen.add(entry.name);
       return true;
     });
-    void files;
     return unique.slice(0, 10);
-  }, [messages]);
+  }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* the session's token accounting, shown under the model control */
   const tokens = state.snapshot?.stats?.tokens;
 
   return (
-    <div className="flex w-full flex-col items-center gap-2 px-6 pb-3.5">
+    <div className="flex w-full flex-col items-center gap-2 px-6 pb-5 pt-1.5">
       <div className="w-full max-w-[720px]">
         <PromptBar
           variant="Rounded"

@@ -1,11 +1,32 @@
 import { useMemo } from "react";
 import type { ChatMessage, ToolActivity } from "@shared/types";
-import { buildTurns } from "../lib/agent-view";
+import { buildTurns, type TurnView } from "../lib/agent-view";
 import { stagger } from "./motion";
 import { AgentAnswer } from "./agent/AgentAnswer";
 import { AgentToolRun } from "./agent/AgentToolRun";
 import { AgentTrace } from "./agent/AgentTrace";
 import { AgentWorking } from "./agent/AgentWorking";
+
+/** stable empty array — a fresh one would defeat the buildTurns cache key */
+const NO_LIVE_TOOLS: ToolActivity[] = [];
+
+/**
+ * What the agent is doing right now, in words.
+ *
+ * The transcript's live pieces mostly signal themselves — a streaming answer
+ * has its caret, an open trace shimmers, a running tool group spins. What none
+ * of them covers is the gap *between* beats: the result is in, the model has
+ * not spoken yet. This line exists for that gap, and names the running tool
+ * when there is one.
+ */
+function statusLabel(turn: TurnView): string | null {
+  const last = turn.items.at(-1);
+  if (!last) return null; // the loader below the thread owns the pre-first-token beat
+  if (last.kind === "text" || last.kind === "thinking") return null; // caret / shimmer carry it
+  const running = [...last.runs].reverse().find((run) => run.status === "running");
+  if (running) return `${running.label} ${running.chip}`.trim();
+  return "Thinking";
+}
 
 /**
  * The transcript.
@@ -27,11 +48,13 @@ export function MessageThread({
   /** branch the session from a turn's prompt */
   onFork?: (userIndex: number) => void;
 }) {
-  const turns = useMemo(() => buildTurns(messages, streaming ? tools : tools.slice(0, 0)), [messages, tools, streaming]);
+  const turns = useMemo(
+    () => buildTurns(messages, streaming ? tools : NO_LIVE_TOOLS),
+    [messages, tools, streaming],
+  );
 
   const lastTurn = turns.at(-1);
-  const awaitingFirstToken =
-    streaming && (!lastTurn || (!lastTurn.fullText.trim() && !lastTurn.toolRuns.length));
+  const awaitingFirstToken = streaming && (!lastTurn || lastTurn.items.length === 0);
 
   if (!turns.length) {
     return (
@@ -54,12 +77,12 @@ export function MessageThread({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-7">
+    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-8">
       {turns.map((turn, index) => (
         <section
           key={turn.key}
           data-turn={turn.key}
-          className="group/turn flex scroll-mt-4 flex-col gap-2.5"
+          className="group/turn flex scroll-mt-4 flex-col gap-3"
           style={index >= turns.length - 3 ? stagger(0) : undefined}
         >
           {turn.prompt ? (
@@ -73,7 +96,7 @@ export function MessageThread({
           {turn.notes.map((note, noteIndex) => (
             <div
               key={noteIndex}
-              className="flex items-center gap-2 rounded-[9px] bg-inset px-3 py-2 text-[12px] text-ink-2"
+              className="flex items-center gap-2 rounded-[10px] bg-inset px-3 py-2 text-[12px] text-ink-2"
               style={{ animation: "fade-up 320ms cubic-bezier(0.23,1,0.32,1) both" }}
             >
               <span className="inline-flex h-4 items-center rounded-chip bg-field px-1.5 font-mono text-[10px] text-ink-3">
@@ -83,9 +106,30 @@ export function MessageThread({
             </div>
           ))}
 
-          <AgentTrace turn={turn} />
-          <AgentToolRun turn={turn} />
-          <AgentAnswer turn={turn} onFork={onFork} />
+          {turn.items.map((item, itemIndex) => {
+            const isLast = itemIndex === turn.items.length - 1;
+            if (item.kind === "thinking") {
+              return <AgentTrace key={item.key} text={item.text} working={turn.streaming && isLast} />;
+            }
+            if (item.kind === "tools") {
+              return <AgentToolRun key={item.key} runs={item.runs} />;
+            }
+            return (
+              <AgentAnswer
+                key={item.key}
+                turn={turn}
+                item={item}
+                isLast={isLast}
+                streaming={turn.streaming && isLast}
+                onFork={onFork}
+              />
+            );
+          })}
+
+          {/* the persistent status line: names the beat the transcript itself
+              cannot — a tool still running, or the model composing its next
+              move after one */}
+          {turn.streaming && statusLabel(turn) ? <AgentWorking label={statusLabel(turn)!} /> : null}
         </section>
       ))}
 

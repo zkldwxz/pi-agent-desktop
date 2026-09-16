@@ -49,6 +49,7 @@ export function BrowserPanel({
   onAddToChat,
   onAskAbout,
   onClearPick,
+  onClose,
 }: {
   state: BrowserState;
   expanded: boolean;
@@ -59,6 +60,8 @@ export function BrowserPanel({
   onAddToChat: (pick: DesignPick) => void;
   onAskAbout: (pick: DesignPick, instruction: string) => void;
   onClearPick: () => void;
+  /** docked mode only: close the side pane */
+  onClose?: () => void;
 }) {
   const [draft, setDraft] = useState(displayUrl(state.url));
   const [editing, setEditing] = useState(false);
@@ -68,6 +71,10 @@ export function BrowserPanel({
 
   useEffect(() => {
     aliveRef.current = true;
+    // the panel owns the native view while mounted: show it, and hand it back
+    // on unmount. Without the show call the view stayed hidden no matter what
+    // bounds were reported — the browser "opened" onto an empty pane.
+    void window.pi.setBrowserVisible(true);
     return () => {
       aliveRef.current = false;
       void window.pi.setBrowserVisible(false);
@@ -120,7 +127,7 @@ export function BrowserPanel({
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-page">
       {/* top bar — nav · address · design · devtools */}
-      <div className="flex h-[38px] shrink-0 items-center gap-1 border-b border-line px-2">
+      <div className="flex h-[42px] shrink-0 items-center gap-1 border-b border-line px-2">
         <button
           type="button"
           aria-label="Back"
@@ -229,6 +236,17 @@ export function BrowserPanel({
         >
           <EyeIcon size={14} />
         </button>
+        {onClose ? (
+          <button
+            type="button"
+            aria-label="Close browser"
+            title="Close browser"
+            onClick={onClose}
+            className="pressable flex size-7 items-center justify-center rounded-[6px] text-ink-2 hover:bg-hover"
+          >
+            <XIcon size={14} />
+          </button>
+        ) : null}
       </div>
 
       {state.error ? (

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webFrame } from "electron";
 import type {
   ChatMessage,
   ContextBreakdown,
@@ -34,6 +34,9 @@ export interface PiBridge {
   saveModel: (edit: ModelEdit) => Promise<void>;
   deleteModel: (provider: string, modelId: string) => Promise<void>;
   listAllSessions: () => Promise<HostState["sessions"]>;
+  deleteWorkspace: (cwd: string) => Promise<void>;
+  setZoomFactor: (factor: number) => void;
+  getZoomFactor: () => number;
   steer: (text: string) => Promise<void>;
   followUp: (text: string) => Promise<void>;
   clearQueue: () => Promise<HostState["queue"] & { texts: string[] }>;
@@ -98,6 +101,9 @@ const api: PiBridge = {
   saveModel: (edit) => ipcRenderer.invoke("pi:saveModel", edit),
   deleteModel: (provider, modelId) => ipcRenderer.invoke("pi:deleteModel", provider, modelId),
   listAllSessions: () => ipcRenderer.invoke("pi:listAllSessions"),
+  deleteWorkspace: (cwd) => ipcRenderer.invoke("pi:deleteWorkspace", cwd),
+  setZoomFactor: (factor) => webFrame.setZoomFactor(factor),
+  getZoomFactor: () => webFrame.getZoomFactor(),
   steer: (text) => ipcRenderer.invoke("pi:steer", text),
   followUp: (text) => ipcRenderer.invoke("pi:followUp", text),
   clearQueue: () => ipcRenderer.invoke("pi:clearQueue"),

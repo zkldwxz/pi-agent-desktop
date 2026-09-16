@@ -1,6 +1,5 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { ChatMessage, HostState, PluginInfo, ToolActivity, UsageStats } from "@shared/types";
-import { GitBranchIcon } from "./components/icons";
 import { MessageThread } from "./components/MessageThread";
 import { TitleBar } from "./components/TitleBar";
 import { AgentComposer } from "./components/agent/AgentComposer";
@@ -25,6 +24,7 @@ const CommandPalette = lazy(() =>
   import("./components/agent/CommandPalette").then((m) => ({ default: m.CommandPalette })),
 );
 import { collectChanges, type ChangeEntry } from "./components/panel/ChangesPanel";
+import { buildTurns } from "./lib/agent-view";
 import { ToolDock, type DockTool } from "./components/panel/ToolDock";
 import { DockToggle } from "./components/panel/DockToggle";
 import { formatDesignPick, toImageAttachment } from "./lib/design-pick";
@@ -104,7 +104,8 @@ export function App() {
     designMode: false,
   });
   const [designPick, setDesignPick] = useState<DesignPick | null>(null);
-  const [browserExpanded, setBrowserExpanded] = useState(true);
+  /** the browser docks on the right of the conversation; fullscreen is a view */
+  const [browserDockOpen, setBrowserDockOpen] = useState(false);
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [uiRequest, setUiRequest] = useState<UiRequest | null>(null);
   const [notices, setNotices] = useState<UiNotification[]>([]);
@@ -117,6 +118,73 @@ export function App() {
   const [atBottom, setAtBottom] = useState(true);
   /** the transcript is remounted when the view key changes; remember where the reader was */
   const scrollMemoryRef = useRef(0);
+
+  const [zoomFactor, setZoomFactor] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem("pi-zoom-scale");
+      if (saved) {
+        const val = parseFloat(saved);
+        if (!isNaN(val) && val >= 0.7 && val <= 1.5) return val;
+      }
+    } catch {}
+    if (typeof window !== "undefined") {
+      // large monitors make the 14px base read oversized; scale down by tier
+      if (window.screen.width >= 2560) return 0.85;
+      if (window.screen.width > 1920 || window.devicePixelRatio > 1.2) return 0.9;
+      if (window.screen.width >= 1920) return 0.95;
+    }
+    return 1.0;
+  });
+
+  const zoomRef = useRef(zoomFactor);
+  zoomRef.current = zoomFactor;
+
+  const applyZoom = useCallback((factor: number) => {
+    const clamped = Math.round(Math.min(1.5, Math.max(0.7, factor)) * 100) / 100;
+    zoomRef.current = clamped;
+    setZoomFactor(clamped);
+    try {
+      window.pi?.setZoomFactor?.(clamped);
+      localStorage.setItem("pi-zoom-scale", String(clamped));
+    } catch {}
+  }, []);
+
+  // apply on mount (restores the persisted factor)
+  useEffect(() => {
+    try {
+      window.pi?.setZoomFactor?.(zoomFactor);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Ctrl+wheel zoom, and Ctrl + / Ctrl - / Ctrl 0 keyboard zoom
+  useEffect(() => {
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
+        applyZoom(zoomRef.current + (event.deltaY < 0 ? 0.05 : -0.05));
+      }
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (event.key === "+" || event.key === "=") {
+        event.preventDefault();
+        applyZoom(zoomRef.current + 0.05);
+      } else if (event.key === "-") {
+        event.preventDefault();
+        applyZoom(zoomRef.current - 0.05);
+      } else if (event.key === "0") {
+        event.preventDefault();
+        applyZoom(1);
+      }
+    };
+    window.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [applyZoom]);
 
 
   useEffect(() => {
@@ -212,7 +280,10 @@ export function App() {
       }
       if (mod && event.shiftKey && event.key.toLowerCase() === "d") {
         event.preventDefault();
-        setView("browser");
+        // design mode opens the docked browser, not the fullscreen one — you
+        // pick an element while the conversation stays in view
+        setBrowserDockOpen(true);
+        setView("chat");
         void window.pi.setDesignMode(!browser.designMode);
         return;
       }
@@ -288,6 +359,34 @@ export function App() {
     }, 600);
   }, []);
 
+  /**
+   * The dock is a summary, not a live view: it accepts stale-by-a-frame data.
+   * Deferring its inputs keeps a streaming answer at frame rate — the heavy
+   * panels (flowchart, diffs, outline) then repaint between keystrokes instead
+   * of during them.
+   */
+  const deferredMessages = useDeferredValue(messages);
+  const deferredState = useDeferredValue(state);
+
+  const openDockFile = useCallback((entry: FileEntry) => {
+    setActiveChange(null);
+    setOpenFile(entry.path);
+  }, []);
+  const openDockDiff = useCallback(
+    (path: string) => {
+      const change = collectChanges(buildTurns(messages, [])).find((entry) => entry.file === path) ?? null;
+      setActiveChange(change);
+      setOpenFile(path);
+    },
+    [messages],
+  );
+  const revealFile = useCallback((path: string) => void window.pi.revealFile(path), []);
+  const openDockBrowser = useCallback(() => {
+    setDockOpen(false);
+    setBrowserDockOpen(true);
+    setView("chat");
+  }, []);
+
   const answer = useCallback((reply: UiAnswer) => {
     setUiRequest(null);
     void window.pi.respondUi(reply);
@@ -328,6 +427,13 @@ export function App() {
             }}
             onPickCwd={() => void window.pi.pickCwd()}
             onSearch={() => setPaletteOpen(true)}
+            onNewInWorkspace={(cwd) => {
+              setView("chat");
+              void (async () => {
+                await window.pi.setCwd(cwd);
+                await window.pi.newSession();
+              })();
+            }}
           />
         )}
 
@@ -337,8 +443,13 @@ export function App() {
             {view === "browser" ? (
               <BrowserPanel
                 state={browser}
-                expanded={browserExpanded}
-                onExpandedChange={setBrowserExpanded}
+                expanded
+                onExpandedChange={(next) => {
+                  if (!next) {
+                    setBrowserDockOpen(true);
+                    setView("chat");
+                  }
+                }}
                 designPick={designPick}
                 recent={messages.slice(-3)}
                 onAddToChat={(pick) => sendDesignPick(pick)}
@@ -361,7 +472,8 @@ export function App() {
             ) : null}
 
             {view === "chat" && !openFile ? (
-              <>
+              <div className="flex min-h-0 flex-1">
+              <div className="flex min-w-0 flex-1 flex-col">
                 <header className="flex h-[42px] shrink-0 items-center gap-2 border-b border-line px-4">
                   <div className="truncate text-[13px] font-semibold text-ink">{title}</div>
                   <span className="inline-flex h-5 items-center gap-1.5 rounded-[5px] bg-field px-1.5 font-mono text-[10.5px] text-ink-2">
@@ -379,7 +491,6 @@ export function App() {
                   >
                     Ctrl K
                   </button>
-                  <GitBranchIcon size={15} className="text-ink-3" />
                   <DockToggle open={dockOpen} onToggle={() => setDockOpen((value) => !value)} />
                 </header>
 
@@ -444,7 +555,28 @@ export function App() {
                   onAbort={() => void window.pi.abort()}
                   onSetModel={(provider, modelId) => void window.pi.setModel(provider, modelId).catch(() => undefined)}
                 />
-              </>
+              </div>
+
+              {/* the docked browser: the page composites above this pane, its
+                  chrome is the same BrowserPanel the fullscreen view uses */}
+              {browserDockOpen ? (
+                <aside className="flex w-[42%] min-w-[360px] max-w-[760px] shrink-0 flex-col border-l border-line">
+                  <BrowserPanel
+                    state={browser}
+                    expanded={false}
+                    onExpandedChange={(next) => {
+                      if (next) setView("browser");
+                    }}
+                    designPick={designPick}
+                    recent={messages.slice(-3)}
+                    onAddToChat={(pick) => sendDesignPick(pick)}
+                    onAskAbout={(pick, instruction) => sendDesignPick(pick, instruction)}
+                    onClearPick={() => setDesignPick(null)}
+                    onClose={() => setBrowserDockOpen(false)}
+                  />
+                </aside>
+              ) : null}
+              </div>
             ) : null}
 
             {view === "customize" ? (
@@ -487,6 +619,8 @@ export function App() {
                   state={state}
                   colorMode={theme.mode}
                   onColorMode={theme.setMode}
+                  zoomFactor={zoomFactor}
+                  onZoomFactor={applyZoom}
                   onBack={() => setView("chat")}
                   dockToggle={<DockToggle open={dockOpen} onToggle={() => setDockOpen((value) => !value)} />}
                   onUpdate={(patch) => void window.pi.updateSettings(patch).catch(() => undefined)}
@@ -504,30 +638,20 @@ export function App() {
         </main>
 
         <ToolDock
-          state={state}
+          state={deferredState}
           open={dockOpen}
           onOpenChange={setDockOpen}
           tool={dockTool}
           onTool={setDockTool}
           cwd={state.cwd}
-          messages={messages}
+          messages={deferredMessages}
           openFile={openFile}
-          onOpenFile={(entry: FileEntry) => {
-            setActiveChange(null);
-            setOpenFile(entry.path);
-          }}
+          onOpenFile={openDockFile}
           activeChangeFile={activeChange?.file}
-          onOpenDiff={(path) => {
-            const change = collectChanges(messages).find((entry) => entry.file === path) ?? null;
-            setActiveChange(change);
-            setOpenFile(path);
-          }}
-          onReveal={(path) => void window.pi.revealFile(path)}
+          onOpenDiff={openDockDiff}
+          onReveal={revealFile}
           onJumpToTurn={jumpToTurn}
-          onOpenBrowser={() => {
-            setDockOpen(false);
-            setView("browser");
-          }}
+          onOpenBrowser={openDockBrowser}
         />
       </div>
 

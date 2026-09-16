@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { SessionListItem } from "@shared/types";
 import { cn } from "../../lib/cn";
 import { GlideList, stagger } from "../motion";
 import { Popover } from "../motion";
-import { ValuePill } from "../beautiful/atoms/ValuePill";
 import {
   ChevronDownIcon,
   FolderIcon,
+  FolderOpenIcon,
   ListIcon,
   LoaderIcon,
+  PencilIcon,
   PlusIcon,
-  RefreshIcon,
+  TrashIcon,
 } from "../icons";
 import { relativeTime } from "../../lib/format";
 
@@ -172,6 +174,7 @@ export function WorkspaceList({
   onSelect,
   onRename,
   onAddFolder,
+  onNewInWorkspace,
 }: {
   sessions: SessionListItem[];
   prefs: WorkspacePrefs;
@@ -183,6 +186,7 @@ export function WorkspaceList({
   onSelect: (path: string) => void;
   onRename: (key: string, label: string) => void;
   onAddFolder: () => void;
+  onNewInWorkspace?: (cwd: string) => void;
 }) {
   // collapsed by default: an empty map means every workspace starts closed
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -190,11 +194,50 @@ export function WorkspaceList({
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState<{ key: string; label: string } | null>(null);
   const [draft, setDraft] = useState("");
+  /* Context menu state on right click of a workspace row */
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    workspace: Workspace;
+    isArchived: boolean;
+    /** set after the first click on Delete — the row becomes the confirm */
+    confirming?: boolean;
+  } | null>(null);
+
+  /* Archived workspaces */
+  const [archived, setArchived] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem("pi-workspace-archived");
+      return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [showArchived, setShowArchived] = useState(false);
+
   /* The conversation you just picked. The host takes a round trip to switch the
    * session, so the row answers the click itself: it highlights immediately and
    * holds keyboard focus, which is also what lets the next arrow key move. */
   const [picked, setPicked] = useState<string | null>(null);
   const rowRefs = useRef(new Map<string, HTMLButtonElement>());
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const onDown = (e: PointerEvent) => {
+      if (!(e.target as Element).closest("[data-ws-context-menu]")) {
+        setContextMenu(null);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setContextMenu(null);
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [contextMenu]);
 
   useEffect(() => {
     if (!picked) return;
@@ -203,13 +246,48 @@ export function WorkspaceList({
     return () => window.clearTimeout(timer);
   }, [picked]);
 
+  const toggleArchive = (key: string) => {
+    setArchived((prev) => {
+      const next = { ...prev };
+      if (next[key]) delete next[key];
+      else next[key] = true;
+      localStorage.setItem("pi-workspace-archived", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const openInIde = async (path?: string) => {
+    if (!path) return;
+    try {
+      const openers = await window.pi.listOpeners(path);
+      const ide = openers.find((o) => /cursor|code|windsurf/i.test(o.id) || /cursor|code|windsurf/i.test(o.name));
+      if (ide) {
+        await window.pi.openWith(path, ide.id);
+      } else {
+        await window.pi.openPath(path);
+      }
+    } catch {
+      void window.pi.openPath(path);
+    }
+  };
+
+  const handleDeleteWorkspace = async (workspace: Workspace) => {
+    try {
+      await window.pi.deleteWorkspace(workspace.path || workspace.key);
+    } catch (err) {
+      console.error("Failed to delete workspace:", err);
+    }
+  };
+
   const choose = (path: string) => {
     setPicked(path);
     onSelect(path);
   };
 
   const workspaces = useMemo(() => groupSessions(sessions, prefs, renamed), [sessions, prefs, renamed]);
-  const allOpen = workspaces.length > 0 && workspaces.every((workspace) => open[workspace.key]);
+  const activeWorkspaces = useMemo(() => workspaces.filter((w) => !archived[w.key]), [workspaces, archived]);
+  const archivedWorkspaces = useMemo(() => workspaces.filter((w) => Boolean(archived[w.key])), [workspaces, archived]);
+  const allOpen = activeWorkspaces.length > 0 && activeWorkspaces.every((workspace) => open[workspace.key]);
 
   if (!sessions.length) {
     return (
@@ -228,6 +306,168 @@ export function WorkspaceList({
   }
 
   const unread = sessions.filter((session) => Date.parse(session.modified) > (readAt[session.path] ?? 0)).length;
+
+  const renderWorkspace = (workspace: Workspace, groupIndex: number, isArchived = false) => {
+    const isOpen = Boolean(open[workspace.key]);
+    const sorted = workspace.sessions;
+    const limit = prefs.show === 0 ? sorted.length : prefs.show;
+    const isExpanded = Boolean(expanded[workspace.key]);
+    const visible = isExpanded ? sorted : sorted.slice(0, limit);
+    const hidden = sorted.length - visible.length;
+    const running = sorted.some((session) => session.status === "running");
+    const workspaceUnread = sorted.filter(
+      (session) => Date.parse(session.modified) > (readAt[session.path] ?? 0),
+    ).length;
+
+    return (
+      <section key={workspace.key} className="mb-1.5" style={stagger(groupIndex)}>
+        <div
+          className="group/ws flex items-center gap-1 px-1"
+          onContextMenu={(event) => {
+            event.preventDefault();
+            setContextMenu({
+              x: event.clientX,
+              y: event.clientY,
+              workspace,
+              isArchived,
+            });
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setOpen((current) => ({ ...current, [workspace.key]: !isOpen }))}
+            className="pressable flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-[7px] px-1 text-left hover:bg-hover-2"
+          >
+            {/* the dot slot is always rendered so the folder icons of read
+                and unread rows stay on the same vertical line */}
+            <span className="flex size-1.5 shrink-0 items-center justify-center">
+              {workspaceUnread ? (
+                <span className="size-1.5 rounded-full bg-accent" title={`${workspaceUnread} unread`} />
+              ) : null}
+            </span>
+            <span className="relative flex size-3.5 shrink-0 items-center justify-center text-ink-3">
+              <FolderIcon
+                size={13}
+                className="absolute transition-opacity duration-150 group-hover/ws:opacity-0"
+              />
+              <ChevronDownIcon
+                size={12}
+                strokeWidth={2.2}
+                className="absolute opacity-0 transition-[opacity,transform] duration-150 group-hover/ws:opacity-100"
+                style={{ transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)" }}
+              />
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[13px] text-ink-2">{workspace.label}</span>
+            {running ? <StatusGlyph status="running" /> : null}
+            <span className="shrink-0 text-[10.5px] text-ink-3 tabular-nums">{sorted.length}</span>
+          </button>
+          <button
+            type="button"
+            title="New chat in this workspace"
+            aria-label="New chat in this workspace"
+            onClick={(event) => {
+              event.stopPropagation();
+              onNewInWorkspace?.(workspace.path || workspace.key);
+            }}
+            className="pressable flex size-5.5 shrink-0 items-center justify-center rounded-[5px] text-ink-3 opacity-0 hover:bg-hover hover:text-ink group-hover/ws:opacity-100"
+          >
+            <PlusIcon size={12} />
+          </button>
+        </div>
+
+        {renaming?.key === workspace.key ? (
+          <form
+            className="mx-1 mb-1.5 flex items-center gap-1 rounded-[7px] bg-surface p-1 shadow-hairline"
+            style={{ animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both" }}
+            onSubmit={(event) => {
+              event.preventDefault();
+              onRename(workspace.key, draft.trim() || workspace.label);
+              setRenaming(null);
+            }}
+          >
+            <input
+              autoFocus
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setRenaming(null);
+              }}
+              aria-label="Workspace name"
+              className="h-6 min-w-0 flex-1 rounded-[5px] bg-field px-1.5 text-[11.5px] text-ink outline-none"
+            />
+            <button type="submit" className="pressable h-6 rounded-[5px] bg-ink px-2 text-[11px] text-canvas">
+              Save
+            </button>
+          </form>
+        ) : null}
+
+        {/* collapsed workspaces render nothing at all — no preload */}
+        <div className="collapse-grid" data-open={isOpen}>
+          <div className="min-h-0 overflow-hidden">
+            {isOpen ? (
+              <GlideList className="flex flex-col gap-0.5 pl-4 pt-0.5">
+                {visible.map((session, index) => {
+                  const isUnread = Date.parse(session.modified) > (readAt[session.path] ?? 0);
+                  const active = session.path === activePath || session.path === picked;
+                  return (
+                    <button
+                      key={session.path}
+                      data-row
+                      data-picked={session.path === picked ? "true" : undefined}
+                      ref={(element) => {
+                        if (element) rowRefs.current.set(session.path, element);
+                        else rowRefs.current.delete(session.path);
+                      }}
+                      type="button"
+                      onClick={() => choose(session.path)}
+                      style={stagger(index)}
+                      className={cn(
+                        "glide-row pressable flex w-full items-center gap-2 rounded-[6px] py-1.5 pr-2 pl-[24px] text-left outline-none",
+                        "focus-visible:bg-surface focus-visible:shadow-hairline",
+                        active && "row-picked bg-surface shadow-hairline",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "min-w-0 flex-1 truncate text-[12.5px]",
+                          active ? "font-medium text-ink" : isUnread ? "text-ink" : "text-ink-2",
+                        )}
+                      >
+                        {session.name || session.firstMessage || "New session"}
+                      </span>
+                      <span className="shrink-0 font-mono text-[10px] text-ink-3 tabular-nums">
+                        {relativeTime(session.modified)}
+                      </span>
+                    </button>
+                  );
+                })}
+                {hidden > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setExpanded((current) => ({ ...current, [workspace.key]: true }))}
+                    className="pressable flex items-center gap-1.5 rounded-[6px] px-2 py-1 text-[11.5px] text-ink-3 hover:bg-hover hover:text-ink-2"
+                  >
+                    <ChevronDownIcon size={10} />
+                    Show {hidden} more
+                  </button>
+                ) : null}
+                {isExpanded && sorted.length > limit ? (
+                  <button
+                    type="button"
+                    onClick={() => setExpanded((current) => ({ ...current, [workspace.key]: false }))}
+                    className="pressable flex items-center gap-1.5 rounded-[6px] px-2 py-1 text-[11.5px] text-ink-3 hover:bg-hover hover:text-ink-2"
+                  >
+                    <ChevronDownIcon size={10} className="rotate-180" />
+                    Show less
+                  </button>
+                ) : null}
+              </GlideList>
+            ) : null}
+          </div>
+        </div>
+      </section>
+    );
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -253,7 +493,7 @@ export function WorkspaceList({
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((value) => !value)}
             className={cn(
-              "pressable flex size-5 items-center justify-center rounded-[5px]",
+              "pressable flex size-5.5 items-center justify-center rounded-[5px]",
               menuOpen ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
             )}
           >
@@ -316,186 +556,141 @@ export function WorkspaceList({
       </div>
 
       <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 pb-1">
-        {workspaces.map((workspace, groupIndex) => {
-          const isOpen = Boolean(open[workspace.key]);
-          const sorted = workspace.sessions;
-          const limit = prefs.show === 0 ? sorted.length : prefs.show;
-          const isExpanded = Boolean(expanded[workspace.key]);
-          const visible = isExpanded ? sorted : sorted.slice(0, limit);
-          const hidden = sorted.length - visible.length;
-          const running = sorted.some((session) => session.status === "running");
-          const workspaceUnread = sorted.filter(
-            (session) => Date.parse(session.modified) > (readAt[session.path] ?? 0),
-          ).length;
+        {activeWorkspaces.map((workspace, groupIndex) => renderWorkspace(workspace, groupIndex, false))}
 
-          return (
-            <section key={workspace.key} className="mb-1" style={stagger(groupIndex)}>
-              <div className="group/ws flex items-center gap-1 px-1">
-                <button
-                  type="button"
-                  onClick={() => setOpen((current) => ({ ...current, [workspace.key]: !isOpen }))}
-                  className="pressable flex h-7.5 min-w-0 flex-1 items-center gap-1.5 rounded-[7px] px-1 text-left hover:bg-hover-2"
-                >
-                  {/* one slot, two glyphs: the folder at rest, the disclosure
-                      chevron on hover and while the group is open. The swap is
-                      pure CSS (peer/group opacity), so it costs no state. */}
-                  {/* the colour label leads the row: a glance down the left
-                      edge reads every group's state without hunting for a dot
-                      on the far right. */}
-                  {workspaceUnread ? (
-                    <span
-                      className="size-1.5 shrink-0 rounded-full bg-accent"
-                      title={`${workspaceUnread} unread`}
-                    />
-                  ) : null}
-                  <span className="relative flex size-3.5 shrink-0 items-center justify-center text-ink-3">
-                    <FolderIcon
-                      size={13}
-                      className={cn(
-                        "absolute transition-opacity duration-100",
-                        isOpen ? "opacity-0" : "group-hover/ws:opacity-0",
-                      )}
-                    />
-                    <ChevronDownIcon
-                      size={12}
-                      strokeWidth={2.2}
-                      className={cn(
-                        "absolute transition-[opacity,transform] duration-150",
-                        isOpen ? "opacity-100" : "opacity-0 group-hover/ws:opacity-100",
-                      )}
-                      style={{ transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)" }}
-                    />
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-[13px] text-ink-2">{workspace.label}</span>
-                  {running ? <StatusGlyph status="running" /> : null}
-                  <ValuePill tone={running ? "accent" : "neutral"} className="shrink-0 !text-[10px] !px-1.5">
-                    {sorted.length}
-                  </ValuePill>
-                </button>
-                <button
-                  type="button"
-                  title="Rename workspace"
-                  onClick={() => {
-                    setRenaming({ key: workspace.key, label: workspace.label });
-                    setDraft(workspace.label);
-                  }}
-                  className="pressable flex size-5 shrink-0 items-center justify-center rounded-[5px] text-[10px] text-ink-3 opacity-0 hover:bg-hover hover:text-ink group-hover/ws:opacity-100"
-                >
-                  ✎
-                </button>
+        {archivedWorkspaces.length > 0 ? (
+          <div className="mt-2.5 border-t border-line/60 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowArchived((v) => !v)}
+              className="pressable flex h-6 w-full items-center gap-1.5 rounded-[5px] px-1 text-left text-[11px] text-ink-3 hover:bg-hover-2 hover:text-ink-2"
+            >
+              <ChevronDownIcon
+                size={10}
+                className={cn("transition-transform duration-200", showArchived ? "rotate-0" : "-rotate-90")}
+              />
+              <span>Archived ({archivedWorkspaces.length})</span>
+            </button>
+            {showArchived ? (
+              <div className="mt-1 flex flex-col opacity-80">
+                {archivedWorkspaces.map((ws, i) => renderWorkspace(ws, i, true))}
               </div>
-
-              {renaming?.key === workspace.key ? (
-                <form
-                  className="mx-1 mb-1.5 flex items-center gap-1 rounded-[7px] bg-surface p-1 shadow-hairline"
-                  style={{ animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both" }}
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    onRename(workspace.key, draft.trim() || workspace.label);
-                    setRenaming(null);
-                  }}
-                >
-                  <input
-                    autoFocus
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Escape") setRenaming(null);
-                    }}
-                    aria-label="Workspace name"
-                    className="h-6 min-w-0 flex-1 rounded-[5px] bg-field px-1.5 text-[11.5px] text-ink outline-none"
-                  />
-                  <button type="submit" className="pressable h-6 rounded-[5px] bg-ink px-2 text-[11px] text-canvas">
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onAddFolder}
-                    title="Add another folder"
-                    className="pressable flex size-6 items-center justify-center rounded-[5px] bg-field text-ink-2 hover:bg-hover-2"
-                  >
-                    <PlusIcon size={11} />
-                  </button>
-                </form>
-              ) : null}
-
-              {/* collapsed workspaces render nothing at all — no preload */}
-              <div className="collapse-grid" data-open={isOpen}>
-                <div className="min-h-0 overflow-hidden">
-                  {isOpen ? (
-                    <GlideList className="flex flex-col gap-px pl-4">
-                      {visible.map((session, index) => {
-                        const isUnread = Date.parse(session.modified) > (readAt[session.path] ?? 0);
-                        const active = session.path === activePath || session.path === picked;
-                        return (
-                          <button
-                            key={session.path}
-                            data-row
-                            data-picked={session.path === picked ? "true" : undefined}
-                            ref={(element) => {
-                              if (element) rowRefs.current.set(session.path, element);
-                              else rowRefs.current.delete(session.path);
-                            }}
-                            type="button"
-                            onClick={() => choose(session.path)}
-                            style={stagger(index)}
-                            className={cn(
-                              "glide-row pressable flex w-full items-center gap-2 rounded-[6px] py-1 pr-2 pl-[24px] text-left outline-none",
-                              "focus-visible:bg-surface focus-visible:shadow-hairline",
-                              active && "row-picked bg-surface shadow-hairline",
-                            )}
-                          >
-                            <span
-                              className={cn(
-                                "min-w-0 flex-1 truncate text-[12.5px]",
-                                active ? "font-medium text-ink" : isUnread ? "text-ink" : "text-ink-2",
-                              )}
-                            >
-                              {session.name || session.firstMessage || "New session"}
-                            </span>
-                            <span className="shrink-0 font-mono text-[10px] text-ink-3 tabular-nums">
-                              {relativeTime(session.modified)}
-                            </span>
-                          </button>
-                        );
-                      })}
-                      {hidden > 0 ? (
-                        <button
-                          type="button"
-                          onClick={() => setExpanded((current) => ({ ...current, [workspace.key]: true }))}
-                          className="pressable flex items-center gap-1.5 rounded-[6px] px-2 py-1 text-[11.5px] text-ink-3 hover:bg-hover hover:text-ink-2"
-                        >
-                          <ChevronDownIcon size={10} />
-                          Show {hidden} more
-                        </button>
-                      ) : null}
-                      {isExpanded && sorted.length > limit ? (
-                        <button
-                          type="button"
-                          onClick={() => setExpanded((current) => ({ ...current, [workspace.key]: false }))}
-                          className="pressable flex items-center gap-1.5 rounded-[6px] px-2 py-1 text-[11.5px] text-ink-3 hover:bg-hover hover:text-ink-2"
-                        >
-                          <ChevronDownIcon size={10} className="rotate-180" />
-                          Show less
-                        </button>
-                      ) : null}
-                    </GlideList>
-                  ) : null}
-                </div>
-              </div>
-            </section>
-          );
-        })}
+            ) : null}
+          </div>
+        ) : null}
 
         <button
           type="button"
           onClick={onAddFolder}
-          className="pressable mt-1 flex w-full items-center gap-1.5 rounded-[6px] px-2 py-1 text-[11.5px] text-ink-3 hover:bg-hover hover:text-ink-2"
+          className="pressable mt-2 flex w-full items-center gap-1.5 rounded-[6px] px-2 py-1.5 text-[11.5px] text-ink-3 hover:bg-hover hover:text-ink-2"
         >
-          <RefreshIcon size={11} />
+          <FolderOpenIcon size={11} />
           Open another folder
         </button>
       </div>
+
+      {contextMenu && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              data-ws-context-menu
+              className="fixed z-50 w-48 overflow-hidden rounded-[10px] border border-line bg-surface p-1 shadow-overlay"
+              style={{
+                left: Math.min(contextMenu.x, window.innerWidth - 202),
+                top: Math.min(contextMenu.y, window.innerHeight - 226),
+                animation: "pop-in 140ms cubic-bezier(0.23,1,0.32,1) both",
+                transformOrigin: "top left",
+              }}
+            >
+              <div className="mb-1 truncate border-b border-line px-2 py-1.5 font-mono text-[10.5px] text-ink-3">
+                {contextMenu.workspace.label}
+              </div>
+              <ContextRow
+                icon={<PlusIcon size={12} />}
+                label="New chat"
+                onClick={() => {
+                  onNewInWorkspace?.(contextMenu.workspace.path || contextMenu.workspace.key);
+                  setContextMenu(null);
+                }}
+              />
+              <ContextRow
+                icon={<PencilIcon size={12} />}
+                label="Rename"
+                onClick={() => {
+                  setRenaming({ key: contextMenu.workspace.key, label: contextMenu.workspace.label });
+                  setDraft(contextMenu.workspace.label);
+                  setContextMenu(null);
+                }}
+              />
+              <ContextRow
+                icon={<FolderOpenIcon size={12} />}
+                label="Open in IDE"
+                onClick={() => {
+                  void openInIde(contextMenu.workspace.path || contextMenu.workspace.key);
+                  setContextMenu(null);
+                }}
+              />
+              <ContextRow
+                icon={<FolderIcon size={12} />}
+                label={contextMenu.isArchived ? "Unarchive" : "Archive workspace"}
+                onClick={() => {
+                  toggleArchive(contextMenu.workspace.key);
+                  setContextMenu(null);
+                }}
+              />
+              <div className="my-1 h-px bg-line" />
+              {/* delete is a two-step row: the first click arms it, the second
+                  fires — no native confirm dialog in a custom-styled shell */}
+              <ContextRow
+                danger
+                armed={contextMenu.confirming}
+                icon={<TrashIcon size={12} />}
+                label={contextMenu.confirming ? "Click again to delete" : "Delete workspace"}
+                onClick={() => {
+                  if (!contextMenu.confirming) {
+                    setContextMenu({ ...contextMenu, confirming: true });
+                    return;
+                  }
+                  setContextMenu(null);
+                  void handleDeleteWorkspace(contextMenu.workspace);
+                }}
+              />
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
+  );
+}
+
+/** One row of the workspace context menu — same metrics as MenuRow so every
+ *  menu in the app reads as the same component. */
+function ContextRow({
+  icon,
+  label,
+  danger,
+  armed,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  danger?: boolean;
+  /** the armed state of a dangerous row: filled tint, waiting for the second click */
+  armed?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "pressable flex h-8 w-full items-center gap-2 rounded-[6px] px-2 text-left text-[12.5px]",
+        danger ? (armed ? "bg-red-tint font-medium text-red" : "text-red hover:bg-red-tint") : "text-ink hover:bg-hover",
+      )}
+    >
+      <span className={cn("flex size-3.5 shrink-0 items-center justify-center", !danger && "text-ink-3")}>
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+    </button>
   );
 }

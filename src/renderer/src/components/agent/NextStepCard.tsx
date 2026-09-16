@@ -3,7 +3,7 @@ import type { ChatMessage, HostState } from "@shared/types";
 import RecommendationCard, {
   type RecommendationOption,
 } from "../beautiful/primitives/RecommendationCard";
-import { buildTurns } from "../../lib/agent-view";
+import { buildTurns, toolSignature } from "../../lib/agent-view";
 import { collectChanges } from "../panel/ChangesPanel";
 
 /**
@@ -23,6 +23,9 @@ export function NextStepCard({
   messages: ChatMessage[];
   onSend: (text: string) => void;
 }) {
+  const turns = useMemo(() => buildTurns(messages, []), [messages]);
+  const signature = toolSignature(turns);
+
   const options = useMemo<RecommendationOption[]>(() => {
     const out: RecommendationOption[] = [];
 
@@ -45,7 +48,7 @@ export function NextStepCard({
       });
     }
 
-    const changes = collectChanges(messages);
+    const changes = collectChanges(turns);
     if (changes.length) {
       const added = changes.reduce((sum, change) => sum + change.add, 0);
       const removed = changes.reduce((sum, change) => sum + change.del, 0);
@@ -86,9 +89,7 @@ export function NextStepCard({
       });
     }
 
-    const failedRuns = buildTurns(messages, [])
-      .flatMap((turn) => turn.toolRuns)
-      .filter((run) => run.status === "error");
+    const failedRuns = turns.flatMap((turn) => turn.toolRuns).filter((run) => run.status === "error");
     if (failedRuns.length) {
       out.push({
         key: "retry",
@@ -108,7 +109,7 @@ export function NextStepCard({
     }
 
     return out;
-  }, [state.todos, state.snapshot, messages]);
+  }, [state.todos, state.snapshot, signature]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!options.length || state.snapshot?.isStreaming) return null;
 

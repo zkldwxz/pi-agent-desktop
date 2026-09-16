@@ -120,7 +120,7 @@ export class BrowserHost {
     if (!view) return;
     const show = visible && this.bounds.width > 0 && this.bounds.height > 0;
     view.setVisible(show);
-    if (show) void this.navigate(this.currentUrl() || "about:blank");
+    // showing the panel must not reload the page — the view keeps its own state
     this.push();
   }
 
@@ -230,6 +230,8 @@ export class BrowserHost {
   async startDesign(): Promise<void> {
     const view = this.ensure();
     if (!view) return;
+    // the overlay runs inside the page — pointless if the view itself is hidden
+    this.setVisible(true);
     this.designMode = true;
     this.designToken += 1;
     const token = this.designToken;

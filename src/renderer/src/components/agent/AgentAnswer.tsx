@@ -4,7 +4,7 @@ import { StreamText } from "../motion";
 import { Markdown } from "../Markdown";
 import { CacheRing } from "./CacheRing";
 import { GitBranchIcon } from "../icons";
-import type { TurnView } from "../../lib/agent-view";
+import { splitSegments, type TurnItem, type TurnView } from "../../lib/agent-view";
 
 function CodeSegment({ lang, code }: { lang: string; code: string }) {
   const lines = code.split("\n");
@@ -16,33 +16,44 @@ function CodeSegment({ lang, code }: { lang: string; code: string }) {
   );
 }
 
+type TextItem = Extract<TurnItem, { kind: "text" }>;
+
 /**
- * The answer.
+ * One prose beat of the answer.
  *
- * While tokens are still arriving the text goes through the backlog-aware
- * reveal (crisp, with a masked blur on the leading characters). Once the run
- * settles, prose and fenced code split apart so code gets `CodeBlock`, and an
- * answer with cited web sources is handed to `StreamingText` so its source
- * chips, action row and expandable source list appear.
+ * A turn can speak several times — a sentence before the tool calls, the final
+ * answer after them — and each beat renders where it happened. While the beat
+ * is the live one it goes through the backlog-aware reveal; once the turn moves
+ * past it, prose and fenced code split apart so code gets `CodeBlock`.
+ *
+ * Only the last beat carries the turn's furniture: cited sources, the usage
+ * ring and the fork button.
  */
 export function AgentAnswer({
   turn,
+  item,
+  isLast,
+  streaming,
   onFork,
 }: {
   turn: TurnView;
+  item: TextItem;
+  /** the last beat of the turn carries sources, usage and the fork button */
+  isLast: boolean;
+  streaming: boolean;
   /** branch the conversation from this turn's prompt */
   onFork?: (userIndex: number) => void;
 }) {
-  if (!turn.fullText.trim() && !turn.streaming) return null;
+  if (!item.text.trim() && !streaming) return null;
 
-  if (turn.streaming) {
+  if (streaming) {
     return (
       <div
-        className="max-w-[640px] rounded-[9px] bg-surface p-3 shadow-hairline"
+        className="max-w-[640px] rounded-[10px] bg-surface p-3 shadow-hairline"
         style={{ animation: "fade-up 300ms cubic-bezier(0.23,1,0.32,1) both" }}
       >
         <StreamText
-          text={turn.fullText}
+          text={item.text}
           done={false}
           className="text-[13px] leading-[21px] whitespace-pre-wrap text-ink"
         />
@@ -50,12 +61,14 @@ export function AgentAnswer({
     );
   }
 
-  const hasCode = turn.segments.some((segment) => segment.kind === "code");
-  const prose = turn.segments.filter((segment) => segment.kind === "text");
+  const segments = splitSegments(item.text);
+  const hasCode = segments.some((segment) => segment.kind === "code");
+  const prose = segments.filter((segment) => segment.kind === "text");
+  const withSources = isLast && turn.sources.length > 0 && !hasCode;
 
   return (
     <div className="flex w-full flex-col gap-3">
-      {turn.sources.length > 0 && !hasCode ? (
+      {withSources ? (
         <div className="max-w-[640px]">
           <StreamingText
             instant
@@ -75,7 +88,7 @@ export function AgentAnswer({
           />
         </div>
       ) : (
-        turn.segments.map((segment, index) =>
+        segments.map((segment, index) =>
           segment.kind === "code" ? (
             <CodeSegment key={index} lang={segment.lang} code={segment.code} />
           ) : (
@@ -86,7 +99,7 @@ export function AgentAnswer({
         )
       )}
 
-      {!turn.streaming || turn.usage ? (
+      {isLast && (turn.usage || onFork) ? (
         <div className="group/turn flex items-center gap-3">
           {turn.usage && turn.usage.total > 0 ? (
             <div className="flex items-center gap-3">
@@ -97,7 +110,7 @@ export function AgentAnswer({
           {/* Fork: an icon only, invisible until the pointer is in this turn —
               the label is the tooltip, so the row keeps its footprint without
               carrying a permanent button's worth of chrome. */}
-          {!turn.streaming && onFork ? (
+          {!streaming && onFork ? (
             <button
               type="button"
               onClick={() => onFork(turn.userIndex)}

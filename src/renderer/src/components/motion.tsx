@@ -252,8 +252,6 @@ export function StreamText({
   done = true,
   className,
   caret = true,
-  blurTail = 6,
-  tickMs = 12,
 }: {
   text: string;
   done?: boolean;
@@ -262,40 +260,69 @@ export function StreamText({
   blurTail?: number;
   tickMs?: number;
 }) {
-  const chars = useMemo(() => Array.from(text), [text]);
-  const [revealed, setRevealed] = useState(() => (done ? chars.length : 0));
-  const targetRef = useRef(chars.length);
-  targetRef.current = chars.length;
+  const targetLength = text.length;
+  const [revealed, setRevealed] = useState(() => (done ? targetLength : Math.min(targetLength, 1)));
+  const targetRef = useRef(targetLength);
+  targetRef.current = targetLength;
+  const revealedRef = useRef(revealed);
+  revealedRef.current = revealed;
 
-  // if the message identity changes (edited/aborted/replaced) snap back
+  // Immediately reveal all text if done or if text shrunk
   useEffect(() => {
-    setRevealed((current) => Math.min(current, chars.length));
-  }, [chars.length]);
+    if (done) {
+      setRevealed(targetLength);
+      revealedRef.current = targetLength;
+      return;
+    }
+    if (revealedRef.current > targetLength) {
+      setRevealed(targetLength);
+      revealedRef.current = targetLength;
+    }
+  }, [done, targetLength]);
 
-  const pending = revealed < chars.length || !done;
-
+  // High-performance rAF loop for smooth streaming without dropped frames
   useEffect(() => {
-    if (!pending) return;
-    const id = window.setTimeout(() => {
-      setRevealed((current) => {
-        const target = targetRef.current;
-        if (current >= target) return current;
-        // adaptive step keeps the lag bounded when tokens arrive in bursts
-        const step = Math.max(2, Math.ceil((target - current) / 6));
-        return Math.min(target, current + step);
-      });
-    }, tickMs);
-    return () => window.clearTimeout(id);
-  }, [pending, revealed, chars.length, tickMs]);
+    if (done) return;
 
-  const shown = chars.slice(0, revealed);
-  const split = Math.max(0, shown.length - blurTail);
-  const settled = done && revealed >= chars.length;
+    let rafId: number | null = null;
+    let lastTime = performance.now();
+
+    const frame = (now: number) => {
+      const current = revealedRef.current;
+      const target = targetRef.current;
+
+      if (current < target) {
+        const delta = now - lastTime;
+        // Adaptive step: smooth typing when close, accelerate on large backlog
+        const backlog = target - current;
+        // Pacing: roughly 60-80 chars per second at minimum, faster during bursts
+        const baseRate = Math.max(1, Math.round(delta * 0.08));
+        const step = backlog > 30 ? Math.ceil(backlog / 4) : Math.max(baseRate, Math.ceil(backlog / 8));
+        const next = Math.min(target, current + step);
+        revealedRef.current = next;
+        setRevealed(next);
+        lastTime = now;
+      }
+
+      // stop the loop once caught up — the effect re-runs when new tokens
+      // arrive (targetLength changes) and starts it again
+      if (revealedRef.current < targetRef.current) {
+        rafId = requestAnimationFrame(frame);
+      }
+    };
+
+    rafId = requestAnimationFrame(frame);
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  }, [done, targetLength]);
+
+  const settled = done && revealed >= targetLength;
+  const shownText = text.slice(0, revealed);
 
   return (
     <span className={className}>
-      {shown.slice(0, split).join("")}
-      {split < shown.length ? <span className="stream-tail">{shown.slice(split).join("")}</span> : null}
+      {shownText}
       {caret ? <span aria-hidden className={`stream-caret${settled ? "" : " is-streaming"}`} /> : null}
     </span>
   );
@@ -363,7 +390,7 @@ export function StreamLine({
       {head.map((word, index) => (
         <span key={index}>{word} </span>
       ))}
-      {tail.length ? <span className="stream-tail">{tail.join(" ")} </span> : null}
+      {tail.length ? <span>{tail.join(" ")} </span> : null}
       {streaming ? <span className="stream-caret is-streaming" /> : null}
       {!streaming && stream ? <span className="stream-caret" /> : null}
     </p>

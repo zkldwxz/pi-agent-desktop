@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { ChatMessage } from "@shared/types";
 import Flowchart, { type StepNode } from "../beautiful/primitives/Flowchart";
-import { buildToolGroups, buildTurns } from "../../lib/agent-view";
+import { buildToolGroups, buildTurns, toolSignature } from "../../lib/agent-view";
 import { cn } from "../../lib/cn";
 
 const ACCENT = "var(--accent)";
@@ -44,6 +44,9 @@ export function CanvasPanel({
   const turns = useMemo(() => buildTurns(messages, []), [messages]);
   const [picked, setPicked] = useState<string | null>(null);
 
+  // the graph only redraws when the work changed; the Flowchart re-measures
+  // every card, so a streaming answer rebuilding it was the dock's worst cost
+  const signature = toolSignature(turns);
   const steps = useMemo<StepNode[]>(() => {
     if (!turns.length) return [];
     // the canvas is narrow, so the graph shows the last turns, not all of them
@@ -60,9 +63,9 @@ export function CanvasPanel({
       title: (turn.prompt ?? "New session").replace(/\s+/g, " ").slice(0, 60),
       caption: summarize(turn),
     }));
-  }, [turns]);
+  }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const active = useMemo(() => turns.find((turn) => turn.key === picked) ?? null, [turns, picked]);
+  const active = useMemo(() => turns.find((turn) => turn.key === picked) ?? null, [signature, picked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!turns.length) {
     return (

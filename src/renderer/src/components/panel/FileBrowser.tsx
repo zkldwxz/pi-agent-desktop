@@ -93,23 +93,27 @@ export function FileBrowser({
           }}
           style={{ paddingLeft: 8 + depth * 12 }}
           className={cn(
-            "pressable row-enter flex h-7 w-full items-center gap-1.5 rounded-[6px] pr-2 text-left",
+            "group/file pressable row-enter flex h-7 w-full items-center gap-1.5 rounded-[6px] pr-2 text-left",
             active ? "bg-surface text-ink shadow-hairline" : "text-ink-2 hover:bg-hover",
           )}
         >
           {entry.kind === "dir" ? (
-            <ChevronDownIcon
-              size={11}
-              className="shrink-0 text-ink-3 transition-transform duration-300 ease-out-strong"
-              style={{ transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)" }}
-            />
+            <span className="relative flex size-3.5 shrink-0 items-center justify-center text-ink-3">
+              <FolderIcon
+                size={13}
+                className="absolute transition-opacity duration-150 group-hover/file:opacity-0"
+              />
+              <ChevronDownIcon
+                size={12}
+                strokeWidth={2.2}
+                className="absolute opacity-0 transition-[opacity,transform] duration-150 group-hover/file:opacity-100"
+                style={{ transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)" }}
+              />
+            </span>
           ) : (
-            <span className="w-[11px] shrink-0" />
-          )}
-          {entry.kind === "dir" ? (
-            <FolderIcon size={13} className="shrink-0 text-ink-3" />
-          ) : (
-            <span className="size-[6px] shrink-0 rounded-[1px] bg-line-strong" />
+            <span className="flex size-3.5 shrink-0 items-center justify-center">
+              <span className="size-[5px] rounded-[1px] bg-line-strong" />
+            </span>
           )}
           <span className={cn("min-w-0 flex-1 truncate text-[12px]", active && "font-medium")}>{entry.name}</span>
           {entry.kind === "file" && entry.size !== undefined ? (
