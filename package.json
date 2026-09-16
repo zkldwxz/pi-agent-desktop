@@ -3,13 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "description": "Desktop shell for the existing Pi coding agent — sessions, streaming chat, and conversation management.",
+  "author": "Wwc1122121",
   "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "icon": "node scripts/make-icon.mjs",
+    "pack": "npm run icon && electron-vite build && electron-builder --win"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.85.1",
@@ -35,17 +38,53 @@
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^5.0.0",
     "electron": "^38.0.0",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^4.0.0",
     "tailwindcss": "^4.1.8",
     "typescript": "^5.8.0",
     "vite": "^7.0.0"
   },
   "build": {
+    "appId": "com.pi.agent.desktop",
+    "productName": "Pi Agent Desktop",
+    "copyright": "Copyright © 2026 Wwc1122121",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**",
+      "package.json",
+      "!**/*.map"
+    ],
     "extraResources": [
       {
         "from": "resources/skills",
         "to": "skills"
       }
-    ]
+    ],
+    "asar": false,
+    "afterPack": "scripts/prune-node-modules.mjs",
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Pi-Agent-Desktop-${version}-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Pi Agent Desktop",
+      "deleteAppDataOnUninstall": false
+    }
   }
 }
