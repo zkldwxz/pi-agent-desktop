@@ -25,7 +25,8 @@ const BATCH = 12;
  * not spoken yet. This line exists for that gap, and names the running tool
  * when there is one.
  */
-function statusLabel(turn: TurnView): string | null {
+function statusLabel(turn: TurnView, live: boolean): string | null {
+  if (!live) return null;
   const last = turn.items.at(-1);
   if (!last) return null; // the loader below the thread owns the pre-first-token beat
   if (last.kind === "text" || last.kind === "thinking") return null; // caret / shimmer carry it
@@ -121,6 +122,9 @@ export function MessageThread({
       ) : null}
       {shown.map((turn, index) => {
         const globalIndex = index + hiddenCount;
+        /* a tool can be running with no streaming assistant message yet — the
+           app-level flag covers that gap, so "Worked for" waits for the run */
+        const isLive = turn.streaming || (streaming && globalIndex === turns.length - 1);
         return (
         <section
           key={turn.key}
@@ -175,16 +179,16 @@ export function MessageThread({
             </div>
           ))}
 
-          <TurnItems turn={turn} onFork={onFork} />
+          <TurnItems turn={turn} onFork={onFork} live={isLive} />
 
           {/* the persistent status line: names the beat the transcript itself
               cannot — a tool still running, or the model composing its next
               move after one */}
-          {turn.streaming && statusLabel(turn) ? <AgentWorking label={statusLabel(turn)!} /> : null}
+          {isLive && statusLabel(turn, isLive) ? <AgentWorking label={statusLabel(turn, isLive)!} /> : null}
 
           {/* the completion line, Cursor-style: duration and cost on the left,
               copy / retry affordances and the timestamp on the right */}
-          {!turn.streaming && turn.fullText.trim() ? (
+          {!isLive && turn.fullText.trim() ? (
             <TurnFooter
               turn={turn}
               onFork={onFork}
@@ -285,9 +289,12 @@ function TurnFooter({
 function TurnItems({
   turn,
   onFork,
+  live,
 }: {
   turn: TurnView;
   onFork?: (userIndex: number) => void;
+  /** the run is still going — the last turn keeps its working affordances */
+  live: boolean;
 }) {
   let lastThinking = -1;
   for (let i = turn.items.length - 1; i >= 0; i -= 1) {
@@ -305,7 +312,7 @@ function TurnItems({
           key={item.key}
           text={item.text}
           durationMs={item.durationMs}
-          working={turn.streaming && itemIndex === lastThinking}
+          working={live && itemIndex === lastThinking}
         />
       );
     }
@@ -318,7 +325,7 @@ function TurnItems({
         turn={turn}
         item={item}
         isLast={isLast}
-        streaming={turn.streaming && isLast}
+        streaming={live && isLast}
         onFork={onFork}
       />
     );

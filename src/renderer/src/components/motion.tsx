@@ -292,12 +292,15 @@ export function StreamText({
       const target = targetRef.current;
 
       if (current < target) {
-        const delta = now - lastTime;
-        // Adaptive step: smooth typing when close, accelerate on large backlog
+        const delta = Math.max(1, now - lastTime);
         const backlog = target - current;
-        // Pacing: roughly 60-80 chars per second at minimum, faster during bursts
-        const baseRate = Math.max(1, Math.round(delta * 0.08));
-        const step = backlog > 30 ? Math.ceil(backlog / 4) : Math.max(baseRate, Math.ceil(backlog / 8));
+        /* Providers deliver whole paragraphs in one chunk; revealing a chunk
+         * in a single frame is why the typewriter disappeared. The catch-up is
+         * paced instead: a burst never takes longer than ~0.4s, a trickle still
+         * types at a readable ~60 chars/s. */
+        const perFrame = Math.max(1, Math.round((delta / 16.7) * 1));
+        const catchUp = Math.ceil(backlog / 25);
+        const step = Math.max(perFrame, Math.min(catchUp, Math.ceil(backlog / 4)));
         const next = Math.min(target, current + step);
         revealedRef.current = next;
         setRevealed(next);
