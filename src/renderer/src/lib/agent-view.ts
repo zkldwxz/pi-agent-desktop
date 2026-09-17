@@ -56,9 +56,9 @@ export type TraceVariant = "Steps" | "Reasoning" | "Search" | "Coding";
  * than all thinking first and all text last.
  */
 export type TurnItem =
-  | { kind: "thinking"; key: string; text: string }
-  | { kind: "tools"; key: string; runs: ToolRun[] }
-  | { kind: "text"; key: string; text: string };
+  | { kind: "thinking"; key: string; text: string; at: number; durationMs?: number }
+  | { kind: "tools"; key: string; runs: ToolRun[]; at: number }
+  | { kind: "text"; key: string; text: string; at: number };
 
 /** How a run is bucketed into a summary row. */
 export type ToolBucket = "explore" | "edit" | "other";
@@ -682,7 +682,7 @@ function buildTurnsUncached(messages: ChatMessage[], live: ToolActivity[]): Turn
         // it still needs a timeline home, appended to the latest tool group
         turn.toolRuns.push(rebuilt);
         runsById.set(rebuilt.toolCallId, rebuilt);
-        appendItem(turn, { kind: "tools", key: rebuilt.toolCallId, runs: [rebuilt] });
+        appendItem(turn, { kind: "tools", key: rebuilt.toolCallId, runs: [rebuilt], at: message.timestamp });
       }
       const harvested = harvestSources(message.text);
       if (harvested.length) {
@@ -699,7 +699,7 @@ function buildTurnsUncached(messages: ChatMessage[], live: ToolActivity[]): Turn
       turn.endedAt = message.timestamp;
       const run = buildToolRun("bash", undefined, message.text, undefined, "done", message.key);
       turn.toolRuns.push(run);
-      appendItem(turn, { kind: "tools", key: run.toolCallId, runs: [run] });
+      appendItem(turn, { kind: "tools", key: run.toolCallId, runs: [run], at: message.timestamp });
       continue;
     }
 
@@ -714,20 +714,25 @@ function buildTurnsUncached(messages: ChatMessage[], live: ToolActivity[]): Turn
       const body = prose || fallback;
       prose = "";
       if (!body.trim()) return;
-      appendItem(turn, { kind: "text", key: `${message.key}-x${turn.items.length}`, text: body });
+      appendItem(turn, { kind: "text", key: `${message.key}-x${turn.items.length}`, text: body, at: message.timestamp });
       turn.fullText = turn.fullText ? `${turn.fullText}\n\n${body}` : body;
       if (!turn.lead) turn.lead = body;
     };
     for (const block of message.blocks) {
       if (block.type === "thinking") {
         flushProse();
-        appendItem(turn, { kind: "thinking", key: `${message.key}-t${turn.items.length}`, text: block.text });
+        appendItem(turn, {
+          kind: "thinking",
+          key: `${message.key}-t${turn.items.length}`,
+          text: block.text,
+          at: message.timestamp,
+        });
       } else if (block.type === "toolCall") {
         flushProse();
         const run = buildToolRun(block.name, block.arguments, undefined, undefined, "running", block.id);
         turn.toolRuns.push(run);
         runsById.set(block.id, run);
-        appendItem(turn, { kind: "tools", key: block.id, runs: [run] });
+        appendItem(turn, { kind: "tools", key: block.id, runs: [run], at: message.timestamp });
       } else if (block.type === "text") {
         prose = prose ? `${prose}\n${block.text}` : block.text;
       }
@@ -747,9 +752,20 @@ function buildTurnsUncached(messages: ChatMessage[], live: ToolActivity[]): Turn
       if (turn.toolRuns.some((run) => run.toolCallId === activity.toolCallId)) continue;
       const run = buildLiveToolRun(activity);
       turn.toolRuns.push(run);
-      appendItem(turn, { kind: "tools", key: run.toolCallId, runs: [run] });
+      appendItem(turn, { kind: "tools", key: run.toolCallId, runs: [run], at: activity.startedAt ?? Date.now() });
     }
     if (!current) turn.streaming = true;
+  }
+
+  /* how long each reasoning beat took: from the message that produced it to
+   * the next beat (or the end of the turn) — the "Thought 20s" line both
+   * Cursor and Zed put on a settled trace */
+  for (const turn of turns) {
+    turn.items.forEach((item, index) => {
+      if (item.kind !== "thinking") return;
+      const next = turn.items[index + 1];
+      item.durationMs = Math.max(0, (next?.at ?? turn.endedAt) - item.at);
+    });
   }
 
   return turns;

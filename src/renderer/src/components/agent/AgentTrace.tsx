@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ChevronDownIcon } from "../icons";
+import { formatDuration } from "../../lib/format";
 import { cn } from "../../lib/cn";
 
 /**
@@ -14,13 +15,21 @@ import { cn } from "../../lib/cn";
 export function AgentTrace({
   text,
   working,
+  durationMs,
 }: {
   text: string;
   /** true only for the beat the agent is currently producing */
   working: boolean;
+  /** how long this beat took, once it has settled */
+  durationMs?: number;
 }) {
   const [expanded, setExpanded] = useState(false);
   if (!text.trim()) return null;
+
+  /* Cursor says "Thought 20s", Zed says "Thought for 20s" — a sub-second
+   * beat is not worth a number */
+  const settled =
+    durationMs && durationMs >= 2000 ? `Thought for ${formatDuration(durationMs)}` : "Thought briefly";
 
   return (
     <div className="flex flex-col">
@@ -33,7 +42,7 @@ export function AgentTrace({
         {working ? (
           <span className="shimmer-text text-[12px] italic">Thinking</span>
         ) : (
-          <span className="text-[12px] italic text-ink-3">Thought briefly</span>
+          <span className="text-[12px] italic text-ink-3">{settled}</span>
         )}
         <ChevronDownIcon
           size={11}

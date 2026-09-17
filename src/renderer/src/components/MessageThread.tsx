@@ -298,7 +298,14 @@ function TurnItems({
   return turn.items.map((item, itemIndex) => {
     const isLast = itemIndex === turn.items.length - 1;
     if (item.kind === "thinking") {
-      return <AgentTrace key={item.key} text={item.text} working={turn.streaming && itemIndex === lastThinking} />;
+      return (
+        <AgentTrace
+          key={item.key}
+          text={item.text}
+          durationMs={item.durationMs}
+          working={turn.streaming && itemIndex === lastThinking}
+        />
+      );
     }
     if (item.kind === "tools") {
       return <AgentToolRun key={item.key} runs={item.runs} />;
