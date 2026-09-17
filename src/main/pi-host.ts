@@ -551,30 +551,27 @@ export class PiHost {
     return this.buildState();
   }
 
-  private lastSerialized: { log: unknown; out: ChatMessage[] } | null = null;
+  private lastSerialized: { log: unknown; length: number; out: ChatMessage[] } | null = null;
 
   messages(): ChatMessage[] {
     const session = this.runtime?.session;
     if (!session) return [];
     /* The serialization cost of the whole log lives in this method, and the
      * host calls it on every emitted event — most of which change nothing in
-     * the transcript. Identity-checking the message array plus the streaming
-     * message makes every such emit a no-op. */
-    /* the streaming message may be an unstable object — append it whenever it
-     * is present (it is cheap: one message) and cache only the settled log */
+     * the transcript. Cache on array identity *and length*: pi appends into
+     * the same array reference, so identity alone would serve a transcript
+     * that is missing its newest messages. */
     const log = session.messages;
     const stream = session.state.streamingMessage as unknown;
-    if (!stream) {
-      if (this.lastSerialized?.log === log) return this.lastSerialized.out;
-      const out = serializeMessages(log, undefined);
-      this.lastSerialized = { log, out };
-      return out;
+    const last = this.lastSerialized;
+    if (last && last.log === log && last.length === log.length) {
+      if (!stream) return last.out;
+      return [...last.out, serializeMessage(stream, last.out.length, true)];
     }
-    const settled =
-      this.lastSerialized?.log === log
-        ? this.lastSerialized.out
-        : (this.lastSerialized = { log, out: serializeMessages(log, undefined) }).out;
-    return [...settled, serializeMessage(stream, settled.length, true)];
+    const out = serializeMessages(log, undefined);
+    this.lastSerialized = { log, length: log.length, out };
+    if (!stream) return out;
+    return [...out, serializeMessage(stream, out.length, true)];
   }
 
   toolActivity(): ToolActivity[] {

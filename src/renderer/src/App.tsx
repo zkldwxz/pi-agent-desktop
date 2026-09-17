@@ -127,17 +127,18 @@ export function App() {
 
   const [zoomFactor, setZoomFactor] = useState<number>(() => {
     try {
-      const saved = localStorage.getItem("pi-zoom-scale");
+      // v1 stored values from an over-aggressive auto-scale (0.85–0.92 on big
+      // monitors); v2 starts fresh so those do not stick
+      const saved = localStorage.getItem("pi-zoom-scale-2");
       if (saved) {
         const val = parseFloat(saved);
         if (!isNaN(val) && val >= 0.7 && val <= 1.5) return val;
       }
     } catch {}
     if (typeof window !== "undefined") {
-      // large monitors make the 14px base read oversized; scale down by tier
-      if (window.screen.width >= 2560) return 0.85;
+      // large monitors make the 14px base read oversized; scale down gently
+      if (window.screen.width >= 2560) return 0.95;
       if (window.screen.width > 1920 || window.devicePixelRatio > 1.2) return 0.9;
-      if (window.screen.width >= 1920) return 0.95;
     }
     return 1.0;
   });
@@ -151,7 +152,7 @@ export function App() {
     setZoomFactor(clamped);
     try {
       window.pi?.setZoomFactor?.(clamped);
-      localStorage.setItem("pi-zoom-scale", String(clamped));
+      localStorage.setItem("pi-zoom-scale-2", String(clamped));
     } catch {}
   }, []);
 
