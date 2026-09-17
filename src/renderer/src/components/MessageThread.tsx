@@ -320,14 +320,7 @@ function TurnItems({
       return <AgentToolRun key={item.key} runs={item.runs} />;
     }
     return (
-      <AgentAnswer
-        key={item.key}
-        turn={turn}
-        item={item}
-        isLast={isLast}
-        streaming={live && isLast}
-        onFork={onFork}
-      />
+      <AgentAnswer key={item.key} turn={turn} item={item} isLast={isLast} streaming={live && isLast} />
     );
   });
 }

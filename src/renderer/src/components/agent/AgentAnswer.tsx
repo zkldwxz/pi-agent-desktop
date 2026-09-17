@@ -2,8 +2,6 @@ import CodeBlock from "../beautiful/primitives/CodeBlock";
 import StreamingText from "../beautiful/primitives/StreamingText";
 import { StreamText } from "../motion";
 import { Markdown } from "../Markdown";
-import { CacheRing } from "./CacheRing";
-import { GitBranchIcon } from "../icons";
 import { splitSegments, type TurnItem, type TurnView } from "../../lib/agent-view";
 
 function CodeSegment({ lang, code }: { lang: string; code: string }) {
@@ -34,15 +32,12 @@ export function AgentAnswer({
   item,
   isLast,
   streaming,
-  onFork,
 }: {
   turn: TurnView;
   item: TextItem;
   /** the last beat of the turn carries sources, usage and the fork button */
   isLast: boolean;
   streaming: boolean;
-  /** branch the conversation from this turn's prompt */
-  onFork?: (userIndex: number) => void;
 }) {
   if (!item.text.trim() && !streaming) return null;
 
@@ -102,30 +97,9 @@ export function AgentAnswer({
         )
       )}
 
-      {isLast && (turn.usage || onFork) ? (
-        <div className="group/turn flex items-center gap-3">
-          {turn.usage && turn.usage.total > 0 ? (
-            <div className="flex items-center gap-3">
-              <CacheRing stats={{ total: turn.usage.total, cacheRead: turn.usage.cacheRead ?? 0 }} />
-              {turn.usage.model ? <span className="font-mono text-[10px] text-ink-3">{turn.usage.model}</span> : null}
-            </div>
-          ) : null}
-          {/* Fork: an icon only, invisible until the pointer is in this turn —
-              the label is the tooltip, so the row keeps its footprint without
-              carrying a permanent button's worth of chrome. */}
-          {!streaming && onFork ? (
-            <button
-              type="button"
-              onClick={() => onFork(turn.userIndex)}
-              title="Fork here"
-              aria-label="Fork here"
-              className="pressable flex size-6 items-center justify-center rounded-[6px] text-ink-3 opacity-0 transition-opacity duration-150 hover:bg-hover hover:text-ink-2 focus-visible:opacity-100 group-hover/turn:opacity-100"
-            >
-              <GitBranchIcon size={13} />
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+      {/* no per-answer usage line here: the turn's closing row already reports
+          duration, tokens and cache share, and the two stacked rows repeated
+          the same numbers twice */}
     </div>
   );
 }
