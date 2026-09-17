@@ -11,6 +11,8 @@
 
 @import "tailwindcss";
 @import "shadow-plugin/unprefixed";
+/* VS Code codicons — the IDE icon set Cursor ships; one font face, every glyph */
+@import "@vscode/codicons/dist/codicon.css";
 /* Geist carries Latin/numerals; CJK falls through to the system faces in
    `--font-cjk` below, because none of these files ship CJK glyphs. */
 @import "@fontsource-variable/geist";
