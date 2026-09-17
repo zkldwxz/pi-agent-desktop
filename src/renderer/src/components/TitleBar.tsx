@@ -30,16 +30,20 @@ export function TitleBar({
   dark,
   onToggleTheme,
   dock,
+  sidebar,
 }: {
   dark: boolean;
   onToggleTheme: () => void;
   /** right-side chrome ahead of the window controls (the tool dock toggle) */
   dock?: React.ReactNode;
+  /** the sidebar's trigger — visible whether the rail is open or collapsed */
+  sidebar?: React.ReactNode;
 }) {
   return (
     <div className="titlebar-drag flex h-10 shrink-0 items-center gap-2 border-b border-line bg-canvas px-2.5">
       <Logo />
       <div className="text-[12.5px] font-semibold text-ink">Pi Agent</div>
+      {sidebar ? <div className="titlebar-no-drag flex items-center pl-1">{sidebar}</div> : null}
       <div className="flex-1" />
 
       {dock ? <div className="titlebar-no-drag flex items-center pr-2">{dock}</div> : null}

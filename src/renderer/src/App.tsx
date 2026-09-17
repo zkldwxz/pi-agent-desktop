@@ -32,6 +32,7 @@ import { collectChanges, type ChangeEntry } from "./components/panel/ChangesPane
 import { buildTurns } from "./lib/agent-view";
 import { ToolDock, type DockTool } from "./components/panel/ToolDock";
 import { DockToggle } from "./components/panel/DockToggle";
+import { SidebarToggle } from "./components/panel/SidebarToggle";
 import { formatDesignPick, toImageAttachment } from "./lib/design-pick";
 import { ViewSkeleton } from "./components/ViewSkeleton";
 import { useTheme } from "./lib/theme";
@@ -101,6 +102,8 @@ export function App() {
   const [openFile, setOpenFile] = useState<string | undefined>(undefined);
   /** the session being switched to — its transcript is still the previous one */
   const [pendingSession, setPendingSession] = useState<string | null>(null);
+  /** owned here so the title bar and the rail toggle the same state */
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [browser, setBrowser] = useState<BrowserState>({
     url: "",
     title: "",
@@ -575,6 +578,7 @@ export function App() {
         dark={dark}
         onToggleTheme={theme.toggle}
         dock={<DockToggle open={dockOpen} onToggle={() => setDockOpen((value) => !value)} />}
+        sidebar={<SidebarToggle collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((value) => !value)} />}
       />
       <div className="flex min-h-0 flex-1">
         {/* No icon rail: the sidebar's own rows are the navigation, so Views are
@@ -612,6 +616,8 @@ export function App() {
                 await window.pi.newSession();
               })();
             }}
+            collapsed={sidebarCollapsed}
+            onCollapsedChange={setSidebarCollapsed}
             onPickNewFolder={() => {
               setView("chat");
               void (async () => {

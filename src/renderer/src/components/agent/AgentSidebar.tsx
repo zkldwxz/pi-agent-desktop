@@ -43,12 +43,15 @@ function RailRow({
   label,
   hint,
   active = false,
+  title,
   onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   hint?: string;
   active?: boolean;
+  /** the row's copy is hidden while collapsed — the tooltip carries it */
+  title?: string;
   onClick: () => void;
 }) {
   /* the row itself is shared with the settings rail; the session pane adds the
@@ -59,6 +62,7 @@ function RailRow({
       label={label}
       hint={hint}
       active={active}
+      title={title}
       onClick={onClick}
       className="side-pane-row h-8.5"
       copyClassName="side-pane-copy"
@@ -96,6 +100,8 @@ export function AgentSidebar({
   onNewInWorkspace,
   onNewInFolder,
   onPickNewFolder,
+  collapsed,
+  onCollapsedChange,
 }: {
   state: HostState;
   view: SidebarView;
@@ -109,13 +115,16 @@ export function AgentSidebar({
   onNewInFolder?: (cwd: string) => void;
   /** pick a folder on disk, then start a new agent there */
   onPickNewFolder?: () => void;
+  /** owned by the app so the title bar can toggle the same state */
+  collapsed: boolean;
+  onCollapsedChange: (collapsed: boolean) => void;
 }) {
   const [all, setAll] = useState<SessionListItem[]>(state.sessions);
   const [prefs, setPrefs] = useState<WorkspacePrefs>(() => load(PREFS_KEY, DEFAULT_PREFS));
   const [renamed, setRenamed] = useState<Record<string, string>>(() => load(RENAME_KEY, {}));
   const [readAt, setReadAt] = useState<Record<string, number>>(() => load(READ_KEY, {}));
-  const [collapsed, setCollapsed] = useState(false);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const setCollapsed = onCollapsedChange;
 
   /** folders this machine has sessions for, newest first — the New Agent menu */
   const recentFolders = useMemo(() => {
@@ -214,6 +223,7 @@ export function AgentSidebar({
             <RailRow
               icon={<PanelLeftIcon size={16} className="rotate-180" />}
               label="Expand sidebar"
+              title="Expand sidebar"
               onClick={() => setCollapsed(false)}
             />
           ) : null}

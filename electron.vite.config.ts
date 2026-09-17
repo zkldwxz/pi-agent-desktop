@@ -26,5 +26,9 @@ export default defineConfig({
       },
     },
     plugins: [react(), tailwindcss()],
+    /* a fixed port: several projects on this machine run dev servers, and the
+     * app landing on whichever port happened to be free made the preview URL
+     * (and anything scripted against it) drift between runs */
+    server: { port: 5288, strictPort: true },
   },
 });
