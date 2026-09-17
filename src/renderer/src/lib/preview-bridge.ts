@@ -127,6 +127,27 @@ const MESSAGES: ChatMessage[] = [
     blocks: [],
   },
   {
+    key: "u3",
+    role: "user",
+    timestamp: now - 40_000,
+    text: "顺手把 dock 的高度上限也检查一下。",
+    blocks: [],
+  },
+  {
+    key: "a3",
+    role: "assistant",
+    timestamp: now - 20_000,
+    text: "",
+    blocks: [
+      {
+        type: "thinking",
+        text:
+          "先看 dock 的 tab 条实现，确认它是不是把面板高度写死了。\n\n接着检查 Popover 的 max-height——模型菜单那次修过同样的毛病，dock 可能也有。\n\n最后跑一次 typecheck 确认没有类型回归。",
+      },
+      { type: "toolCall", id: "t9", name: "read", arguments: { file_path: "src/renderer/src/components/panel/ToolDock.tsx" } },
+    ],
+  },
+  {
     key: "a2",
     role: "assistant",
     timestamp: now - 2 * 60_000,
