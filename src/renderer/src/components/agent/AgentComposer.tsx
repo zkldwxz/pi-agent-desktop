@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ChatMessage, HostState } from "@shared/types";
 import PromptBar from "../beautiful/primitives/PromptBar";
 import { buildTurns, toolSignature } from "../../lib/agent-view";
@@ -59,12 +59,30 @@ export function AgentComposer({
   // the @-mention catalogue only moves when a tool call lands; keying it on the
   // work signature keeps a plain streaming answer from re-scanning the log
   const signature = toolSignature(useMemo(() => buildTurns(messages, []), [messages]));
+
+  /* the workspace itself is the real @ catalogue: one bounded walk per
+   * workspace, refreshed when the folder changes */
+  const [workspaceFiles, setWorkspaceFiles] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void window.pi
+      .searchFiles()
+      .then((hits) => {
+        if (!cancelled) setWorkspaceFiles(hits.map((hit) => hit.path));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [state.cwd]);
+
   const sources = useMemo(() => {
     const touched = recentFiles(messages);
     const entries = [
       { key: "agents", name: "AGENTS.md", desc: "project context the agent reads first", glyph: "clip" },
       { key: "pkg", name: "package.json", desc: "dependencies and scripts", glyph: "layers" },
       ...touched.map((path) => ({ key: path, name: path, desc: "read earlier in this session", glyph: "clip" })),
+      ...workspaceFiles.map((path) => ({ key: path, name: path, desc: "", glyph: "clip" })),
     ];
     const seen = new Set<string>();
     const unique = entries.filter((entry) => {
@@ -72,8 +90,10 @@ export function AgentComposer({
       seen.add(entry.name);
       return true;
     });
-    return unique.slice(0, 10);
-  }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps
+    // session touches first, then the workspace walk (breadth-first, so the
+    // files people actually mention come before the deep ones)
+    return unique.slice(0, 400);
+  }, [signature, workspaceFiles]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* the session's token accounting, on the same row as the model pill */
   const tokens = state.snapshot?.stats?.tokens;

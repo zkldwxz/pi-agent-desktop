@@ -245,11 +245,11 @@ export default function PromptBar({
   const query = plusOpen ? "" : token?.query ?? "";
 
   const rows: { key: string; name: string; desc: string }[] =
-    menu === "at"
+    (menu === "at"
       ? sources.filter((s) => s.name.toLowerCase().includes(query))
       : menu === "slash"
         ? commands.filter((c) => c.name.slice(1).startsWith(query))
-        : [];
+        : []).slice(0, 60);
 
   useEffect(() => {
     setActive(0);
@@ -485,7 +485,7 @@ export default function PromptBar({
       {menu && (
         <div
           onMouseLeave={() => setEngaged(false)}
-          className="absolute inset-x-0 bottom-full z-10 mb-2 rounded-[10px] bg-surface p-1 shadow-raised"
+          className="absolute inset-x-0 bottom-full z-10 mb-2 max-h-[296px] overflow-y-auto rounded-[10px] bg-surface p-1 shadow-raised scrollbar-thin"
           style={{ animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "bottom center" }}
         >
           {/* single gliding highlight — appears once a row is hovered */}

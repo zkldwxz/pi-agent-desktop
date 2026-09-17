@@ -24,6 +24,54 @@ const SKIP = new Set([
 const MAX_ENTRIES = 500;
 const MAX_BYTES = 512 * 1024;
 
+/** Bounded walk for the composer's `@` mentions — not a full index. */
+const MAX_SEARCH_FILES = 4000;
+const MAX_SEARCH_DEPTH = 8;
+
+export interface FileSearchHit {
+  /** relative path, forward slashes */
+  path: string;
+  /** epoch ms — the newest files sort first */
+  modified: number;
+}
+
+/**
+ * Walk a workspace for filenames, skipping the usual noise directories.
+ *
+ * The composer's `@` menu wants to search what is on disk, not just the ten
+ * entries the session happens to have touched. The walk is bounded (depth and
+ * count) so a large repository stays a few milliseconds, and it hits the
+ * filesystem's directory cache on repeat calls.
+ */
+export async function searchFiles(root: string, limit = MAX_SEARCH_FILES): Promise<FileSearchHit[]> {
+  const hits: FileSearchHit[] = [];
+  const queue: Array<{ dir: string; depth: number }> = [{ dir: root, depth: 0 }];
+
+  while (queue.length && hits.length < limit) {
+    const { dir, depth } = queue.shift()!;
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (hits.length >= limit) break;
+      if (entry.isDirectory()) {
+        // dot-directories are caches and tooling; the code is never in them
+        if (entry.name.startsWith(".") || SKIP.has(entry.name) || depth >= MAX_SEARCH_DEPTH) continue;
+        queue.push({ dir: join(dir, entry.name), depth: depth + 1 });
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      // breadth-first keeps shallow files (the ones people mention) first
+      hits.push({ path: join(dir, entry.name).slice(root.length + 1).split(sep).join("/"), modified: 0 });
+    }
+  }
+
+  return hits;
+}
+
 const LANG_BY_EXT: Record<string, string> = {
   ".ts": "ts", ".tsx": "tsx", ".js": "js", ".jsx": "jsx", ".mjs": "js", ".cjs": "js",
   ".json": "json", ".jsonc": "json", ".css": "css", ".scss": "scss", ".less": "less",

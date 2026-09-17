@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { PiHost } from "./pi-host";
 import { BrowserHost } from "./browser";
-import { listDir, readFileForView } from "./fs-browser";
+import { listDir, readFileForView, searchFiles } from "./fs-browser";
 import { listOpeners, openWith } from "./openers";
 import { applyCatalog, catalog, markOnboardingDone, readConfig } from "./install";
 import type { UiAnswer } from "@shared/ui";
@@ -310,6 +310,11 @@ function registerIpc(): void {
   ipcMain.handle("fs:list", async (_event, dirPath: string, showAll: boolean) => {
     const root = host?.getCwd() ?? defaultCwd();
     return listDir(root, dirPath || root, showAll);
+  });
+
+  ipcMain.handle("fs:search", async () => {
+    const root = host?.getCwd() ?? defaultCwd();
+    return searchFiles(root);
   });
 
   ipcMain.handle("fs:read", async (_event, filePath: string) => {
