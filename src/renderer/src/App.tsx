@@ -507,6 +507,40 @@ export function App() {
     );
   }
 
+  /** the composer, hoisted so an empty session can centre it Cursor-style */
+  const composer = (
+    <AgentComposer
+      state={state}
+      messages={messages}
+      prefill={prefill}
+      onPrefillConsumed={() => setPrefill(undefined)}
+      onSend={(text) => {
+        // while the agent runs the delivery mode is the user's choice — it is
+        // what decides "correct this run" versus "add to the next"
+        if (streaming) {
+          void (queueBehavior === "steer" ? window.pi.steer(text) : window.pi.followUp(text));
+          return;
+        }
+        void window.pi.prompt({ text });
+      }}
+      onSetThinking={(level) => void window.pi.setThinking(level).catch(() => undefined)}
+      onAbort={() => void window.pi.abort()}
+      onSetModel={(provider, modelId) => void window.pi.setModel(provider, modelId).catch(() => undefined)}
+    />
+  );
+
+  /** a fresh session owns the middle of the window, not the bottom edge */
+  const emptySession = messages.length === 0 && !streaming;
+
+  // a new session focuses the composer, so you can just start typing
+  useEffect(() => {
+    if (!emptySession) return;
+    const timer = window.setTimeout(() => {
+      document.querySelector<HTMLTextAreaElement>("[data-promptbar] textarea")?.focus();
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [emptySession]);
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-page text-ink">
       <TitleBar dark={dark} onToggleTheme={theme.toggle} />
@@ -584,6 +618,22 @@ export function App() {
                   <div className="border-b border-red-tint bg-red-tint px-4 py-2 text-[12px] text-red">{fatalError}</div>
                 ) : null}
 
+                {emptySession ? (
+                  <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 pb-20">
+                    <div
+                      className="mb-5 text-center"
+                      style={{ animation: "fade-up 320ms cubic-bezier(0.23,1,0.32,1) both" }}
+                    >
+                      <div className="text-[22px] font-semibold tracking-[-0.03em] text-ink">What should Pi do next?</div>
+                      <p className="mx-auto mt-2 max-w-md text-[13px] text-ink-3">
+                        This window talks to the Pi agent already installed on this machine. Sessions, models, and credentials
+                        stay in ~/.pi/agent.
+                      </p>
+                    </div>
+                    {composer}
+                  </div>
+                ) : (
+                  <>
                 <div className="relative min-h-0 flex-1">
                   {/* a session switch remounts the transcript with a soft
                       enter instead of the old conversation snapping out */}
@@ -629,24 +679,9 @@ export function App() {
                   }}
                 />
 
-                <AgentComposer
-                  state={state}
-                  messages={messages}
-                  prefill={prefill}
-                  onPrefillConsumed={() => setPrefill(undefined)}
-                  onSend={(text) => {
-                    // while the agent runs the delivery mode is the user's choice — it is
-                    // what decides "correct this run" versus "add to the next"
-                    if (streaming) {
-                      void (queueBehavior === "steer" ? window.pi.steer(text) : window.pi.followUp(text));
-                      return;
-                    }
-                    void window.pi.prompt({ text });
-                  }}
-                  onSetThinking={(level) => void window.pi.setThinking(level).catch(() => undefined)}
-                  onAbort={() => void window.pi.abort()}
-                  onSetModel={(provider, modelId) => void window.pi.setModel(provider, modelId).catch(() => undefined)}
-                />
+                {composer}
+                  </>
+                )}
               </div>
 
               {/* the docked browser: the page composites above this pane, its
