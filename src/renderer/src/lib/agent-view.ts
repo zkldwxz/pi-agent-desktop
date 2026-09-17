@@ -320,14 +320,15 @@ export function buildToolRun(
         run.label = "Search the web";
         run.chip = target ? truncate(target, 40) : "web";
       } else {
+        // an unrecognised tool (an MCP or extension tool) reads as itself;
+        // no "call" filler — the row is already a call
         run.label = name;
-        run.chip = target ? truncate(target, 40) : "call";
+        run.chip = target ? truncate(target, 40) : "";
       }
       break;
     }
   }
 
-  if (!run.chip) run.chip = target ? truncate(target, 40) : name;
   return run;
 }
 
