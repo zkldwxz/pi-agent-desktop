@@ -7,3 +7,6 @@ release
 .env
 .env.local
 .qa
+
+# playwright-cli scratch output
+.playwright-cli/
