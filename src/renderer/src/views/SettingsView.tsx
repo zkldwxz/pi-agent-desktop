@@ -193,6 +193,19 @@ export function SettingsView({
   const [category, setCategory] = useState<SettingsCategory>("general");
   const [query, setQuery] = useState("");
 
+  /* desktop-only preferences live in localStorage rather than the pi settings
+   * file — they are about this shell, not about the agent */
+  const [soundOn, setSoundOn] = useState(() => localStorage.getItem("pi-sound-done") !== "off");
+  const [notifyOn, setNotifyOn] = useState(() => localStorage.getItem("pi-notify-done") !== "off");
+  const toggleSound = (next: boolean) => {
+    setSoundOn(next);
+    localStorage.setItem("pi-sound-done", next ? "on" : "off");
+  };
+  const toggleNotify = (next: boolean) => {
+    setNotifyOn(next);
+    localStorage.setItem("pi-notify-done", next ? "on" : "off");
+  };
+
   const modelKeys = state.models.map((model) => `${model.provider}/${model.id}`);
 
   /* searching filters the rail; empty groups drop out entirely */
@@ -425,6 +438,15 @@ export function SettingsView({
 
           {category === "general" ? (
           <>
+          <Section title="Desktop" index={0}>
+            <Row title="Completion sound" hint="a short chime when a run finishes">
+              <Switch on={soundOn} onClick={() => toggleSound(!soundOn)} />
+            </Row>
+            <Row title="Windows notification" hint="a toast when the run finishes while the window is in the background">
+              <Switch on={notifyOn} onClick={() => toggleNotify(!notifyOn)} />
+            </Row>
+          </Section>
+
           <Section title="Images &amp; output" index={1}>
             <Row title="Block image input" hint="stops attachments and screenshots from reaching the model">
               <Switch on={settings.blockImages} onClick={() => onUpdate({ blockImages: !settings.blockImages })} />

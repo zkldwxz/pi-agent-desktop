@@ -335,8 +335,10 @@ export default function PromptBar({
     const sweep = playSweep(shader, {
       palette: RAINBOW,
       direction: "ltr",
-      sweepMs: 570,
-      outroMs: 80,
+      // slower than the registry default: easeOutExpo front-loads the travel,
+      // so 570ms read as a flash you could miss
+      sweepMs: 950,
+      outroMs: 160,
       peakAlpha: 1.3,
       bandTight: 10,
       brightness: 1.4,

@@ -58,6 +58,8 @@ export interface PiBridge {
   pickCwd: () => Promise<string | undefined>;
   openPath: (target: string) => Promise<void>;
   showItem: (target: string) => Promise<void>;
+  /** OS-level toast — the run finished while you were elsewhere */
+  notify: (payload: { title?: string; body?: string }) => Promise<void>;
   listDir: (dirPath: string, showAll: boolean) => Promise<DirListing>;
   /** workspace filenames for the composer's `@` search (bounded walk) */
   searchFiles: () => Promise<{ path: string; modified: number }[]>;
@@ -126,6 +128,7 @@ const api: PiBridge = {
   pickCwd: () => ipcRenderer.invoke("pi:pickCwd"),
   openPath: (target) => ipcRenderer.invoke("pi:openPath", target),
   showItem: (target) => ipcRenderer.invoke("pi:showItem", target),
+  notify: (payload) => ipcRenderer.invoke("app:notify", payload),
   listDir: (dirPath, showAll) => ipcRenderer.invoke("fs:list", dirPath, showAll),
   searchFiles: () => ipcRenderer.invoke("fs:search"),
   readFile: (filePath) => ipcRenderer.invoke("fs:read", filePath),

@@ -10,6 +10,7 @@ import { SessionOutline } from "./components/panel/SessionOutline";
 import { TerminalPanel } from "./components/panel/TerminalPanel";
 import type { FileEntry } from "@shared/workspace";
 import { cn } from "./lib/cn";
+import { playDoneChime } from "./lib/sound";
 import type { BrowserState, DesignPick } from "@shared/browser";
 import type { UiAnswer, UiNotification, UiRequest } from "@shared/ui";
 import { ApprovalPrompt, NoticeStack } from "./components/agent/ApprovalPrompt";
@@ -98,6 +99,8 @@ export function App() {
   const [dockTool, setDockTool] = useState<DockTool | null>(null);
   const [activeChange, setActiveChange] = useState<ChangeEntry | null>(null);
   const [openFile, setOpenFile] = useState<string | undefined>(undefined);
+  /** the session being switched to — its transcript is still the previous one */
+  const [pendingSession, setPendingSession] = useState<string | null>(null);
   const [browser, setBrowser] = useState<BrowserState>({
     url: "",
     title: "",
@@ -296,6 +299,18 @@ export function App() {
   }, [view, usageRange, loadUsage]);
 
   const streaming = Boolean(state.snapshot?.isStreaming);
+
+  /* the switch is done once the host reports the session it was asked for */
+  useEffect(() => {
+    if (!pendingSession) return;
+    if (state.snapshot?.sessionFile === pendingSession) setPendingSession(null);
+  }, [pendingSession, state.snapshot?.sessionFile]);
+
+  useEffect(() => {
+    if (!pendingSession) return;
+    const timer = window.setTimeout(() => setPendingSession(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [pendingSession]);
   /* an abort is not a failure: the transcript already says "stopped" by being
    * truncated. Only real errors earn the red banner. */
   const aborted = Boolean(state.error && /abort|cancel|stopped/i.test(state.error));
@@ -532,6 +547,19 @@ export function App() {
   /** a fresh session owns the middle of the window, not the bottom edge */
   const emptySession = messages.length === 0 && !streaming;
 
+  /* the run settling is the one moment worth interrupting for: a chime here,
+   * and a Windows toast when the window is not the one you are looking at */
+  const wasStreamingRef = useRef(false);
+  useEffect(() => {
+    const was = wasStreamingRef.current;
+    wasStreamingRef.current = streaming;
+    if (!was || streaming) return;
+    if (localStorage.getItem("pi-sound-done") !== "off") playDoneChime();
+    if (localStorage.getItem("pi-notify-done") !== "off" && !document.hasFocus()) {
+      void window.pi.notify({ title: "Pi Agent", body: "The run finished." });
+    }
+  }, [streaming]);
+
   // a new session focuses the composer, so you can just start typing
   useEffect(() => {
     if (!emptySession) return;
@@ -563,6 +591,9 @@ export function App() {
             onNew={() => void window.pi.newSession()}
             onSelect={(path) => {
               setView("chat");
+              // the transcript shows a skeleton until this session lands —
+              // leaving the old conversation up felt like a misclick
+              setPendingSession(path);
               void window.pi.switchSession(path);
             }}
             onPickCwd={() => void window.pi.pickCwd()}
@@ -661,6 +692,9 @@ export function App() {
                     onScroll={onTranscriptScroll}
                     className="scrollbar-thin view-enter h-full overflow-y-auto px-6 py-6"
                   >
+                    {pendingSession ? (
+                      <TranscriptSkeleton />
+                    ) : (
                     <MessageThread
                       messages={messages}
                       tools={tools}
@@ -670,6 +704,7 @@ export function App() {
                       onFork={(userIndex) => void window.pi.forkAt(userIndex).catch(() => undefined)}
                       onEditPrompt={setPrefill}
                     />
+                    )}
                   </div>
                   {!atBottom ? (
                     <button
@@ -851,6 +886,22 @@ export function App() {
         }}
       />
       </Suspense>
+    </div>
+  );
+}
+
+/** Placeholder lines while a conversation switch is in flight. */
+function TranscriptSkeleton() {
+  const widths = ["38%", "72%", "54%", "64%", "30%"];
+  return (
+    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-3" aria-hidden>
+      {widths.map((width, index) => (
+        <div
+          key={index}
+          className="h-4 rounded-[6px] bg-hover-2"
+          style={{ width, animation: `fade-in 240ms ease-out ${index * 60}ms both` }}
+        />
+      ))}
     </div>
   );
 }

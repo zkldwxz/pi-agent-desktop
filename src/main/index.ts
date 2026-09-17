@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, shell } from "electron";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -62,12 +62,17 @@ function reportError(error: unknown): void {
 }
 
 async function createWindow(): Promise<void> {
+  /* show:false + ready-to-show is the difference between a white flash and a
+   * window that appears already painted; the background follows the OS theme
+   * so dark-mode users do not get a light frame before first paint */
+  const dark = nativeTheme.shouldUseDarkColors;
   window = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1100,
     minHeight: 720,
-    backgroundColor: "#FAFAFB",
+    show: false,
+    backgroundColor: dark ? "#16181c" : "#FAFAFB",
     title: "Pi Agent Desktop",
     frame: false,
     titleBarStyle: "hidden",
@@ -79,6 +84,8 @@ async function createWindow(): Promise<void> {
       nodeIntegration: false,
     },
   });
+
+  window.once("ready-to-show", () => window?.show());
 
   if (process.env.ELECTRON_RENDERER_URL) {
     await window.loadURL(process.env.ELECTRON_RENDERER_URL);
@@ -387,6 +394,24 @@ function registerIpc(): void {
   ipcMain.handle("browser:picks", () => designPicks.splice(0, designPicks.length));
 
   ipcMain.handle("browser:evaluate", async (_event, script: string) => browser?.evaluate(script));
+
+  ipcMain.handle("app:notify", (_event, payload: { title?: string; body?: string }) => {
+    if (!Notification.isSupported()) return;
+    const window = BrowserWindow.getAllWindows()[0];
+    const note = new Notification({
+      title: payload?.title ?? "Pi Agent",
+      body: payload?.body ?? "",
+      silent: true,
+    });
+    // clicking the toast brings the app back
+    note.on("click", () => {
+      if (!window) return;
+      if (window.isMinimized()) window.restore();
+      window.show();
+      window.focus();
+    });
+    note.show();
+  });
 
   ipcMain.handle("pi:showItem", async (_event, target: string) => {
     shell.showItemInFolder(target);

@@ -281,6 +281,10 @@ export function AgentSidebar({
           />
         </div>
 
+        {/* the conversation tree needs width — in the 52px strip it used to
+            render anyway and every row broke mid-word. Collapsed shows the
+            icon rail only, like Cursor's. */}
+        {collapsed ? null : (
         <div className="mt-3.5 flex min-h-0 flex-1 flex-col border-t border-line/60 pt-1.5">
           <WorkspaceList
             sessions={all}
@@ -309,6 +313,7 @@ export function AgentSidebar({
             }
           />
         </div>
+        )}
 
         {/* account */}
         <div className="side-pane-copy flex w-full shrink-0 items-center gap-2 border-t border-line px-3 py-2.5">
