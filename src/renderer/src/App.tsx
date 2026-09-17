@@ -609,6 +609,7 @@ export function App() {
                       messages={messages}
                       tools={tools}
                       streaming={streaming}
+                      sessionKey={state.snapshot?.sessionFile ?? "new"}
                       onFork={(userIndex) => void window.pi.forkAt(userIndex).catch(() => undefined)}
                     />
                   </div>

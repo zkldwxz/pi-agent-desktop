@@ -693,9 +693,22 @@ export class PiHost {
       for (const tool of this.tools.values()) {
         if (tool.status === "running") tool.status = "done";
       }
-      void this.refreshSessions();
+      // the sidebar reads this list — emit again once the scan lands
+      void this.refreshSessions().then(() => this.emit());
     }
+    // any event is a hint the transcript (and maybe a brand-new session file)
+    // changed; throttled so streaming does not rescan the session dir per token
+    this.maybeRefreshSessions();
     this.emit();
+  }
+
+  private lastSessionsRefresh = 0;
+
+  private maybeRefreshSessions(): void {
+    const now = Date.now();
+    if (now - this.lastSessionsRefresh < 2000) return;
+    this.lastSessionsRefresh = now;
+    void this.refreshSessions().then(() => this.emit());
   }
 
   private async refreshSessions(): Promise<void> {

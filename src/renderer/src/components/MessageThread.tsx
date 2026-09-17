@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ChatMessage, ToolActivity } from "@shared/types";
 import { buildTurns, type TurnView } from "../lib/agent-view";
 import { formatDuration } from "../lib/format";
@@ -11,6 +11,10 @@ import { CheckIcon } from "./icons";
 
 /** stable empty array — a fresh one would defeat the buildTurns cache key */
 const NO_LIVE_TOOLS: ToolActivity[] = [];
+
+/* transcript mounts newest-first, then batches of this size per frame */
+const FIRST_BATCH = 8;
+const BATCH = 12;
 
 /**
  * What the agent is doing right now, in words.
@@ -42,11 +46,14 @@ export function MessageThread({
   messages,
   tools,
   streaming,
+  sessionKey,
   onFork,
 }: {
   messages: ChatMessage[];
   tools: ToolActivity[];
   streaming: boolean;
+  /** which session this transcript is — switching it restarts incremental reveal */
+  sessionKey: string;
   /** branch the session from a turn's prompt */
   onFork?: (userIndex: number) => void;
 }) {
@@ -54,6 +61,22 @@ export function MessageThread({
     () => buildTurns(messages, streaming ? tools : NO_LIVE_TOOLS),
     [messages, tools, streaming],
   );
+
+  /* A long history mounts in slices: the newest turns first, then the rest a
+   * batch per frame. Mounting hundreds of markdown blocks in one commit was
+   * the stutter you felt when clicking a conversation. The browser's scroll
+   * anchoring keeps the viewport pinned while older turns land above it. */
+  const [visibleCount, setVisibleCount] = useState(FIRST_BATCH);
+  useEffect(() => setVisibleCount(FIRST_BATCH), [sessionKey]);
+  const hiddenCount = Math.max(0, turns.length - visibleCount);
+  useEffect(() => {
+    if (!hiddenCount) return;
+    const id = requestAnimationFrame(() => {
+      setVisibleCount((current) => current + BATCH);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [hiddenCount]);
+  const shown = hiddenCount ? turns.slice(-visibleCount) : turns;
 
   const lastTurn = turns.at(-1);
   const awaitingFirstToken = streaming && (!lastTurn || lastTurn.items.length === 0);
@@ -81,12 +104,23 @@ export function MessageThread({
   return (
     <div className="mx-auto flex w-full max-w-[720px] flex-col gap-8">
 
-      {turns.map((turn, index) => (
+      {hiddenCount ? (
+        <button
+          type="button"
+          onClick={() => setVisibleCount(turns.length)}
+          className="pressable mx-auto flex items-center gap-1.5 rounded-chip bg-surface px-2.5 py-1 text-[11px] text-ink-3 shadow-hairline hover:text-ink"
+        >
+          Show {hiddenCount} earlier turn{hiddenCount === 1 ? "" : "s"}
+        </button>
+      ) : null}
+      {shown.map((turn, index) => {
+        const globalIndex = index + hiddenCount;
+        return (
         <section
           key={turn.key}
           data-turn={turn.key}
           className="group/turn flex scroll-mt-4 flex-col gap-3"
-          style={index >= turns.length - 3 ? stagger(0) : undefined}
+          style={globalIndex >= turns.length - 3 ? stagger(0) : undefined}
         >
           {turn.prompt ? (
             <div className="flex justify-end">
@@ -133,7 +167,8 @@ export function MessageThread({
             </div>
           ) : null}
         </section>
-      ))}
+        );
+      })}
 
       {awaitingFirstToken ? <AgentWorking /> : null}
     </div>
