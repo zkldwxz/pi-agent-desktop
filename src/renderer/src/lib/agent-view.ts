@@ -100,6 +100,8 @@ export interface TurnView {
   items: TurnItem[];
   /** the turn's opening prose, kept for outline rows and canvas captions */
   lead: string;
+  /** timestamp of the last beat — completion time once the turn settles */
+  endedAt: number;
   sources: { name: string; domain: string; href: string; image: string }[];
   followUps: string[];
   streaming: boolean;
@@ -621,6 +623,7 @@ function buildTurnsUncached(messages: ChatMessage[], live: ToolActivity[]): Turn
       toolRuns: [],
       items: [],
       lead: "",
+      endedAt: timestamp,
       sources: [],
       followUps: [],
       streaming: false,
@@ -641,6 +644,7 @@ function buildTurnsUncached(messages: ChatMessage[], live: ToolActivity[]): Turn
         toolRuns: [],
         items: [],
         lead: "",
+        endedAt: message.timestamp,
         sources: [],
         followUps: [],
         streaming: false,
@@ -659,6 +663,7 @@ function buildTurnsUncached(messages: ChatMessage[], live: ToolActivity[]): Turn
 
     if (message.role === "toolResult") {
       const turn = ensure(message.timestamp, message.key);
+      turn.endedAt = message.timestamp;
       const run = message.toolCallId ? runsById.get(message.toolCallId) : undefined;
       const rebuilt = buildToolRun(
         message.toolName ?? "tool",
@@ -690,6 +695,7 @@ function buildTurnsUncached(messages: ChatMessage[], live: ToolActivity[]): Turn
 
     if (message.role === "bashExecution") {
       const turn = ensure(message.timestamp, message.key);
+      turn.endedAt = message.timestamp;
       const run = buildToolRun("bash", undefined, message.text, undefined, "done", message.key);
       turn.toolRuns.push(run);
       appendItem(turn, { kind: "tools", key: run.toolCallId, runs: [run] });
@@ -699,6 +705,7 @@ function buildTurnsUncached(messages: ChatMessage[], live: ToolActivity[]): Turn
     if (message.role !== "assistant") continue;
 
     const turn = ensure(message.timestamp, message.key);
+    turn.endedAt = message.timestamp;
     // Blocks arrive in production order; flush pending prose at every
     // thinking/tool boundary so the timeline keeps that order.
     let prose = "";

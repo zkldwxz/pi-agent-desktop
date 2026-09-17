@@ -11,6 +11,16 @@ export function relativeTime(iso: string): string {
   return date.toLocaleDateString();
 }
 
+/** `3m 42s` — the Cursor/Codex-style completion duration. */
+export function formatDuration(ms: number): string {
+  const seconds = Math.max(1, Math.round(ms / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m`;
+}
+
 export function formatContext(tokens: number): string {
   if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(tokens % 1_000_000 === 0 ? 0 : 1)}M`;
   if (tokens >= 1000) return `${Math.round(tokens / 1000)}K`;

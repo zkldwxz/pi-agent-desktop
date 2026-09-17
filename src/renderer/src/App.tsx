@@ -296,6 +296,11 @@ export function App() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && streaming) {
+        event.preventDefault();
+        void window.pi.abort();
+        return;
+      }
       const mod = event.ctrlKey || event.metaKey;
       if (mod && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -325,7 +330,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [browser.designMode]);
+  }, [browser.designMode, streaming]);
 
   const title = useMemo(() => {
     if (state.snapshot?.sessionName) return state.snapshot.sessionName;
@@ -592,10 +597,13 @@ export function App() {
                 ) : null}
 
                 <div className="relative min-h-0 flex-1">
+                  {/* a session switch remounts the transcript with a soft
+                      enter instead of the old conversation snapping out */}
                   <div
+                    key={state.snapshot?.sessionFile ?? "new"}
                     ref={scrollerRef}
                     onScroll={onTranscriptScroll}
-                    className="scrollbar-thin h-full overflow-y-auto px-6 py-6"
+                    className="scrollbar-thin view-enter h-full overflow-y-auto px-6 py-6"
                   >
                     <MessageThread
                       messages={messages}

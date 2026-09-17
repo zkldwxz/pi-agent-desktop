@@ -1,11 +1,13 @@
 import { useMemo } from "react";
 import type { ChatMessage, ToolActivity } from "@shared/types";
 import { buildTurns, type TurnView } from "../lib/agent-view";
+import { formatDuration } from "../lib/format";
 import { stagger } from "./motion";
 import { AgentAnswer } from "./agent/AgentAnswer";
 import { AgentToolRun } from "./agent/AgentToolRun";
 import { AgentTrace } from "./agent/AgentTrace";
 import { AgentWorking } from "./agent/AgentWorking";
+import { CheckIcon } from "./icons";
 
 /** stable empty array — a fresh one would defeat the buildTurns cache key */
 const NO_LIVE_TOOLS: ToolActivity[] = [];
@@ -113,6 +115,23 @@ export function MessageThread({
               cannot — a tool still running, or the model composing its next
               move after one */}
           {turn.streaming && statusLabel(turn) ? <AgentWorking label={statusLabel(turn)!} /> : null}
+
+          {/* the Cursor/Codex completion line: how long the whole turn ran,
+              plus what it cost, settled next to the fork affordance */}
+          {!turn.streaming && turn.endedAt > turn.timestamp + 5000 ? (
+            <div className="flex items-center gap-2 pt-0.5 text-[11px] text-ink-3">
+              <CheckIcon size={11} className="text-green" />
+              <span>Worked for {formatDuration(turn.endedAt - turn.timestamp)}</span>
+              {turn.usage && turn.usage.total > 0 ? (
+                <span className="font-mono tabular-nums">
+                  · {turn.usage.total >= 1000 ? `${(turn.usage.total / 1000).toFixed(1)}k` : turn.usage.total} tokens
+                  {turn.usage.cacheRead
+                    ? ` (${Math.round((turn.usage.cacheRead / turn.usage.total) * 100)}% cached)`
+                    : ""}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
         </section>
       ))}
 
