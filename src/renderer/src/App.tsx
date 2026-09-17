@@ -334,6 +334,12 @@ export function App() {
         // the usage dashboard now lives inside Settings
         setView((value) => (value === "settings" ? "chat" : "settings"));
       }
+      if (mod && event.key.toLowerCase() === "l") {
+        // focus the composer from anywhere — Cursor's shortcut
+        event.preventDefault();
+        setView("chat");
+        document.querySelector<HTMLTextAreaElement>("[data-promptbar] textarea")?.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
