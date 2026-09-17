@@ -612,6 +612,7 @@ export function App() {
                       streaming={streaming}
                       sessionKey={state.snapshot?.sessionFile ?? "new"}
                       onFork={(userIndex) => void window.pi.forkAt(userIndex).catch(() => undefined)}
+                      onEditPrompt={setPrefill}
                     />
                   </div>
                   {!atBottom ? (

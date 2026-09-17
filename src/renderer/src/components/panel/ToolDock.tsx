@@ -47,7 +47,6 @@ const TOOLS: Array<{ key: DockTool; label: string; icon: ReactNode }> = [
 ];
 
 const WIDTH_OPEN = 340;
-const WIDTH_COMPACT = 232;
 
 function baseName(path: string): string {
   return path.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || path;
@@ -97,13 +96,10 @@ export const ToolDock = memo(function ToolDock({
   // (the memo is what keeps a streaming answer from re-rendering this subtree
   // on every token — its inputs are deferred by the app)
   const [showAll, setShowAll] = useState(false);
-  const [openTabs, setOpenTabs] = useState<string[]>([]);
-  const width = open ? (tool ? WIDTH_OPEN : WIDTH_COMPACT) : 0;
   const workspaceName = baseName(cwd);
-
-  useEffect(() => {
-    if (openFile) setOpenTabs((current) => (current.includes(openFile) ? current : [openFile, ...current].slice(0, 6)));
-  }, [openFile]);
+  /* no tool picked yet lands on Files — tabs are one click, always */
+  const activeTool: DockTool = tool ?? "file";
+  const width = open ? WIDTH_OPEN : 0;
 
   useEffect(() => {
     if (!open) return;
@@ -123,105 +119,71 @@ export const ToolDock = memo(function ToolDock({
       onOpenBrowser();
       return;
     }
-    onTool(tool === key ? null : key);
+    onTool(key);
     onOpenChange(true);
   };
 
+  void workspaceName;
+
   return (
     <aside
-      className={`flex h-full shrink-0 flex-row overflow-hidden bg-canvas ${open ? "border-l border-line" : ""}`}
+      className={`flex h-full shrink-0 flex-col overflow-hidden bg-canvas ${open ? "border-l border-line" : ""}`}
       style={{ width, transition: "width 280ms cubic-bezier(0.16,1,0.3,1)" }}
     >
-      <div
-        className="flex min-h-0 flex-col"
-        style={{ width: tool ? WIDTH_OPEN : WIDTH_COMPACT, opacity: open ? 1 : 0 }}
-      >
+      <div className="flex min-h-0 flex-1 flex-col" style={{ width: WIDTH_OPEN, opacity: open ? 1 : 0 }}>
         {open ? (
-          <div key={tool ?? "compact"} className="view-enter flex min-h-0 flex-1 flex-col">
-            {tool ? (
-              <header className="flex h-[42px] shrink-0 items-center gap-2 border-b border-line px-3">
-                <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">
-                  {TOOLS.find((entry) => entry.key === tool)?.label}
-                </span>
+          <>
+            {/* Cursor-style tab strip: every tool is one click, always visible */}
+            <header className="flex h-[42px] shrink-0 items-center gap-0.5 border-b border-line px-2">
+              {TOOLS.map((entry, index) => (
                 <button
+                  key={entry.key}
                   type="button"
-                  aria-label="Close panel"
-                  onClick={() => onTool(null)}
-                  className="pressable flex size-6 items-center justify-center rounded-[6px] text-ink-3 hover:bg-hover hover:text-ink"
+                  title={entry.label}
+                  aria-pressed={activeTool === entry.key}
+                  onClick={() => pick(entry.key)}
+                  style={{ animation: `row-enter 240ms cubic-bezier(0.23,1,0.32,1) ${index * 25}ms both` }}
+                  className={cn(
+                    "pressable flex size-7 items-center justify-center rounded-[6px]",
+                    activeTool === entry.key ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
+                  )}
                 >
-                  <ChevronDownIcon size={13} className="-rotate-90" />
+                  {entry.icon}
                 </button>
-              </header>
-            ) : null}
+              ))}
+            </header>
 
-            {tool === null ? (
-              /* nothing picked yet — open files, then the tools */
-              <div className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-1.5">
-                <div className="px-1 pb-1 text-[10.5px] tracking-[0.4px] text-ink-3">OPEN TABS</div>
-                {openTabs.length ? (
-                  openTabs.map((tab, index) => (
-                    <button
-                      key={tab}
-                      type="button"
-                      onClick={() => onOpenDiff(tab)}
-                      style={{ animation: `row-enter 240ms cubic-bezier(0.23,1,0.32,1) ${Math.min(index, 4) * 35}ms both` }}
-                      className="pressable flex items-center gap-2 rounded-[6px] px-1.5 py-1 text-left hover:bg-hover"
-                    >
-                      <FilePenIcon size={12} className="shrink-0 text-ink-3" />
-                      <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-ink-2">{baseName(tab)}</span>
-                    </button>
-                  ))
-                ) : (
-                  <div className="px-1.5 pb-1 text-[11px] text-ink-3">No files open.</div>
-                )}
-
-                <div className="px-1 pt-3 pb-1 text-[10.5px] tracking-[0.4px] text-ink-3">
-                  ON {workspaceName.toUpperCase()}
-                </div>
-                {TOOLS.map((entry, index) => (
-                  <button
-                    key={entry.key}
-                    type="button"
-                    onClick={() => pick(entry.key)}
-                    style={{
-                      animation: `row-enter 240ms cubic-bezier(0.23,1,0.32,1) ${Math.min(openTabs.length + index, 4) * 35}ms both`,
-                    }}
-                    className="pressable flex items-center gap-2 rounded-[6px] px-1.5 py-1 text-left hover:bg-hover"
-                  >
-                    <span className="flex size-4 shrink-0 items-center justify-center text-ink-3">{entry.icon}</span>
-                    <span className="min-w-0 flex-1 truncate text-[12px] text-ink-2">{entry.label}</span>
-                  </button>
-                ))}
-              </div>
-            ) : tool === "changes" ? (
-              <Suspense fallback={<DockSkeleton />}>
-                <ChangesPanel messages={messages} activeFile={activeChangeFile} onOpen={(change) => onOpenDiff(change.file)} />
-              </Suspense>
-            ) : tool === "file" ? (
-              <Suspense fallback={<DockSkeleton />}>
-                <FileBrowser
-                  root={cwd}
-                  activePath={openFile}
-                  onOpen={onOpenFile}
-                  onReveal={onReveal}
-                  showAll={showAll}
-                  onShowAll={setShowAll}
-                />
-              </Suspense>
-            ) : tool === "canvas" ? (
-              <Suspense fallback={<DockSkeleton />}>
-                <CanvasPanel messages={messages} onJumpToTurn={onJumpToTurn} />
-              </Suspense>
-            ) : tool === "tasks" ? (
-              <Suspense fallback={<DockSkeleton />}>
-                <TodoPanel state={state} messages={messages} onJumpToTurn={onJumpToTurn} />
-              </Suspense>
-            ) : (
-              <Suspense fallback={<DockSkeleton />}>
-                <TerminalPanel cwd={cwd} />
-              </Suspense>
-            )}
-          </div>
+            <div key={activeTool} className="view-enter flex min-h-0 flex-1 flex-col">
+              {activeTool === "changes" ? (
+                <Suspense fallback={<DockSkeleton />}>
+                  <ChangesPanel messages={messages} activeFile={activeChangeFile} onOpen={(change) => onOpenDiff(change.file)} />
+                </Suspense>
+              ) : activeTool === "file" ? (
+                <Suspense fallback={<DockSkeleton />}>
+                  <FileBrowser
+                    root={cwd}
+                    activePath={openFile}
+                    onOpen={onOpenFile}
+                    onReveal={onReveal}
+                    showAll={showAll}
+                    onShowAll={setShowAll}
+                  />
+                </Suspense>
+              ) : activeTool === "canvas" ? (
+                <Suspense fallback={<DockSkeleton />}>
+                  <CanvasPanel messages={messages} onJumpToTurn={onJumpToTurn} />
+                </Suspense>
+              ) : activeTool === "tasks" ? (
+                <Suspense fallback={<DockSkeleton />}>
+                  <TodoPanel state={state} messages={messages} onJumpToTurn={onJumpToTurn} />
+                </Suspense>
+              ) : (
+                <Suspense fallback={<DockSkeleton />}>
+                  <TerminalPanel cwd={cwd} />
+                </Suspense>
+              )}
+            </div>
+          </>
         ) : null}
       </div>
 

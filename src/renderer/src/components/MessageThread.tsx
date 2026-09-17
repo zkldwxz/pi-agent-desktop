@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ChatMessage, ToolActivity } from "@shared/types";
 import { buildTurns, type TurnView } from "../lib/agent-view";
-import { formatDuration } from "../lib/format";
+import { formatDuration, relativeTime } from "../lib/format";
 import { stagger } from "./motion";
 import { AgentAnswer } from "./agent/AgentAnswer";
 import { AgentToolRun } from "./agent/AgentToolRun";
 import { AgentTrace } from "./agent/AgentTrace";
 import { AgentWorking } from "./agent/AgentWorking";
-import { CheckIcon } from "./icons";
+import { CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from "./icons";
 
 /** stable empty array — a fresh one would defeat the buildTurns cache key */
 const NO_LIVE_TOOLS: ToolActivity[] = [];
@@ -48,6 +48,7 @@ export function MessageThread({
   streaming,
   sessionKey,
   onFork,
+  onEditPrompt,
 }: {
   messages: ChatMessage[];
   tools: ToolActivity[];
@@ -56,6 +57,8 @@ export function MessageThread({
   sessionKey: string;
   /** branch the session from a turn's prompt */
   onFork?: (userIndex: number) => void;
+  /** drop a past prompt back into the composer for editing */
+  onEditPrompt?: (text: string) => void;
 }) {
   const turns = useMemo(
     () => buildTurns(messages, streaming ? tools : NO_LIVE_TOOLS),
@@ -123,7 +126,33 @@ export function MessageThread({
           style={globalIndex >= turns.length - 3 ? stagger(0) : undefined}
         >
           {turn.prompt ? (
-            <div className="flex justify-end">
+            <div className="group/prompt flex items-center justify-end gap-1.5">
+              {/* hover affordances, Cursor-style: edit drops the text back
+                  into the composer, retry restarts the turn */}
+              <div className="flex items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover/prompt:opacity-100">
+                {onEditPrompt ? (
+                  <button
+                    type="button"
+                    title="Edit this prompt"
+                    aria-label="Edit this prompt"
+                    onClick={() => onEditPrompt(turn.prompt ?? "")}
+                    className="pressable flex size-5.5 items-center justify-center rounded-[5px] text-ink-3 hover:bg-hover hover:text-ink"
+                  >
+                    <PencilIcon size={12} />
+                  </button>
+                ) : null}
+                {onFork ? (
+                  <button
+                    type="button"
+                    title="Retry from here"
+                    aria-label="Retry from here"
+                    onClick={() => onFork(turn.userIndex)}
+                    className="pressable flex size-5.5 items-center justify-center rounded-[5px] text-ink-3 hover:bg-hover hover:text-ink"
+                  >
+                    <RefreshIcon size={12} />
+                  </button>
+                ) : null}
+              </div>
               <div className="max-w-[500px] rounded-[10px] bg-field px-3.5 py-2 text-[13px] leading-5 text-ink">
                 {turn.prompt}
               </div>
@@ -150,27 +179,80 @@ export function MessageThread({
               move after one */}
           {turn.streaming && statusLabel(turn) ? <AgentWorking label={statusLabel(turn)!} /> : null}
 
-          {/* the Cursor/Codex completion line: how long the whole turn ran,
-              plus what it cost, settled next to the fork affordance */}
-          {!turn.streaming && turn.endedAt > turn.timestamp + 5000 ? (
-            <div className="flex items-center gap-2 pt-0.5 text-[11px] text-ink-3">
-              <CheckIcon size={11} className="text-green" />
-              <span>Worked for {formatDuration(turn.endedAt - turn.timestamp)}</span>
-              {turn.usage && turn.usage.total > 0 ? (
-                <span className="font-mono tabular-nums">
-                  · {turn.usage.total >= 1000 ? `${(turn.usage.total / 1000).toFixed(1)}k` : turn.usage.total} tokens
-                  {turn.usage.cacheRead
-                    ? ` (${Math.round((turn.usage.cacheRead / turn.usage.total) * 100)}% cached)`
-                    : ""}
-                </span>
-              ) : null}
-            </div>
+          {/* the completion line, Cursor-style: duration and cost on the left,
+              copy / retry affordances and the timestamp on the right */}
+          {!turn.streaming && turn.fullText.trim() ? (
+            <TurnFooter turn={turn} onFork={onFork} />
           ) : null}
         </section>
         );
       })}
 
       {awaitingFirstToken ? <AgentWorking /> : null}
+    </div>
+  );
+}
+
+/**
+ * The row that closes a settled turn.
+ *
+ * Left: how long the turn ran and what it cost. Right: the affordances Cursor
+ * puts on every answer — copy the prose, retry from this turn — plus when it
+ * happened. The actions stay invisible until the pointer is over the row.
+ */
+function TurnFooter({
+  turn,
+  onFork,
+}: {
+  turn: TurnView;
+  onFork?: (userIndex: number) => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    void navigator.clipboard.writeText(turn.fullText);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1200);
+  };
+  const long = turn.endedAt > turn.timestamp + 5000;
+  return (
+    <div className="group/footer flex items-center gap-2 pt-0.5 text-[11px] text-ink-3">
+      {long ? (
+        <>
+          <CheckIcon size={11} className="text-green" />
+          <span>Worked for {formatDuration(turn.endedAt - turn.timestamp)}</span>
+        </>
+      ) : null}
+      {turn.usage && turn.usage.total > 0 ? (
+        <span className="font-mono tabular-nums">
+          {long ? "· " : ""}
+          {turn.usage.total >= 1000 ? `${(turn.usage.total / 1000).toFixed(1)}k` : turn.usage.total} tokens
+          {turn.usage.cacheRead ? ` (${Math.round((turn.usage.cacheRead / turn.usage.total) * 100)}% cached)` : ""}
+        </span>
+      ) : null}
+      <span className="flex-1" />
+      <span className="flex items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover/footer:opacity-100">
+        <button
+          type="button"
+          title={copied ? "Copied" : "Copy answer"}
+          aria-label="Copy answer"
+          onClick={copy}
+          className="pressable flex size-5.5 items-center justify-center rounded-[5px] text-ink-3 hover:bg-hover hover:text-ink"
+        >
+          {copied ? <CheckIcon size={12} className="text-green" /> : <CopyIcon size={12} />}
+        </button>
+        {onFork ? (
+          <button
+            type="button"
+            title="Retry from here"
+            aria-label="Retry from here"
+            onClick={() => onFork(turn.userIndex)}
+            className="pressable flex size-5.5 items-center justify-center rounded-[5px] text-ink-3 hover:bg-hover hover:text-ink"
+          >
+            <RefreshIcon size={12} />
+          </button>
+        ) : null}
+      </span>
+      <span className="shrink-0 tabular-nums">{relativeTime(new Date(turn.timestamp).toISOString())}</span>
     </div>
   );
 }

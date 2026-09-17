@@ -86,3 +86,4 @@ export const WrenchIcon = make("wrench");
 export const ListIcon = make("list-unordered");
 export const EditIcon = make("edit");
 export const GlobeIcon = make("globe");
+export const CopyIcon = make("copy");
