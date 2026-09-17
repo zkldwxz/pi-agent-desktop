@@ -115,7 +115,7 @@ export function FileBrowser({
               <span className="size-[5px] rounded-[1px] bg-line-strong" />
             </span>
           )}
-          <span className={cn("min-w-0 flex-1 truncate text-[12px]", active && "font-medium")}>{entry.name}</span>
+          <span className={cn("min-w-0 flex-1 truncate text-[12.5px]", active && "font-medium")}>{entry.name}</span>
           {entry.kind === "file" && entry.size !== undefined ? (
             <span className="shrink-0 font-mono text-[9.5px] text-ink-3 tabular-nums">{formatSize(entry.size)}</span>
           ) : null}

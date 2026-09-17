@@ -85,7 +85,7 @@ export function AgentComposer({
           variant="Rounded"
           demo={false}
           forceWide={messages.length > 0}
-          placeholder="Ask Pi to build, analyze or explain anything…"
+          placeholder={messages.length ? "Send follow-up…" : "Ask Pi to build, analyze or explain anything…"}
           controls={
             <ModelThinkingControl state={state} onSetModel={onSetModel} onSetThinking={onSetThinking} />
           }
