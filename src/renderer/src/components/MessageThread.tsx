@@ -46,6 +46,7 @@ export function MessageThread({
   messages,
   tools,
   streaming,
+  stopped,
   sessionKey,
   onFork,
   onEditPrompt,
@@ -53,6 +54,8 @@ export function MessageThread({
   messages: ChatMessage[];
   tools: ToolActivity[];
   streaming: boolean;
+  /** the last run was interrupted by the user — the final turn reads "Stopped" */
+  stopped?: boolean;
   /** which session this transcript is — switching it restarts incremental reveal */
   sessionKey: string;
   /** branch the session from a turn's prompt */
@@ -182,7 +185,11 @@ export function MessageThread({
           {/* the completion line, Cursor-style: duration and cost on the left,
               copy / retry affordances and the timestamp on the right */}
           {!turn.streaming && turn.fullText.trim() ? (
-            <TurnFooter turn={turn} onFork={onFork} />
+            <TurnFooter
+              turn={turn}
+              onFork={onFork}
+              stopped={Boolean(stopped) && globalIndex === turns.length - 1}
+            />
           ) : null}
         </section>
         );
@@ -203,9 +210,12 @@ export function MessageThread({
 function TurnFooter({
   turn,
   onFork,
+  stopped,
 }: {
   turn: TurnView;
   onFork?: (userIndex: number) => void;
+  /** this run was interrupted — say so instead of "Worked for" */
+  stopped?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
@@ -216,7 +226,12 @@ function TurnFooter({
   const long = turn.endedAt > turn.timestamp + 5000;
   return (
     <div className="group/footer flex items-center gap-2 pt-0.5 text-[11px] text-ink-3">
-      {long ? (
+      {stopped ? (
+        <span className="flex items-center gap-1.5">
+          <span className="size-2 rounded-[2px] bg-ink-3" />
+          <span>Stopped</span>
+        </span>
+      ) : long ? (
         <>
           <CheckIcon size={11} className="text-green" />
           <span>Worked for {formatDuration(turn.endedAt - turn.timestamp)}</span>

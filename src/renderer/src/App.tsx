@@ -296,6 +296,10 @@ export function App() {
   }, [view, usageRange, loadUsage]);
 
   const streaming = Boolean(state.snapshot?.isStreaming);
+  /* an abort is not a failure: the transcript already says "stopped" by being
+   * truncated. Only real errors earn the red banner. */
+  const aborted = Boolean(state.error && /abort|cancel|stopped/i.test(state.error));
+  const fatalError = state.error && !aborted ? state.error : null;
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -570,8 +574,8 @@ export function App() {
                 {/* no conversation header — Cursor runs the thread straight to
                     the top edge; the session name lives on its sidebar row and
                     the run state on the working indicator */}
-                {state.error ? (
-                  <div className="border-b border-red-tint bg-red-tint px-4 py-2 text-[12px] text-red">{state.error}</div>
+                {fatalError ? (
+                  <div className="border-b border-red-tint bg-red-tint px-4 py-2 text-[12px] text-red">{fatalError}</div>
                 ) : null}
 
                 <div className="relative min-h-0 flex-1">
@@ -587,6 +591,7 @@ export function App() {
                       messages={messages}
                       tools={tools}
                       streaming={streaming}
+                      stopped={aborted}
                       sessionKey={state.snapshot?.sessionFile ?? "new"}
                       onFork={(userIndex) => void window.pi.forkAt(userIndex).catch(() => undefined)}
                       onEditPrompt={setPrefill}

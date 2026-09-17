@@ -91,12 +91,17 @@ export function FileBrowser({
             event.preventDefault();
             onReveal(entry.path);
           }}
-          style={{ paddingLeft: 8 + depth * 12 }}
           className={cn(
             "group/file pressable row-enter flex h-7 w-full items-center gap-1.5 rounded-[6px] pr-2 text-left",
             active ? "bg-surface text-ink shadow-hairline" : "text-ink-2 hover:bg-hover",
           )}
         >
+          {/* indent guides — a hairline per ancestor level (VS Code/Cursor) */}
+          <span aria-hidden className="ml-2 flex shrink-0 self-stretch">
+            {Array.from({ length: depth }).map((_, index) => (
+              <span key={index} className="w-3 border-l border-line/60" />
+            ))}
+          </span>
           {entry.kind === "dir" ? (
             <span className="relative flex size-3.5 shrink-0 items-center justify-center text-ink-3">
               <FolderIcon
