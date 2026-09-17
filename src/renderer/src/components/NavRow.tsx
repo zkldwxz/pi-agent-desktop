@@ -72,7 +72,7 @@ export function NavRow({
       </span>
       <span
         className={cn(
-          "min-w-0 flex-1 truncate text-[12.5px]",
+          "min-w-0 flex-1 truncate text-[13px]",
           active && !raised ? "font-medium text-ink" : "",
           copyClassName,
         )}

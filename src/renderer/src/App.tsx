@@ -129,16 +129,16 @@ export function App() {
     try {
       // v1 stored values from an over-aggressive auto-scale (0.85–0.92 on big
       // monitors); v2 starts fresh so those do not stick
-      const saved = localStorage.getItem("pi-zoom-scale-2");
+      const saved = localStorage.getItem("pi-zoom-scale-3");
       if (saved) {
         const val = parseFloat(saved);
         if (!isNaN(val) && val >= 0.7 && val <= 1.5) return val;
       }
     } catch {}
     if (typeof window !== "undefined") {
-      // large monitors make the 14px base read oversized; scale down gently
-      if (window.screen.width >= 2560) return 0.95;
-      if (window.screen.width > 1920 || window.devicePixelRatio > 1.2) return 0.9;
+      // Cursor and VS Code run at 100% on the same screens; scaling the whole
+      // UI down made every size read a notch smaller than the reference
+      return 1.0;
     }
     return 1.0;
   });
@@ -152,7 +152,7 @@ export function App() {
     setZoomFactor(clamped);
     try {
       window.pi?.setZoomFactor?.(clamped);
-      localStorage.setItem("pi-zoom-scale-2", String(clamped));
+      localStorage.setItem("pi-zoom-scale-3", String(clamped));
     } catch {}
   }, []);
 
@@ -543,7 +543,11 @@ export function App() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-page text-ink">
-      <TitleBar dark={dark} onToggleTheme={theme.toggle} />
+      <TitleBar
+        dark={dark}
+        onToggleTheme={theme.toggle}
+        dock={<DockToggle open={dockOpen} onToggle={() => setDockOpen((value) => !value)} />}
+      />
       <div className="flex min-h-0 flex-1">
         {/* No icon rail: the sidebar's own rows are the navigation, so Views are
             the three panes rather than five icon targets. Browser and Usage open
@@ -568,6 +572,20 @@ export function App() {
               void (async () => {
                 await window.pi.setCwd(cwd);
                 await window.pi.newSession();
+              })();
+            }}
+            onNewInFolder={(cwd) => {
+              setView("chat");
+              void (async () => {
+                await window.pi.setCwd(cwd);
+                await window.pi.newSession();
+              })();
+            }}
+            onPickNewFolder={() => {
+              setView("chat");
+              void (async () => {
+                const picked = await window.pi.pickCwd();
+                if (picked) await window.pi.newSession();
               })();
             }}
           />
@@ -754,6 +772,7 @@ export function App() {
                     void window.pi.updateSettings({ defaultProvider: provider, defaultModel: modelId }).catch(() => undefined)
                   }
                   onReload={() => void window.pi.reload()}
+                  onBack={() => setView("chat")}
                 />
               </Suspense>
             ) : null}

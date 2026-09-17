@@ -132,7 +132,7 @@ export function MessageThread({
             <div className="group/prompt flex items-center justify-end gap-1.5">
               {/* hover affordances, Cursor-style: edit drops the text back
                   into the composer, retry restarts the turn */}
-              <div className="flex items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover/prompt:opacity-100">
+              <div className="flex items-center gap-0.5">
                 {onEditPrompt ? (
                   <button
                     type="button"
@@ -245,7 +245,9 @@ function TurnFooter({
         </span>
       ) : null}
       <span className="flex-1" />
-      <span className="flex items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover/footer:opacity-100">
+      {/* persistent, mute actions — Cursor keeps them visible on every turn
+          rather than hiding them behind hover */}
+      <span className="flex items-center gap-0.5">
         <button
           type="button"
           title={copied ? "Copied" : "Copy answer"}

@@ -6,6 +6,7 @@ import { ModelsView } from "./ModelsView";
 import { PluginsView } from "./PluginsView";
 import { ViewHeader } from "../components/ui";
 import { ExtensionFlow } from "./ExtensionFlow";
+import { ArrowLeftIcon } from "../components/icons";
 
 type Tab = "plugins" | "skills" | "models" | "rules";
 
@@ -40,6 +41,7 @@ export function CustomizeView({
   onDeleteModel,
   onSetDefaultModel,
   onReload,
+  onBack,
 }: {
   state: HostState;
   plugins: PluginInfo[];
@@ -55,6 +57,8 @@ export function CustomizeView({
   onDeleteModel: (provider: string, modelId: string) => void;
   onSetDefaultModel: (provider: string, modelId: string) => void;
   onReload: () => void;
+  /** leave this view — the sidebar no longer carries a Home row */
+  onBack?: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("plugins");
 
@@ -80,6 +84,17 @@ export function CustomizeView({
       <ViewHeader
         title="Customize"
         subtitle={active.hint}
+        leading={
+          <button
+            type="button"
+            aria-label="Back to the conversation"
+            title="Back"
+            onClick={onBack}
+            className="pressable -ml-1 flex size-6 shrink-0 items-center justify-center rounded-[6px] text-ink-3 hover:bg-hover hover:text-ink"
+          >
+            <ArrowLeftIcon size={14} />
+          </button>
+        }
         actions={
           <div className="flex items-center gap-1.5">
             <button

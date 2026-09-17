@@ -6,13 +6,17 @@ export function ViewHeader({
   title,
   subtitle,
   actions,
+  leading,
 }: {
   title: string;
   subtitle?: ReactNode;
   actions?: ReactNode;
+  /** drawn before the title — a back control, in views you can leave */
+  leading?: ReactNode;
 }) {
   return (
     <header className="flex h-[42px] shrink-0 items-center gap-2 border-b border-line px-4">
+      {leading}
       <div
         className="truncate text-[13px] font-semibold text-ink"
         style={{ animation: "fade-up 300ms cubic-bezier(0.23,1,0.32,1) both" }}

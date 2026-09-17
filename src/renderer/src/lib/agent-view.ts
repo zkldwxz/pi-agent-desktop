@@ -423,23 +423,29 @@ function groupLabel(group: ToolGroupView): string {
     return run.chip && !run.label.includes(run.chip) ? `${run.label} ${run.chip}` : run.label;
   }
 
+  /* Cursor switches tense while the group is live — "Running 2 commands"
+   * becomes "Ran 2 commands" the moment the last result lands */
+  const live = group.running;
+
   if (bucket === "edit") {
     if (group.files === 1) {
       const name = (runs.find((run) => run.path)?.path ?? "").replace(/[\\/]+$/, "").split(/[\\/]/).pop();
-      if (name) return `Edited ${name} ×${runs.length}`;
+      if (name) return `${live ? "Editing" : "Edited"} ${name} ×${runs.length}`;
     }
-    return `Edited ${plural(group.files || runs.length, "file")}`;
+    return `${live ? "Editing" : "Edited"} ${plural(group.files || runs.length, "file")}`;
   }
 
-  if (bucket === "other") return `${plural(runs.length, "call")}`;
+  if (bucket === "other") return plural(runs.length, "call");
 
   const parts: string[] = [];
   if (group.files) parts.push(plural(group.files, "file"));
   if (group.searches) parts.push(plural(group.searches, "search", "searches"));
-  if (group.commands) parts.push(`ran ${plural(group.commands, "command")}`);
-  if (!parts.length) return "Explored";
-  if (!group.files && !group.searches) return `Ran ${plural(group.commands, "command")}`;
-  return `Explored · ${parts.join(", ")}`;
+  if (group.commands) parts.push(`${live ? "running" : "ran"} ${plural(group.commands, "command")}`);
+  if (!parts.length) return live ? "Exploring" : "Explored";
+  if (!group.files && !group.searches) {
+    return `${live ? "Running" : "Ran"} ${plural(group.commands, "command")}`;
+  }
+  return `${live ? "Exploring" : "Explored"} · ${parts.join(", ")}`;
 }
 
 const FENCE = /```([a-zA-Z0-9+-]*)\n([\s\S]*?)(?:```|$)/g;

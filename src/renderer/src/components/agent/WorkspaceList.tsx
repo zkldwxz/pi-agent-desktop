@@ -124,7 +124,7 @@ function StatusGlyph({ status }: { status: SessionListItem["status"] }) {
   return <span className="size-[7px] rounded-full bg-line-strong" />;
 }
 
-function MenuRow({
+export function MenuRow({
   label,
   value,
   hint,
@@ -148,7 +148,7 @@ function MenuRow({
         disabled && "opacity-40",
       )}
     >
-      <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink">{label}</span>
+      <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{label}</span>
       {value ? <span className="shrink-0 text-[11.5px] text-ink-3">{value}</span> : null}
       {hint ? <span className="shrink-0 font-mono text-[10.5px] text-ink-3 tabular-nums">{hint}</span> : null}
     </button>
@@ -433,7 +433,7 @@ export function WorkspaceList({
                       </span>
                       <span
                         className={cn(
-                          "min-w-0 flex-1 truncate text-[12.5px]",
+                          "min-w-0 flex-1 truncate text-[13px]",
                           active ? "font-medium text-ink" : isUnread ? "text-ink" : "text-ink-2",
                         )}
                       >

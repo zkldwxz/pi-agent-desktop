@@ -1,16 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HostState, SessionListItem } from "@shared/types";
 import {
+  ChevronDownIcon,
   EditIcon,
-  HomeIcon,
   PanelLeftIcon,
   PuzzleIcon,
   SearchIcon,
   SettingsIcon,
 } from "../icons";
 import { cn } from "../../lib/cn";
+import { GlideList, Popover } from "../motion";
 import { NavRow } from "../NavRow";
-import { WorkspaceList, type WorkspacePrefs } from "./WorkspaceList";
+import { folderName } from "../../lib/format";
+import { MenuRow, WorkspaceList, type WorkspacePrefs } from "./WorkspaceList";
 
 const PREFS_KEY = "pi-workspace-prefs";
 const RENAME_KEY = "pi-workspace-names";
@@ -92,6 +94,8 @@ export function AgentSidebar({
   onPickCwd,
   onSearch,
   onNewInWorkspace,
+  onNewInFolder,
+  onPickNewFolder,
 }: {
   state: HostState;
   view: SidebarView;
@@ -101,12 +105,27 @@ export function AgentSidebar({
   onPickCwd: () => void;
   onSearch: () => void;
   onNewInWorkspace?: (cwd: string) => void;
+  /** start a new agent inside an existing workspace folder */
+  onNewInFolder?: (cwd: string) => void;
+  /** pick a folder on disk, then start a new agent there */
+  onPickNewFolder?: () => void;
 }) {
   const [all, setAll] = useState<SessionListItem[]>(state.sessions);
   const [prefs, setPrefs] = useState<WorkspacePrefs>(() => load(PREFS_KEY, DEFAULT_PREFS));
   const [renamed, setRenamed] = useState<Record<string, string>>(() => load(RENAME_KEY, {}));
   const [readAt, setReadAt] = useState<Record<string, number>>(() => load(READ_KEY, {}));
   const [collapsed, setCollapsed] = useState(false);
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
+
+  /** folders this machine has sessions for, newest first — the New Agent menu */
+  const recentFolders = useMemo(() => {
+    const seen = new Map<string, number>();
+    for (const session of all) {
+      if (!session.cwd) continue;
+      seen.set(session.cwd, Math.max(seen.get(session.cwd) ?? 0, Date.parse(session.modified) || 0));
+    }
+    return [...seen.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([path]) => path);
+  }, [all]);
 
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
     const loaded = load(SIDEBAR_WIDTH_KEY, DEFAULT_SIDEBAR_WIDTH);
@@ -198,25 +217,67 @@ export function AgentSidebar({
               onClick={() => setCollapsed(false)}
             />
           ) : null}
-          <RailRow icon={<EditIcon size={16} />} label="New Agent" onClick={onNew} />
-          <RailRow
-            icon={<HomeIcon size={16} />}
-            label="Home"
-            active={view === "chat"}
-            onClick={() => onView("chat")}
-          />
+          {/* New Agent is a menu, not a bare action: a new agent needs a
+              folder to live in, and this is where that choice belongs. */}
+          <div className="relative">
+            <NavRow
+              icon={<EditIcon size={16} />}
+              label="New Agent"
+              trailing={<ChevronDownIcon size={12} className="text-ink-3" />}
+              className="side-pane-row h-8.5"
+              copyClassName="side-pane-copy"
+              data-popover-trigger
+              aria-expanded={newMenuOpen}
+              onClick={() => setNewMenuOpen((value) => !value)}
+            />
+            <Popover
+              open={newMenuOpen}
+              onClose={() => setNewMenuOpen(false)}
+              anchor="bottom-left"
+              className="w-64 p-1"
+            >
+              <GlideList rowSelector="[data-row]" highlightClassName="bg-hover" radius={6}>
+                <MenuRow
+                  label={`New chat in ${folderName(state.cwd) || "this folder"}`}
+                  onClick={() => {
+                    setNewMenuOpen(false);
+                    onNew();
+                  }}
+                />
+                {recentFolders.length ? (
+                  <div className="my-1 border-t border-line px-2 pt-1.5 pb-0.5 text-[10.5px] tracking-[0.4px] text-ink-3">
+                    RECENT FOLDERS
+                  </div>
+                ) : null}
+                {recentFolders.map((path) => (
+                  <MenuRow
+                    key={path}
+                    label={folderName(path) || path}
+                    hint={path === state.cwd ? "current" : undefined}
+                    onClick={() => {
+                      setNewMenuOpen(false);
+                      if (path === state.cwd) onNew();
+                      else onNewInFolder?.(path);
+                    }}
+                  />
+                ))}
+                <div className="my-1 border-t border-line" />
+                <MenuRow
+                  label="Open another folder…"
+                  onClick={() => {
+                    setNewMenuOpen(false);
+                    onPickNewFolder?.();
+                  }}
+                />
+              </GlideList>
+            </Popover>
+          </div>
           <RailRow icon={<SearchIcon size={16} />} label="Search" hint="Ctrl K" onClick={onSearch} />
           <RailRow
             icon={<PuzzleIcon size={16} />}
             label="Customize"
             active={view === "customize"}
             onClick={() => onView("customize")}
-          />
-          <RailRow
-            icon={<SettingsIcon size={16} />}
-            label="Settings"
-            active={view === "settings"}
-            onClick={() => onView("settings")}
           />
         </div>
 
