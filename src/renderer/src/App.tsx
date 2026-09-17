@@ -294,6 +294,14 @@ export function App() {
     if (view === "settings") void loadUsage(usageRange);
   }, [view, usageRange, loadUsage]);
 
+  const title = useMemo(() => {
+    if (state.snapshot?.sessionName) return state.snapshot.sessionName;
+    const current = state.sessions.find((session) => session.path === state.snapshot?.sessionFile);
+    return current?.firstMessage || "New task";
+  }, [state]);
+
+  const streaming = Boolean(state.snapshot?.isStreaming);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && streaming) {
@@ -331,14 +339,6 @@ export function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [browser.designMode, streaming]);
-
-  const title = useMemo(() => {
-    if (state.snapshot?.sessionName) return state.snapshot.sessionName;
-    const current = state.sessions.find((session) => session.path === state.snapshot?.sessionFile);
-    return current?.firstMessage || "New task";
-  }, [state]);
-
-  const streaming = Boolean(state.snapshot?.isStreaming);
 
   /** Distance from the bottom, in px — the threshold that counts as "at the bottom". */
   const onTranscriptScroll = useCallback(() => {
