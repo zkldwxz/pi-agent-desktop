@@ -22,16 +22,10 @@ function recentFiles(messages: ChatMessage[]): string[] {
 /**
  * The composer, in the Beautiful UI prompt bar.
  *
- * `PromptBar` already owns the hard parts: the `@` / `/` menus with a single
- * gliding highlight, keyboard traversal with ↑↓ and Enter, the measured
- * textarea that grows past one line, the rainbow sweep on thinking depth, and
- * dictation. We supply the real catalogues and the run state, so the send
- * control becomes a stop control while the agent works.
- *
- * Placement: the model and thinking cluster is the host `controls` slot on the
- * bottom row, immediately left of dictation — it qualifies the prompt you are
- * about to write, so it belongs next to the input rather than in the window
- * header. The cache and context rings are the `footer` slot, under dictation.
+ * `PromptBar` owns the input and the `@` / `/` menus; everything that
+ * qualifies the prompt — model, thinking depth, context pressure, the token
+ * ledger — sits on one bottom row, Cursor-style: pills on the left, ambient
+ * 16px rings on the right.
  */
 export function AgentComposer({
   state,
@@ -81,20 +75,27 @@ export function AgentComposer({
     return unique.slice(0, 10);
   }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* the session's token accounting, shown under the model control */
+  /* the session's token accounting, on the same row as the model pill */
   const tokens = state.snapshot?.stats?.tokens;
 
   return (
-    <div className="flex w-full flex-col items-center gap-2 px-6 pb-5 pt-1.5">
+    <div className="flex w-full flex-col items-center px-6 pb-3 pt-1">
       <div className="w-full max-w-[720px]">
         <PromptBar
           variant="Rounded"
           demo={false}
-          tall
           forceWide={messages.length > 0}
           placeholder="Ask Pi to build, analyze or explain anything…"
           controls={
             <ModelThinkingControl state={state} onSetModel={onSetModel} onSetThinking={onSetThinking} />
+          }
+          controlsTrailing={
+            <>
+              {tokens && tokens.total > 0 ? (
+                <CacheRing stats={{ total: tokens.total, cacheRead: tokens.cacheRead }} />
+              ) : null}
+              <ContextBadge state={state} />
+            </>
           }
           commands={commands}
           sources={sources}
@@ -104,24 +105,6 @@ export function AgentComposer({
           prefill={prefill}
           onPrefillConsumed={onPrefillConsumed}
         />
-
-        {/* The two rings sit *outside* the bar, in the same column template as
-            the control row above, so each lands under the thing it describes:
-            cache under the model, context under dictation. Inside the bar they
-            competed with the prompt for the same row; here they are ambient. */}
-        <div className="mt-1 grid grid-cols-[28px_minmax(0,1fr)_auto_28px_28px] items-center gap-x-1 px-[13px]">
-          <div className="col-start-2 flex items-center">
-            {tokens && tokens.total > 0 ? (
-              <CacheRing stats={{ total: tokens.total, cacheRead: tokens.cacheRead }} />
-            ) : null}
-          </div>
-          <div className="col-start-4 flex items-center justify-center">
-            <ContextBadge state={state} />
-          </div>
-        </div>
-      </div>
-      <div className="text-[10.5px] text-ink-3">
-        Enter to send · Shift+Enter for a new line · @ for context · / for commands
       </div>
     </div>
   );

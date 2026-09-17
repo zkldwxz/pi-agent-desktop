@@ -30,7 +30,7 @@ import type {
 import type { TerminalResult } from "@shared/workspace";
 import { readModelsFile, removeModelFromFile, writeModelEdit } from "./model-config";
 import { deletePlugin, listPlugins, setPluginEnabled } from "./plugins";
-import { serializeMessages, serializeModel, serializeSessionList, thinkingLevelsFor } from "./serialize";
+import { serializeMessage, serializeMessages, serializeModel, serializeSessionList, thinkingLevelsFor } from "./serialize";
 import { registerBrowserTools } from "./browser-extension";
 import { EMPTY_TODOS, registerTodoTools, type TodoState } from "./todo-extension";
 import { readConfig } from "./install";
@@ -551,10 +551,30 @@ export class PiHost {
     return this.buildState();
   }
 
+  private lastSerialized: { log: unknown; out: ChatMessage[] } | null = null;
+
   messages(): ChatMessage[] {
     const session = this.runtime?.session;
     if (!session) return [];
-    return serializeMessages(session.messages, session.state.streamingMessage);
+    /* The serialization cost of the whole log lives in this method, and the
+     * host calls it on every emitted event — most of which change nothing in
+     * the transcript. Identity-checking the message array plus the streaming
+     * message makes every such emit a no-op. */
+    /* the streaming message may be an unstable object — append it whenever it
+     * is present (it is cheap: one message) and cache only the settled log */
+    const log = session.messages;
+    const stream = session.state.streamingMessage as unknown;
+    if (!stream) {
+      if (this.lastSerialized?.log === log) return this.lastSerialized.out;
+      const out = serializeMessages(log, undefined);
+      this.lastSerialized = { log, out };
+      return out;
+    }
+    const settled =
+      this.lastSerialized?.log === log
+        ? this.lastSerialized.out
+        : (this.lastSerialized = { log, out: serializeMessages(log, undefined) }).out;
+    return [...settled, serializeMessage(stream, settled.length, true)];
   }
 
   toolActivity(): ToolActivity[] {
@@ -757,12 +777,21 @@ export class PiHost {
     };
   }
 
+  /* coalesce bursts: tool events fire several times per tool call, and each
+   * emitted payload used to re-serialize the whole transcript synchronously */
+  private emitScheduled = false;
+
   private emit(): void {
-    this.listener?.({
-      state: this.buildState(),
-      messages: this.messages(),
-      tools: this.toolActivity(),
-    });
+    if (this.emitScheduled) return;
+    this.emitScheduled = true;
+    setTimeout(() => {
+      this.emitScheduled = false;
+      this.listener?.({
+        state: this.buildState(),
+        messages: this.messages(),
+        tools: this.toolActivity(),
+      });
+    }, 16);
   }
 
   private buildState(): HostState {

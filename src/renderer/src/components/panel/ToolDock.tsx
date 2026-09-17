@@ -164,7 +164,7 @@ export const ToolDock = memo(function ToolDock({
                       key={tab}
                       type="button"
                       onClick={() => onOpenDiff(tab)}
-                      style={{ animation: `row-enter 360ms cubic-bezier(0.23,1,0.32,1) ${Math.min(index, 4) * 35}ms both` }}
+                      style={{ animation: `row-enter 240ms cubic-bezier(0.23,1,0.32,1) ${Math.min(index, 4) * 35}ms both` }}
                       className="pressable flex items-center gap-2 rounded-[6px] px-1.5 py-1 text-left hover:bg-hover"
                     >
                       <FilePenIcon size={12} className="shrink-0 text-ink-3" />
@@ -184,7 +184,7 @@ export const ToolDock = memo(function ToolDock({
                     type="button"
                     onClick={() => pick(entry.key)}
                     style={{
-                      animation: `row-enter 360ms cubic-bezier(0.23,1,0.32,1) ${Math.min(openTabs.length + index, 4) * 35}ms both`,
+                      animation: `row-enter 240ms cubic-bezier(0.23,1,0.32,1) ${Math.min(openTabs.length + index, 4) * 35}ms both`,
                     }}
                     className="pressable flex items-center gap-2 rounded-[6px] px-1.5 py-1 text-left hover:bg-hover"
                   >

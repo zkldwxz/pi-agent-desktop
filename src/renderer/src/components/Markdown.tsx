@@ -93,12 +93,22 @@ const components: Components = {
     <img src={src} alt={alt} className="my-2 max-h-[360px] max-w-full rounded-card shadow-hairline" />
   ),
 
-  /* inline code only — fenced blocks arrive as `pre` and are handled below */
+  /* inline code only — fenced blocks arrive as `pre` and are handled below.
+     File paths and symbols are rendered as blue references, the Cursor way. */
   code: ({ children, className }) => {
     const isBlock = Boolean(className?.includes("language-"));
     if (isBlock) return <code className={className}>{children}</code>;
+    const text = String(children ?? "");
+    const looksLikePath = /^[\w.@~-]*[\\/][\w.@\\/-]+\.[\w]+$|^[\w.@~-]+\.[\w]{1,10}(:\d+)?$/.test(text);
     return (
-      <code className="rounded-[4px] bg-inset px-[3px] py-[1px] font-mono text-[11.5px] text-ink-2 shadow-hairline">
+      <code
+        className={cn(
+          "rounded-[4px] px-[3px] py-[1px] font-mono text-[11.5px]",
+          looksLikePath
+            ? "text-accent-ink hover:underline decoration-accent/40 underline-offset-2"
+            : "bg-inset text-ink-2 shadow-hairline",
+        )}
+      >
         {children}
       </code>
     );
@@ -113,7 +123,7 @@ const components: Components = {
     const text = String(props?.children ?? "").replace(/\n$/, "");
     if (!text) return null;
     return (
-      <div className="my-3 max-w-[640px]">
+      <div className="my-3">
         <CodeBlock variant="Code" lines={text.split("\n")} code={text} filename={lang ? `snippet.${lang}` : "snippet"} />
       </div>
     );

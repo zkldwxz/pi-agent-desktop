@@ -50,10 +50,13 @@ export function BrowserPanel({
   onAskAbout,
   onClearPick,
   onClose,
+  zoom,
 }: {
   state: BrowserState;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
+  /** interface zoom — the native view's bounds are reported in DIPs */
+  zoom?: number;
   designPick: DesignPick | null;
   /** recent messages, so the pick's mini-chat shows real history */
   recent: ChatMessage[];
@@ -67,6 +70,7 @@ export function BrowserPanel({
   const [editing, setEditing] = useState(false);
   const [instruction, setInstruction] = useState("");
   const placeholderRef = useRef<HTMLDivElement>(null);
+  const zoomProp = zoom;
   const aliveRef = useRef(true);
 
   useEffect(() => {
@@ -86,16 +90,21 @@ export function BrowserPanel({
   }, [state.url, editing]);
 
   // Report the placeholder rect whenever layout changes; the host matches it.
+  // The rect is in CSS pixels but the native view wants device-independent
+  // pixels — with an interface zoom of z the two differ by exactly z, which is
+  // what made the page frame land half a viewport off under a scaled UI.
   const syncBounds = useCallback(() => {
+
     const node = placeholderRef.current;
     if (!node) return;
     const rect = node.getBoundingClientRect();
     if (rect.width < 2 || rect.height < 2) return;
+    const zoom = zoomProp ?? window.pi.getZoomFactor?.() ?? 1;
     void window.pi.setBrowserBounds({
-      x: Math.round(rect.left),
-      y: Math.round(rect.top),
-      width: Math.round(rect.width),
-      height: Math.round(rect.height),
+      x: Math.round(rect.left * zoom),
+      y: Math.round(rect.top * zoom),
+      width: Math.round(rect.width * zoom),
+      height: Math.round(rect.height * zoom),
     });
   }, []);
 
@@ -112,10 +121,11 @@ export function BrowserPanel({
     };
   }, [syncBounds, expanded]);
 
+  /* a zoom change does not move the placeholder in CSS pixels, only in DIPs —
+     nothing else fires for it, so it syncs from here */
   useLayoutEffect(() => {
-    const id = window.setInterval(syncBounds, 400);
-    return () => window.clearInterval(id);
-  }, [syncBounds]);
+    syncBounds();
+  }, [syncBounds, zoomProp]);
 
   const navigate = (value?: string) => {
     const next = (value ?? draft).trim();

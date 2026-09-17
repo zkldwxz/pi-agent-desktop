@@ -47,7 +47,7 @@ export function SessionOutline({
               key={turn.key}
               type="button"
               onClick={() => onJump(turn.key)}
-              style={{ animation: `row-enter 380ms cubic-bezier(0.23,1,0.32,1) ${Math.min(index, 4) * 35}ms both` }}
+              style={{ animation: `row-enter 240ms cubic-bezier(0.23,1,0.32,1) ${Math.min(index, 4) * 35}ms both` }}
               className={cn(
                 "pressable flex w-full items-start gap-2 rounded-[7px] px-2 py-1.5 text-left",
                 active ? "bg-surface shadow-hairline" : "hover:bg-hover",

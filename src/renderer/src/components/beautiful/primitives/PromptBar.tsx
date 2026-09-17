@@ -163,6 +163,7 @@ export default function PromptBar({
   thinkingLevel,
   onSelectThinking,
   controls,
+  controlsTrailing,
 }: {
   variant?: string;
   /** the self-running walkthrough; turn off when embedding in a real surface */
@@ -193,6 +194,9 @@ export default function PromptBar({
   onSelectThinking?: (level: string) => void;
   /** host slot beside the input — this app puts the model and thinking controls here */
   controls?: ReactNode;
+  /** host slot between the controls and dictation — this app puts the token
+   *  ledger and context ring here (ambient, right side of the control row) */
+  controlsTrailing?: ReactNode;
 }) {
   const models = modelsProp && modelsProp.length ? modelsProp : MODELS;
   const commands = commandsProp && commandsProp.length ? commandsProp : COMMANDS;
@@ -730,6 +734,11 @@ export default function PromptBar({
               }`}
             >
               {controls}
+              {/* the ledger and context ring ride the same row, pushed to its
+                  right edge — the control row reads Cursor-style: pills left,
+                  ambient indicators right */}
+              {wide && controlsTrailing ? <span className="flex-1" /> : null}
+              {wide ? controlsTrailing : null}
             </div>
           ) : null}
 

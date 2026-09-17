@@ -78,6 +78,7 @@ export function MessageThread({
 
   return (
     <div className="mx-auto flex w-full max-w-[720px] flex-col gap-8">
+
       {turns.map((turn, index) => (
         <section
           key={turn.key}
@@ -106,25 +107,7 @@ export function MessageThread({
             </div>
           ))}
 
-          {turn.items.map((item, itemIndex) => {
-            const isLast = itemIndex === turn.items.length - 1;
-            if (item.kind === "thinking") {
-              return <AgentTrace key={item.key} text={item.text} working={turn.streaming && isLast} />;
-            }
-            if (item.kind === "tools") {
-              return <AgentToolRun key={item.key} runs={item.runs} />;
-            }
-            return (
-              <AgentAnswer
-                key={item.key}
-                turn={turn}
-                item={item}
-                isLast={isLast}
-                streaming={turn.streaming && isLast}
-                onFork={onFork}
-              />
-            );
-          })}
+          <TurnItems turn={turn} onFork={onFork} />
 
           {/* the persistent status line: names the beat the transcript itself
               cannot — a tool still running, or the model composing its next
@@ -136,4 +119,48 @@ export function MessageThread({
       {awaitingFirstToken ? <AgentWorking /> : null}
     </div>
   );
+}
+
+/**
+ * The beats of one turn, in production order.
+ *
+ * The most recent reasoning beat stays open and shimmering for as long as the
+ * turn is running — even when prose or tool rows follow it — and every beat
+ * keeps its own trace, so a run that thinks before each tool call shows one
+ * per call instead of a single frozen block at the top.
+ */
+function TurnItems({
+  turn,
+  onFork,
+}: {
+  turn: TurnView;
+  onFork?: (userIndex: number) => void;
+}) {
+  let lastThinking = -1;
+  for (let i = turn.items.length - 1; i >= 0; i -= 1) {
+    if (turn.items[i].kind === "thinking") {
+      lastThinking = i;
+      break;
+    }
+  }
+
+  return turn.items.map((item, itemIndex) => {
+    const isLast = itemIndex === turn.items.length - 1;
+    if (item.kind === "thinking") {
+      return <AgentTrace key={item.key} text={item.text} working={turn.streaming && itemIndex === lastThinking} />;
+    }
+    if (item.kind === "tools") {
+      return <AgentToolRun key={item.key} runs={item.runs} />;
+    }
+    return (
+      <AgentAnswer
+        key={item.key}
+        turn={turn}
+        item={item}
+        isLast={isLast}
+        streaming={turn.streaming && isLast}
+        onFork={onFork}
+      />
+    );
+  });
 }

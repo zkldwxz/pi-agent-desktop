@@ -421,6 +421,9 @@ app.whenReady().then(async () => {
     window?.webContents.send("pi:update", payload);
   });
   await createWindow();
+  // pre-create the embedded browser's view once the window is up, so opening
+  // the browser dock does not pay for a fresh renderer process
+  setTimeout(() => browser?.warm(), 1500);
   try {
     await host.start();
     const snapshot = host.snapshot();

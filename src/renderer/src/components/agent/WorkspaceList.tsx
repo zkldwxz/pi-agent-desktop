@@ -175,6 +175,8 @@ export function WorkspaceList({
   onRename,
   onAddFolder,
   onNewInWorkspace,
+  /** the sidebar's collapse toggle, drawn inside this header row */
+  collapseControl,
 }: {
   sessions: SessionListItem[];
   prefs: WorkspacePrefs;
@@ -187,6 +189,7 @@ export function WorkspaceList({
   onRename: (key: string, label: string) => void;
   onAddFolder: () => void;
   onNewInWorkspace?: (cwd: string) => void;
+  collapseControl?: React.ReactNode;
 }) {
   // collapsed by default: an empty map means every workspace starts closed
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -315,14 +318,13 @@ export function WorkspaceList({
     const visible = isExpanded ? sorted : sorted.slice(0, limit);
     const hidden = sorted.length - visible.length;
     const running = sorted.some((session) => session.status === "running");
-    const workspaceUnread = sorted.filter(
-      (session) => Date.parse(session.modified) > (readAt[session.path] ?? 0),
-    ).length;
 
     return (
       <section key={workspace.key} className="mb-1.5" style={stagger(groupIndex)}>
+        {/* one hover surface for the whole row: the folder toggle and the
+            new-chat button ride in it, so the two read as a single component */}
         <div
-          className="group/ws flex items-center gap-1 px-1"
+          className="group/ws flex items-center rounded-[7px] px-1 hover:bg-hover-2"
           onContextMenu={(event) => {
             event.preventDefault();
             setContextMenu({
@@ -336,15 +338,8 @@ export function WorkspaceList({
           <button
             type="button"
             onClick={() => setOpen((current) => ({ ...current, [workspace.key]: !isOpen }))}
-            className="pressable flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-[7px] px-1 text-left hover:bg-hover-2"
+            className="pressable flex h-8 min-w-0 flex-1 items-center gap-1.5 px-1 text-left"
           >
-            {/* the dot slot is always rendered so the folder icons of read
-                and unread rows stay on the same vertical line */}
-            <span className="flex size-1.5 shrink-0 items-center justify-center">
-              {workspaceUnread ? (
-                <span className="size-1.5 rounded-full bg-accent" title={`${workspaceUnread} unread`} />
-              ) : null}
-            </span>
             <span className="relative flex size-3.5 shrink-0 items-center justify-center text-ink-3">
               <FolderIcon
                 size={13}
@@ -404,8 +399,11 @@ export function WorkspaceList({
         {/* collapsed workspaces render nothing at all — no preload */}
         <div className="collapse-grid" data-open={isOpen}>
           <div className="min-h-0 overflow-hidden">
+            {/* no container indent: the row's own pl-[24px] supplies the visual
+                indent, so the hover glide, the picked surface and the row share
+                the same left and right edges */}
             {isOpen ? (
-              <GlideList className="flex flex-col gap-0.5 pl-4 pt-0.5">
+              <GlideList className="flex flex-col gap-0.5 pt-0.5">
                 {visible.map((session, index) => {
                   const isUnread = Date.parse(session.modified) > (readAt[session.path] ?? 0);
                   const active = session.path === activePath || session.path === picked;
@@ -427,6 +425,12 @@ export function WorkspaceList({
                         active && "row-picked bg-surface shadow-hairline",
                       )}
                     >
+                      {/* the unread dot lives on the message it belongs to —
+                          and the slot is permanent, so the titles of read and
+                          unread rows stay on the same vertical line */}
+                      <span className="flex size-1.5 shrink-0 items-center justify-center">
+                        {isUnread ? <span className="size-1.5 rounded-full bg-accent" /> : null}
+                      </span>
                       <span
                         className={cn(
                           "min-w-0 flex-1 truncate text-[12.5px]",
@@ -477,14 +481,7 @@ export function WorkspaceList({
       <div className="flex items-center gap-1 px-2.5 pb-1">
         <span className="text-[11px] tracking-[0.3px] text-ink-3">Workspaces</span>
         <span className="flex-1" />
-        {unread ? (
-          <span
-            className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-medium text-white tabular-nums"
-            title={`${unread} conversation${unread === 1 ? "" : "s"} updated since you last read them`}
-          >
-            {unread}
-          </span>
-        ) : null}
+        {collapseControl}
         <div className="relative">
           <button
             type="button"

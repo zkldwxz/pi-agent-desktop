@@ -86,6 +86,17 @@ export class BrowserHost {
     return view;
   }
 
+  /**
+   * Create the view (and its renderer process) ahead of the first open.
+   *
+   * Building a WebContentsView costs a few hundred milliseconds on the main
+   * thread, which is exactly what the user felt as stutter the first time the
+   * browser dock opened. The view stays hidden at zero bounds until asked for.
+   */
+  warm(): void {
+    this.ensure();
+  }
+
   setBounds(bounds: BrowserBounds): void {
     const view = this.view;
     if (!view) {

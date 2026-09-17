@@ -47,9 +47,12 @@ export function AgentAnswer({
   if (!item.text.trim() && !streaming) return null;
 
   if (streaming) {
+    // no card chrome while tokens arrive: the settled prose is plain text at
+    // exactly these metrics, so the moment the stream hands over to markdown
+    // nothing shifts — same box, same type, no jump
     return (
       <div
-        className="max-w-[640px] rounded-[10px] bg-surface p-3 shadow-hairline"
+        className="max-w-[640px]"
         style={{ animation: "fade-up 300ms cubic-bezier(0.23,1,0.32,1) both" }}
       >
         <StreamText

@@ -9,6 +9,7 @@ import { FileViewer } from "./components/panel/FileViewer";
 import { SessionOutline } from "./components/panel/SessionOutline";
 import { TerminalPanel } from "./components/panel/TerminalPanel";
 import type { FileEntry } from "@shared/workspace";
+import { cn } from "./lib/cn";
 import type { BrowserState, DesignPick } from "@shared/browser";
 import type { UiAnswer, UiNotification, UiRequest } from "@shared/ui";
 import { ApprovalPrompt, NoticeStack } from "./components/agent/ApprovalPrompt";
@@ -19,6 +20,9 @@ const CustomizeView = lazy(() => import("./views/CustomizeView").then((m) => ({ 
 const SettingsView = lazy(() => import("./views/SettingsView").then((m) => ({ default: m.SettingsView })));
 const WelcomeView = lazy(() => import("./views/WelcomeView").then((m) => ({ default: m.WelcomeView })));
 const BrowserPanel = lazy(() => import("./components/browser/BrowserPanel").then((m) => ({ default: m.BrowserPanel })));
+
+const BROWSER_WIDTH_KEY = "pi-browser-dock-width";
+const clampBrowserWidth = (value: number) => Math.round(Math.min(1100, Math.max(320, value)));
 const NextStepCard = lazy(() => import("./components/agent/NextStepCard").then((m) => ({ default: m.NextStepCard })));
 const CommandPalette = lazy(() =>
   import("./components/agent/CommandPalette").then((m) => ({ default: m.CommandPalette })),
@@ -109,6 +113,8 @@ export function App() {
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [uiRequest, setUiRequest] = useState<UiRequest | null>(null);
   const [notices, setNotices] = useState<UiNotification[]>([]);
+  /* the host keeps every notification it ever sent; ids that timed out or were
+     dismissed here must never reappear on the next payload */
   const [prefill, setPrefill] = useState<string | undefined>(undefined);
   const [queueBehavior, setQueueBehavior] = useState<QueueBehavior>("followUp");
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -193,7 +199,9 @@ export function App() {
       setMessages(payload.messages);
       setTools(payload.tools);
       if (payload.uiRequest !== undefined) setUiRequest(payload.uiRequest);
-      if (payload.notifications) setNotices(payload.notifications);
+      if (payload.notifications) {
+        setNotices(payload.notifications.filter((notice) => !retiredNoticesRef.current.has(notice.id)));
+      }
     });
     void window.pi.getState().then((payload) => {
       setState(normalizeState(payload.state));
@@ -236,6 +244,28 @@ export function App() {
   useEffect(() => {
     void window.pi.getDesktopConfig().then((config) => setOnboarded(config.onboardingDone));
   }, []);
+
+  // warm the docked browser's chunk — first open then skips the lazy fetch
+  useEffect(() => {
+    const timer = setTimeout(() => void import("./components/browser/BrowserPanel"), 1200);
+    return () => clearTimeout(timer);
+  }, []);
+
+  /* toasts are transient: each gets five seconds, then the renderer drops it
+   * itself — extension notifications otherwise stacked up forever in the
+   * bottom-right corner */
+  const retiredNoticesRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!notices.length) return;
+    const timer = setTimeout(() => {
+      setNotices((current) => {
+        const [expired, ...rest] = current;
+        if (expired) retiredNoticesRef.current.add(expired.id);
+        return rest;
+      });
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [notices]);
 
   const loadPlugins = useCallback(async () => {
     setPluginsLoading(true);
@@ -368,6 +398,68 @@ export function App() {
   const deferredMessages = useDeferredValue(messages);
   const deferredState = useDeferredValue(state);
 
+  /** docked browser width in px; 0 means "follow the window at 42%" */
+  const [browserWidth, setBrowserWidth] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem(BROWSER_WIDTH_KEY)) || 0;
+      return saved ? clampBrowserWidth(saved) : 0;
+    } catch {
+      return 0;
+    }
+  });
+  const [resizingBrowser, setResizingBrowser] = useState(false);
+
+  const applyBrowserWidth = useCallback((value: number, persist = false) => {
+    const clamped = clampBrowserWidth(value);
+    setBrowserWidth(clamped);
+    if (persist) {
+      try {
+        localStorage.setItem(BROWSER_WIDTH_KEY, String(clamped));
+      } catch {}
+    }
+  }, []);
+
+  /** current dock width: the dragged value when set, else 42% of the window */
+  const browserLiveWidth = useCallback(
+    (fallback?: number) =>
+      browserWidth > 0 ? clampBrowserWidth(browserWidth) : clampBrowserWidth((fallback ?? window.innerWidth) * 0.42),
+    [browserWidth],
+  );
+
+  const onStartBrowserResize = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      const startX = event.clientX;
+      const startWidth = browserLiveWidth(event.currentTarget.parentElement?.clientWidth);
+      setResizingBrowser(true);
+      const onMove = (moveEvent: MouseEvent) => {
+        // the dock sits on the right: dragging left grows it
+        applyBrowserWidth(startWidth + (startX - moveEvent.clientX));
+      };
+      const onUp = (upEvent: MouseEvent) => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        setResizingBrowser(false);
+        applyBrowserWidth(startWidth + (startX - upEvent.clientX), true);
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+    [applyBrowserWidth, browserLiveWidth],
+  );
+
+  // while dragging, lock the cursor and kill text selection app-wide
+  useEffect(() => {
+    if (!resizingBrowser) return;
+    const { cursor, userSelect } = document.body.style;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    return () => {
+      document.body.style.cursor = cursor;
+      document.body.style.userSelect = userSelect;
+    };
+  }, [resizingBrowser]);
+
   const openDockFile = useCallback((entry: FileEntry) => {
     setActiveChange(null);
     setOpenFile(entry.path);
@@ -444,6 +536,7 @@ export function App() {
               <BrowserPanel
                 state={browser}
                 expanded
+                zoom={zoomFactor}
                 onExpandedChange={(next) => {
                   if (!next) {
                     setBrowserDockOpen(true);
@@ -558,12 +651,30 @@ export function App() {
               </div>
 
               {/* the docked browser: the page composites above this pane, its
-                  chrome is the same BrowserPanel the fullscreen view uses */}
+                  chrome is the same BrowserPanel the fullscreen view uses.
+                  The divider on its left edge drags it wider or narrower. */}
               {browserDockOpen ? (
-                <aside className="flex w-[42%] min-w-[360px] max-w-[760px] shrink-0 flex-col border-l border-line">
+                <aside
+                  className="relative flex shrink-0 flex-col border-l border-line"
+                  style={{ width: browserLiveWidth() }}
+                >
+                  <div
+                    onMouseDown={onStartBrowserResize}
+                    onDoubleClick={() => applyBrowserWidth(0, true)}
+                    title="Drag to resize, double-click to reset"
+                    className="group/browser-resizer absolute inset-y-0 left-0 z-30 w-1.5 cursor-col-resize"
+                  >
+                    <div
+                      className={cn(
+                        "mx-auto h-full w-px transition-colors duration-150",
+                        resizingBrowser ? "bg-accent" : "bg-transparent group-hover/browser-resizer:bg-accent/50",
+                      )}
+                    />
+                  </div>
                   <BrowserPanel
                     state={browser}
                     expanded={false}
+                    zoom={zoomFactor}
                     onExpandedChange={(next) => {
                       if (next) setView("browser");
                     }}
@@ -658,7 +769,10 @@ export function App() {
       {uiRequest ? <ApprovalPrompt request={uiRequest} onAnswer={answer} /> : null}
       <NoticeStack
         notices={notices}
-        onDismiss={(id) => setNotices((current) => current.filter((notice) => notice.id !== id))}
+        onDismiss={(id) => {
+          retiredNoticesRef.current.add(id);
+          setNotices((current) => current.filter((notice) => notice.id !== id));
+        }}
       />
 
       <Suspense fallback={null}>

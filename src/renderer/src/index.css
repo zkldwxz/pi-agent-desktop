@@ -119,22 +119,22 @@ body {
 /* Entrance choreography — stagger is capped at five steps so long lists never
  * make the user wait for the last row. */
 .stagger {
-  animation: fade-up 420ms var(--ease-out-strong-css) both;
-  animation-delay: calc(var(--i, 0) * 45ms);
+  animation: fade-up 260ms var(--ease-out-strong-css) both;
+  animation-delay: calc(var(--i, 0) * 35ms);
 }
 
 .stagger-pop {
-  animation: pop-in 260ms var(--ease-out-strong-css) both;
-  animation-delay: calc(var(--i, 0) * 45ms);
+  animation: pop-in 220ms var(--ease-out-strong-css) both;
+  animation-delay: calc(var(--i, 0) * 35ms);
 }
 
 .view-enter {
-  animation: view-enter 320ms var(--ease-out-strong-css) both;
+  animation: view-enter 220ms var(--ease-out-strong-css) both;
 }
 
 .row-enter {
-  animation: row-enter 380ms var(--ease-out-strong-css) both;
-  animation-delay: calc(var(--i, 0) * 35ms);
+  animation: row-enter 240ms var(--ease-out-strong-css) both;
+  animation-delay: calc(var(--i, 0) * 30ms);
 }
 
 .animate-fade-in {
@@ -288,23 +288,21 @@ body {
   from {
     opacity: 0;
     transform: translateY(6px);
-    filter: blur(1px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
-    filter: blur(0);
   }
 }
 
 @keyframes view-enter {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(0.998);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 

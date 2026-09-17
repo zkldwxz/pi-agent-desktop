@@ -122,7 +122,7 @@ export function ChangesPanel({
             return (
               <div key={change.file} className="flex flex-col">
                 <div
-                  style={{ animation: `row-enter 380ms cubic-bezier(0.23,1,0.32,1) ${Math.min(index, 4) * 35}ms both` }}
+                  style={{ animation: `row-enter 240ms cubic-bezier(0.23,1,0.32,1) ${Math.min(index, 4) * 35}ms both` }}
                   className={cn(
                     "group/change flex items-center gap-1 rounded-[7px] pr-0.5",
                     active ? "bg-surface shadow-hairline" : "hover:bg-hover",
