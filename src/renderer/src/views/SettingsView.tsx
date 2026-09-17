@@ -50,10 +50,13 @@ function Section({
 function Row({
   title,
   hint,
+  mono,
   children,
 }: {
   title: string;
   hint?: string;
+  /** machine identifiers (model keys, paths) read better in mono */
+  mono?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -62,7 +65,7 @@ function Row({
       className="relative z-10 flex items-center gap-4 border-b border-line px-4 py-3.5 last:border-0"
     >
       <div className="min-w-0 flex-1">
-        <div className="text-[12.5px] text-ink">{title}</div>
+        <div className={cn("text-[12.5px] text-ink", mono && "font-mono text-[11.5px]")}>{title}</div>
         {hint ? <div className="mt-0.5 truncate text-[11px] text-ink-3">{hint}</div> : null}
       </div>
       <div className="flex shrink-0 items-center gap-2">{children}</div>
@@ -360,8 +363,14 @@ export function SettingsView({
                 onChange={(value) => onUpdate({ defaultThinkingLevel: value })}
               />
             </Row>
+            {/* the per-model rows read as a catalogue: the key is the row, the
+                section label carries the explanation — eighteen repetitions of
+                "Default level ·" and "per-model override" said nothing */}
+            <div className="border-b border-line bg-canvas/40 px-4 py-1.5 text-[10.5px] tracking-[0.4px] text-ink-3 uppercase">
+              Per-model overrides · inherit follows the startup level
+            </div>
             {modelKeys.map((key) => (
-              <Row key={key} title={`Default level · ${key}`} hint="per-model override">
+              <Row key={key} title={key} mono>
                 <Select
                   value={settings.modelThinkingLevels[key] ?? "inherit"}
                   options={["inherit", ...LEVELS]}

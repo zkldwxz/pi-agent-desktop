@@ -146,7 +146,7 @@ export function ModelThinkingControl({
             has to be visible the moment the menu opens — behind a scroll it may
             as well not exist, since nobody scrolls a menu to find an answer they
             did not know was there. */}
-        <div className="flex max-h-[68vh] flex-col">
+        <div className="flex max-h-[min(520px,74vh)] flex-col">
           <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-2">
             <div className="px-1 pb-1 text-[10px] tracking-[0.4px] text-ink-3">MODEL</div>
             {/* Memoised: the glide highlight moves on every pointer move, and
