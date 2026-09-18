@@ -129,6 +129,7 @@ const ZH: Record<string, string> = {
   "Thought for {duration}": "思考 {duration}",
   "Worked for {duration}": "耗时 {duration}",
   "Stopped": "已停止",
+  "cached": "缓存命中",
   "Copy answer": "复制回答",
   "Copied": "已复制",
   "Retry from here": "从这里重试",
