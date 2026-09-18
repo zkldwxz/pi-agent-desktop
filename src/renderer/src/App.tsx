@@ -355,6 +355,18 @@ export function App() {
         // the usage dashboard now lives inside Settings
         setView((value) => (value === "settings" ? "chat" : "settings"));
       }
+      if (mod && event.key === ",") {
+        // Cursor/VS Code/Aureways all open preferences on this chord
+        event.preventDefault();
+        setView((value) => (value === "settings" ? "chat" : "settings"));
+        return;
+      }
+      if (mod && event.key.toLowerCase() === "b") {
+        // the workbench chord: the right dock
+        event.preventDefault();
+        setDockOpen((value) => !value);
+        return;
+      }
       if (mod && event.key.toLowerCase() === "l") {
         // focus the composer from anywhere — Cursor's shortcut
         event.preventDefault();

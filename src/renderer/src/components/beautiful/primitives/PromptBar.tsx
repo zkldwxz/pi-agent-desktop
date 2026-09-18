@@ -707,7 +707,12 @@ export default function PromptBar({
                 closeMenus();
                 return;
               }
-              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              // Enter sends; Shift+Enter is a newline; Ctrl/Cmd+Enter also sends
+              if (
+                event.key === "Enter" &&
+                !event.nativeEvent.isComposing &&
+                (!event.shiftKey || event.ctrlKey || event.metaKey)
+              ) {
                 event.preventDefault();
                 send();
               }
