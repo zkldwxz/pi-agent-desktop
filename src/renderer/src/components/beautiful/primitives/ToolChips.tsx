@@ -251,7 +251,7 @@ export default function ToolChips({
                 style={{ gridTemplateRows: rowOpen ? "1fr" : "0fr", opacity: rowOpen ? 1 : 0, transitionTimingFunction: "cubic-bezier(0.23, 1, 0.32, 1)" }}
               >
                 <div className="min-h-0 overflow-hidden">
-                  <div className="mt-0.5 mb-1 ml-[18px] flex flex-col gap-0.5 border-l border-line py-0.5 pl-[7px]">
+                  <div className="scrollbar-thin mt-0.5 mb-1 ml-[18px] flex max-h-[320px] flex-col gap-0.5 overflow-y-auto border-l border-line py-0.5 pl-[7px]">
                     {row.detail.map((line, lineIndex) => (
                       <span
                         key={`${rowKey}-d${lineIndex}`}

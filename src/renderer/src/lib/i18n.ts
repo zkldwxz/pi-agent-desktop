@@ -68,9 +68,9 @@ const ZH: Record<string, string> = {
   "Reload session": "重新加载会话",
 
   /* ── sidebar ────────────────────────────────────────── */
-  "New Agent": "新建会话",
+  "New Agent": "新对话",
   "Search": "搜索",
-  "Customize": "定制",
+
   "Settings": "设置",
   "Expand sidebar": "展开侧边栏",
   "Collapse sidebar": "收起侧边栏",
@@ -124,9 +124,6 @@ const ZH: Record<string, string> = {
   "New session": "新会话",
 
   /* ── transcript ─────────────────────────────────────── */
-  "Thinking": "思考中",
-  "Thought briefly": "短暂思考",
-  "Thought for {duration}": "思考 {duration}",
   "Worked for {duration}": "耗时 {duration}",
   "Stopped": "已停止",
   "cached": "缓存命中",

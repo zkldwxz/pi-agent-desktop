@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { cn } from "../lib/cn";
+import { Markdown } from "./Markdown";
 
 /** Capped stagger index — after the fifth item every row enters together. */
 export function stagger(index: number): CSSProperties {
@@ -252,11 +253,14 @@ export function StreamText({
   done = true,
   className,
   caret = true,
+  markdown = false,
 }: {
   text: string;
   done?: boolean;
   className?: string;
   caret?: boolean;
+  /** render the revealed slice through the Markdown pipeline as it grows */
+  markdown?: boolean;
   blurTail?: number;
   tickMs?: number;
 }) {
@@ -286,6 +290,7 @@ export function StreamText({
 
     let rafId: number | null = null;
     let lastTime = performance.now();
+    let lastCommit = 0;
 
     const frame = (now: number) => {
       const current = revealedRef.current;
@@ -303,7 +308,12 @@ export function StreamText({
         const step = Math.max(perFrame, Math.min(catchUp, Math.ceil(backlog / 4)));
         const next = Math.min(target, current + step);
         revealedRef.current = next;
-        setRevealed(next);
+        /* Markdown re-parses the whole prefix, so the reveal commits at ~12fps
+         * there instead of every frame; plain text commits every frame. */
+        if (!markdown || next === target || now - lastCommit >= 80) {
+          lastCommit = now;
+          setRevealed(next);
+        }
         lastTime = now;
       }
 
@@ -318,14 +328,14 @@ export function StreamText({
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
-  }, [done, targetLength]);
+  }, [done, targetLength, markdown]);
 
   const settled = done && revealed >= targetLength;
   const shownText = text.slice(0, revealed);
 
   return (
     <span className={className}>
-      {shownText}
+      {markdown ? <Markdown>{shownText}</Markdown> : shownText}
       {caret ? <span aria-hidden className={`stream-caret${settled ? "" : " is-streaming"}`} /> : null}
     </span>
   );

@@ -51,9 +51,10 @@ export function AgentAnswer({
         style={{ animation: "fade-up 300ms cubic-bezier(0.23,1,0.32,1) both" }}
       >
         <StreamText
+          markdown
           text={item.text}
           done={false}
-          className="text-[13px] leading-[21px] whitespace-pre-wrap text-ink"
+          className="text-[13px] leading-[21px] text-ink"
         />
       </div>
     );

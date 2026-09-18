@@ -291,12 +291,15 @@ export function buildToolRun(
       run.label = icon === "run" ? "Run" : name;
       run.chip = target ? truncate(target) : "command";
       run.detailMono = true;
+      /* the whole point of clicking a run open is seeing what it printed:
+       * keep the output (bounded) instead of a four-line teaser */
       if (resultText) {
-        run.detail = resultText
-          .split("\n")
-          .filter(Boolean)
-          .slice(0, 4)
-          .map((text) => ({ text: truncate(text, 90) }));
+        const lines = resultText.split("\n");
+        const shown = lines.slice(0, 60);
+        run.detail = shown.map((text) => ({ text: truncate(text, 400) }));
+        if (lines.length > shown.length) {
+          run.detail.push({ text: `… ${lines.length - shown.length} more lines` });
+        }
       }
       break;
     }

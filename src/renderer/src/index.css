@@ -348,6 +348,15 @@ body {
   scrollbar-color: var(--line-strong) transparent;
 }
 
+/* Long transcripts: offscreen turns skip layout and paint entirely, which is
+ * what keeps scrolling cheap in a session with hundreds of turns. The `auto`
+ * keyword lets the browser remember each turn's real height instead of
+ * re-guessing it, so the scrollbar does not jump. */
+[data-turn] {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 220px;
+}
+
 /* Crisp text reveal: eliminate GPU-heavy blur & gradient masks */
 .stream-tail {
   filter: none !important;
