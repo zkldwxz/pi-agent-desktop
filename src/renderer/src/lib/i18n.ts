@@ -86,6 +86,7 @@ const ZH: Record<string, string> = {
   "Archived ({count})": "已归档 ({count})",
   "Show {count} more": "再看 {count} 条",
   "Show less": "收起",
+  "Show the full message ({count} lines)": "展开全部（{count} 行）",
   "No sessions yet.": "还没有会话。",
   "Add a folder": "添加文件夹",
   "New chat": "新建会话",

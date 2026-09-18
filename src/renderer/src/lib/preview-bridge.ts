@@ -47,7 +47,12 @@ const MESSAGES: ChatMessage[] = [
     key: "u1",
     role: "user",
     timestamp: now - 11 * 60_000,
-    text: "把 settings 里的模型列表整理一下，顺便看看 @ 引用能不能搜整个工作区。",
+    text: [
+      "把 settings 里的模型列表整理一下，顺便看看 @ 引用能不能搜整个工作区。",
+      "",
+      "另外这是一段很长的粘贴内容，用来验证消息气泡的高度限制：",
+      ...Array.from({ length: 14 }, (_, i) => `${i + 1}. 这一行是粘贴进来的日志或需求描述，第 ${i + 1} 条。`),
+    ].join("\n"),
     blocks: [],
   },
   {

@@ -9,6 +9,7 @@ import { AgentTrace } from "./agent/AgentTrace";
 import { AgentWorking } from "./agent/AgentWorking";
 import { CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from "./icons";
 import { t, tf, useLocale } from "../lib/i18n";
+import { cn } from "../lib/cn";
 
 /** stable empty array — a fresh one would defeat the buildTurns cache key */
 const NO_LIVE_TOOLS: ToolActivity[] = [];
@@ -161,9 +162,7 @@ export function MessageThread({
                   </button>
                 ) : null}
               </div>
-              <div className="max-w-[500px] rounded-[10px] bg-field px-3.5 py-2 text-[13px] leading-5 text-ink">
-                {turn.prompt}
-              </div>
+              <PromptBubble text={turn.prompt} />
             </div>
           ) : null}
 
@@ -201,6 +200,49 @@ export function MessageThread({
       })}
 
       {awaitingFirstToken ? <AgentWorking /> : null}
+    </div>
+  );
+}
+
+/**
+ * The user's message.
+ *
+ * Pasted logs and long prompts used to push the whole turn off screen, so the
+ * bubble now clamps to about eight lines; the footer says how much is hidden
+ * and one click opens it. (`whitespace-pre-wrap` also keeps the line breaks
+ * the user typed — they used to collapse into a single paragraph.)
+ */
+function PromptBubble({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const lines = text.split("\n").length;
+  const long = lines > 8 || text.length > 520;
+
+  return (
+    <div className="relative max-w-[520px] overflow-hidden rounded-[10px] bg-field px-3.5 py-2 text-[13px] leading-5 text-ink">
+      <div className={cn("whitespace-pre-wrap break-words", !expanded && long && "max-h-[152px] overflow-hidden")}>
+        {text}
+      </div>
+
+      {long ? (
+        <>
+          {!expanded ? (
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-field to-transparent"
+            />
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            className={cn(
+              "pressable relative mt-1 flex w-full items-center justify-center gap-1 rounded-[6px] py-0.5 text-[11.5px] text-ink-3 hover:text-ink",
+              !expanded && "absolute inset-x-0 bottom-0 pt-3",
+            )}
+          >
+            {expanded ? t("Show less") : tf("Show the full message ({count} lines)", { count: lines })}
+          </button>
+        </>
+      ) : null}
     </div>
   );
 }
