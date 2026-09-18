@@ -1,5 +1,6 @@
 import type { ColorMode } from "../../lib/theme";
 import { cn } from "../../lib/cn";
+import { t, type Locale } from "../../lib/i18n";
 import { SlidingGroup } from "../motion";
 import { MoonIcon, SunIcon } from "../icons";
 
@@ -71,11 +72,15 @@ export function AppearanceSection({
   onMode,
   zoomFactor = 1.0,
   onZoomFactor,
+  locale,
+  onLocale,
 }: {
   mode: ColorMode;
   onMode: (mode: ColorMode) => void;
   zoomFactor?: number;
   onZoomFactor?: (factor: number) => void;
+  locale?: Locale;
+  onLocale?: (locale: Locale) => void;
 }) {
   return (
     <section className="flex flex-col gap-2">
@@ -124,6 +129,36 @@ export function AppearanceSection({
           );
         })}
       </div>
+
+      {onLocale ? (
+        <div className="mt-4 flex flex-col gap-2">
+          <div className="flex items-baseline justify-between px-0.5">
+            <h2 className="text-[12.5px] font-medium text-ink">{t("Language")}</h2>
+            <span className="text-[11px] text-ink-3">
+              {t("Interface language for the app chrome; agent output is never translated")}
+            </span>
+          </div>
+          <div className="flex w-fit items-center gap-0.5 rounded-chip bg-field p-0.5">
+            {([
+              { value: "zh", label: "中文" },
+              { value: "en", label: "English" },
+            ] as const).map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => onLocale(option.value)}
+                aria-pressed={locale === option.value}
+                className={cn(
+                  "pressable h-6 rounded-[6px] px-3 text-[12px] transition-colors duration-150",
+                  locale === option.value ? "bg-surface font-medium text-ink shadow-hairline" : "text-ink-3 hover:text-ink",
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {onZoomFactor ? (
         <div className="mt-4 flex flex-col gap-2">

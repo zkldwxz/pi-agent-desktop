@@ -8,6 +8,7 @@ import { AgentToolRun } from "./agent/AgentToolRun";
 import { AgentTrace } from "./agent/AgentTrace";
 import { AgentWorking } from "./agent/AgentWorking";
 import { CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from "./icons";
+import { t, tf, useLocale } from "../lib/i18n";
 
 /** stable empty array — a fresh one would defeat the buildTurns cache key */
 const NO_LIVE_TOOLS: ToolActivity[] = [];
@@ -32,7 +33,7 @@ function statusLabel(turn: TurnView, live: boolean): string | null {
   if (last.kind === "text" || last.kind === "thinking") return null; // caret / shimmer carry it
   const running = [...last.runs].reverse().find((run) => run.status === "running");
   if (running) return `${running.label} ${running.chip}`.trim();
-  return "Thinking";
+  return t("Thinking");
 }
 
 /**
@@ -64,6 +65,7 @@ export function MessageThread({
   /** drop a past prompt back into the composer for editing */
   onEditPrompt?: (text: string) => void;
 }) {
+  useLocale();
   const turns = useMemo(
     () => buildTurns(messages, streaming ? tools : NO_LIVE_TOOLS),
     [messages, tools, streaming],
@@ -95,14 +97,13 @@ export function MessageThread({
           className="text-[22px] font-semibold tracking-[-0.03em] text-ink"
           style={{ animation: "fade-up 460ms cubic-bezier(0.23,1,0.32,1) both" }}
         >
-          What should Pi do next?
+          {t("What should Pi do next?")}
         </div>
         <p
           className="max-w-md text-[13px] text-ink-3"
           style={{ animation: "fade-up 460ms cubic-bezier(0.23,1,0.32,1) 80ms both" }}
         >
-          This window talks to the Pi agent already installed on this machine. Sessions, models, and credentials stay in
-          ~/.pi/agent.
+          {t("This window talks to the Pi agent already installed on this machine. Sessions, models, and credentials stay in ~/.pi/agent.")}
         </p>
       </div>
     );
@@ -117,7 +118,7 @@ export function MessageThread({
           onClick={() => setVisibleCount(turns.length)}
           className="pressable mx-auto flex items-center gap-1.5 rounded-chip bg-surface px-2.5 py-1 text-[11px] text-ink-3 shadow-hairline hover:text-ink"
         >
-          Show {hiddenCount} earlier turn{hiddenCount === 1 ? "" : "s"}
+          {tf(hiddenCount === 1 ? "Show {count} earlier turn" : "Show {count} earlier turns", { count: hiddenCount })}
         </button>
       ) : null}
       {shown.map((turn, index) => {
@@ -140,8 +141,8 @@ export function MessageThread({
                 {onEditPrompt ? (
                   <button
                     type="button"
-                    title="Edit this prompt"
-                    aria-label="Edit this prompt"
+                    title={t("Edit this prompt")}
+                    aria-label={t("Edit this prompt")}
                     onClick={() => onEditPrompt(turn.prompt ?? "")}
                     className="pressable flex size-5.5 items-center justify-center rounded-[5px] text-ink-3 hover:bg-hover hover:text-ink"
                   >
@@ -173,9 +174,9 @@ export function MessageThread({
               style={{ animation: "fade-up 320ms cubic-bezier(0.23,1,0.32,1) both" }}
             >
               <span className="inline-flex h-4 items-center rounded-chip bg-field px-1.5 font-mono text-[10px] text-ink-3">
-                {note.tone === "compaction" ? "compacted" : "branch"}
+                {note.tone === "compaction" ? t("compacted") : t("branch")}
               </span>
-              <span className="truncate">{note.text || "Context compacted"}</span>
+              <span className="truncate">{note.text || t("Context compacted")}</span>
             </div>
           ))}
 
@@ -233,12 +234,12 @@ function TurnFooter({
       {stopped ? (
         <span className="flex items-center gap-1.5">
           <span className="size-2 rounded-[2px] bg-ink-3" />
-          <span>Stopped</span>
+          <span>{t("Stopped")}</span>
         </span>
       ) : long ? (
         <>
           <CheckIcon size={11} className="text-green" />
-          <span>Worked for {formatDuration(turn.endedAt - turn.timestamp)}</span>
+          <span>{tf("Worked for {duration}", { duration: formatDuration(turn.endedAt - turn.timestamp) })}</span>
         </>
       ) : null}
       {turn.usage && turn.usage.total > 0 ? (
@@ -254,8 +255,8 @@ function TurnFooter({
       <span className="flex items-center gap-0.5">
         <button
           type="button"
-          title={copied ? "Copied" : "Copy answer"}
-          aria-label="Copy answer"
+          title={copied ? t("Copied") : t("Copy answer")}
+          aria-label={t("Copy answer")}
           onClick={copy}
           className="pressable flex size-5.5 items-center justify-center rounded-[5px] text-ink-3 hover:bg-hover hover:text-ink"
         >
@@ -264,8 +265,8 @@ function TurnFooter({
         {onFork ? (
           <button
             type="button"
-            title="Retry from here"
-            aria-label="Retry from here"
+            title={t("Retry from here")}
+            aria-label={t("Retry from here")}
             onClick={() => onFork(turn.userIndex)}
             className="pressable flex size-5.5 items-center justify-center rounded-[5px] text-ink-3 hover:bg-hover hover:text-ink"
           >

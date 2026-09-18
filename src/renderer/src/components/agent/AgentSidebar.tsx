@@ -13,6 +13,7 @@ import { GlideList, Popover } from "../motion";
 import { NavRow } from "../NavRow";
 import { folderName } from "../../lib/format";
 import { MenuRow, WorkspaceList, type WorkspacePrefs } from "./WorkspaceList";
+import { t, tf, useLocale } from "../../lib/i18n";
 
 const PREFS_KEY = "pi-workspace-prefs";
 const RENAME_KEY = "pi-workspace-names";
@@ -124,6 +125,7 @@ export function AgentSidebar({
   const [renamed, setRenamed] = useState<Record<string, string>>(() => load(RENAME_KEY, {}));
   const [readAt, setReadAt] = useState<Record<string, number>>(() => load(READ_KEY, {}));
   const [newMenuOpen, setNewMenuOpen] = useState(false);
+  useLocale();
   const setCollapsed = onCollapsedChange;
 
   /** folders this machine has sessions for, newest first — the New Agent menu */
@@ -222,8 +224,8 @@ export function AgentSidebar({
           {collapsed ? (
             <RailRow
               icon={<PanelLeftIcon size={16} className="rotate-180" />}
-              label="Expand sidebar"
-              title="Expand sidebar"
+              label={t("Expand sidebar")}
+              title={t("Expand sidebar")}
               onClick={() => setCollapsed(false)}
             />
           ) : null}
@@ -232,7 +234,7 @@ export function AgentSidebar({
           <div className="relative">
             <NavRow
               icon={<EditIcon size={16} />}
-              label="New Agent"
+              label={t("New Agent")}
               trailing={<ChevronDownIcon size={12} className="text-ink-3" />}
               className="side-pane-row h-8.5"
               copyClassName="side-pane-copy"
@@ -248,7 +250,7 @@ export function AgentSidebar({
             >
               <GlideList rowSelector="[data-row]" highlightClassName="bg-hover" radius={6}>
                 <MenuRow
-                  label={`New chat in ${folderName(state.cwd) || "this folder"}`}
+                  label={tf("New chat in {folder}", { folder: folderName(state.cwd) || t("this folder") })}
                   onClick={() => {
                     setNewMenuOpen(false);
                     onNew();
@@ -263,7 +265,7 @@ export function AgentSidebar({
                   <MenuRow
                     key={path}
                     label={folderName(path) || path}
-                    hint={path === state.cwd ? "current" : undefined}
+                    hint={path === state.cwd ? t("current") : undefined}
                     onClick={() => {
                       setNewMenuOpen(false);
                       if (path === state.cwd) onNew();
@@ -273,7 +275,7 @@ export function AgentSidebar({
                 ))}
                 <div className="my-1 border-t border-line" />
                 <MenuRow
-                  label="Open another folder…"
+                  label={t("Open another folder…")}
                   onClick={() => {
                     setNewMenuOpen(false);
                     onPickNewFolder?.();
@@ -282,10 +284,10 @@ export function AgentSidebar({
               </GlideList>
             </Popover>
           </div>
-          <RailRow icon={<SearchIcon size={16} />} label="Search" hint="Ctrl K" onClick={onSearch} />
+          <RailRow icon={<SearchIcon size={16} />} label={t("Search")} hint="Ctrl K" onClick={onSearch} />
           <RailRow
             icon={<PuzzleIcon size={16} />}
-            label="Customize"
+            label={t("Customize")}
             active={view === "customize"}
             onClick={() => onView("customize")}
           />
@@ -313,8 +315,8 @@ export function AgentSidebar({
             collapseControl={
               <button
                 type="button"
-                aria-label="Collapse sidebar"
-                title="Collapse sidebar"
+                aria-label={t("Collapse sidebar")}
+                title={t("Collapse sidebar")}
                 onClick={() => setCollapsed(true)}
                 className="pressable flex size-5.5 items-center justify-center rounded-[5px] text-ink-3 hover:bg-hover hover:text-ink"
               >
@@ -335,8 +337,8 @@ export function AgentSidebar({
           </span>
           <button
             type="button"
-            title="Settings"
-            aria-label="Settings"
+            title={t("Settings")}
+            aria-label={t("Settings")}
             onClick={() => onView("settings")}
             className="pressable flex size-7 shrink-0 items-center justify-center rounded-[6px] text-ink-3 hover:bg-hover hover:text-ink"
           >
@@ -353,7 +355,7 @@ export function AgentSidebar({
             setSidebarWidth(DEFAULT_SIDEBAR_WIDTH);
             localStorage.setItem(SIDEBAR_WIDTH_KEY, JSON.stringify(DEFAULT_SIDEBAR_WIDTH));
           }}
-          title="Drag to resize, double-click to reset"
+          title={t("Drag to resize, double-click to reset")}
           className="group/resizer absolute inset-y-0 right-0 z-30 w-1.5 cursor-col-resize"
         >
           {/* one 1px line that appears on hover — not a painted strip plus a bar */}

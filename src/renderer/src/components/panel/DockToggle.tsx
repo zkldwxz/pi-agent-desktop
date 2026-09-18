@@ -1,5 +1,6 @@
 import { PanelRightIcon } from "../icons";
 import { cn } from "../../lib/cn";
+import { t, useLocale } from "../../lib/i18n";
 
 /**
  * The right dock's trigger.
@@ -12,12 +13,13 @@ import { cn } from "../../lib/cn";
  * clicked.
  */
 export function DockToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  useLocale();
   return (
     <button
       type="button"
       aria-expanded={open}
-      title={open ? "Hide the tool panel" : "Show the tool panel"}
-      aria-label={open ? "Hide the tool panel" : "Show the tool panel"}
+      title={open ? t("Hide the tool panel") : t("Show the tool panel")}
+      aria-label={open ? t("Hide the tool panel") : t("Show the tool panel")}
       onClick={onToggle}
       className={cn(
         "pressable flex size-6 shrink-0 items-center justify-center rounded-[6px]",

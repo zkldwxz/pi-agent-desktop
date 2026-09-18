@@ -21,6 +21,7 @@ import { GlideList } from "../components/motion";
 import { NavRow } from "../components/NavRow";
 import { TextRow } from "../components/beautiful/atoms/TextRow";
 import { AppearanceSection } from "../components/panel/AppearanceSection";
+import { getLocale, setLocale, t, type Locale } from "../lib/i18n";
 import type { ColorMode } from "../lib/theme";
 import FineTuneCard from "../components/beautiful/primitives/FineTuneCard";
 import { UsageView } from "./UsageView";
@@ -191,6 +192,11 @@ export function SettingsView({
   const settings = state.settings;
   const [budgetDraft, setBudgetDraft] = useState<Record<string, number>>({});
   const [category, setCategory] = useState<SettingsCategory>("general");
+  const [locale, setLocaleState] = useState<Locale>(getLocale);
+  const onLocale = (next: Locale) => {
+    setLocale(next);
+    setLocaleState(next);
+  };
   const [query, setQuery] = useState("");
 
   /* desktop-only preferences live in localStorage rather than the pi settings
@@ -237,7 +243,7 @@ export function SettingsView({
         <div className="shrink-0 px-3 pt-3.5 pb-1">
           <NavRow
             icon={<ArrowLeftIcon size={15} />}
-            label="Back"
+            label={t("Back")}
             onClick={onBack}
             className="h-8.5 text-ink-2"
             data-nav-back
@@ -252,8 +258,8 @@ export function SettingsView({
               onKeyDown={(event) => {
                 if (event.key === "Escape") setQuery("");
               }}
-              placeholder="Search settings"
-              aria-label="Search settings"
+              placeholder={t("Search settings")}
+              aria-label={t("Search settings")}
               className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink outline-none placeholder:text-ink-3"
             />
             {query ? (
@@ -273,7 +279,7 @@ export function SettingsView({
             {groups.map((group, groupIndex) => (
               <div key={group.label ?? "top"}>
                 {group.label ? (
-                  <div className="px-2 pt-4 pb-1.5 text-[10.5px] font-medium tracking-[0.4px] text-ink-3 uppercase">{group.label}</div>
+                  <div className="px-2 pt-4 pb-1.5 text-[10.5px] font-medium tracking-[0.4px] text-ink-3 uppercase">{t(group.label)}</div>
                 ) : (
                   groupIndex > 0 && <div className="pt-2" />
                 )}
@@ -308,7 +314,7 @@ export function SettingsView({
             <div className="my-2.5 h-px bg-line/80" />
             <NavRow
               icon={<FilePenIcon size={13} />}
-              label="Transcript"
+              label={t("Transcript")}
               disabled={!sessionFile}
               title={sessionFile ?? "No session file yet"}
               className="h-8.5"
@@ -334,13 +340,13 @@ export function SettingsView({
 
         <div className="flex min-w-0 flex-1 flex-col">
           <ViewHeader
-            title="Settings"
-            subtitle="Written to ~/.pi/agent/settings.json — the Pi CLI reads the same file"
+            title={t("Settings")}
+            subtitle={t("Written to ~/.pi/agent/settings.json — the Pi CLI reads the same file")}
             actions={
               <div className="flex items-center gap-1.5">
                 <Chip onClick={onReload}>
                   <RefreshIcon size={12} />
-                  Reload session
+                  {t("Reload session")}
                 </Chip>
                 {dockToggle}
               </div>
@@ -352,7 +358,14 @@ export function SettingsView({
           <div className={cn("mx-auto flex w-full flex-col gap-6 p-6", category === "usage" ? "max-w-[1100px]" : "max-w-[760px]")}>
           {category === "appearance" ? (
           <div className="flex flex-col gap-6">
-            <AppearanceSection mode={colorMode} onMode={onColorMode} zoomFactor={zoomFactor} onZoomFactor={onZoomFactor} />
+            <AppearanceSection
+              mode={colorMode}
+              onMode={onColorMode}
+              zoomFactor={zoomFactor}
+              onZoomFactor={onZoomFactor}
+              locale={locale}
+              onLocale={onLocale}
+            />
 
             {/* reserved: accent themes are not built yet */}
             <section className="flex flex-col gap-2">
@@ -368,8 +381,8 @@ export function SettingsView({
           ) : null}
 
           {category === "models" ? (
-          <Section title="Model &amp; thinking" index={0}>
-            <Row title="Startup thinking level" hint="used when a session starts without a saved level">
+          <Section title={t("Models & thinking")} index={0}>
+            <Row title={t("Startup thinking level")} hint={t("used when a session starts without a saved level")}>
               <Select
                 value={settings.defaultThinkingLevel ?? "medium"}
                 options={LEVELS}
@@ -380,7 +393,7 @@ export function SettingsView({
                 section label carries the explanation — eighteen repetitions of
                 "Default level ·" and "per-model override" said nothing */}
             <div className="border-b border-line bg-canvas/40 px-4 py-1.5 text-[10.5px] tracking-[0.4px] text-ink-3 uppercase">
-              Per-model overrides · inherit follows the startup level
+              {t("Per-model overrides · inherit follows the startup level")}
             </div>
             {modelKeys.map((key) => (
               <Row key={key} title={key} mono>
@@ -396,7 +409,7 @@ export function SettingsView({
                 />
               </Row>
             ))}
-            <Row title="Thinking token budgets" hint="applies to providers that accept explicit budgets">
+            <Row title={t("Thinking token budgets")} hint={t("applies to providers that accept explicit budgets")}>
               <div className="flex items-center gap-1.5">
                 {(["minimal", "low", "medium", "high"] as const).map((level) => (
                   <label key={level} className="flex items-center gap-1">
@@ -438,26 +451,26 @@ export function SettingsView({
 
           {category === "general" ? (
           <>
-          <Section title="Desktop" index={0}>
-            <Row title="Completion sound" hint="a short chime when a run finishes">
+          <Section title={t("Desktop")} index={0}>
+            <Row title={t("Completion sound")} hint={t("a short chime when a run finishes")}>
               <Switch on={soundOn} onClick={() => toggleSound(!soundOn)} />
             </Row>
-            <Row title="Windows notification" hint="a toast when the run finishes while the window is in the background">
+            <Row title={t("Windows notification")} hint={t("a toast when the run finishes while the window is in the background")}>
               <Switch on={notifyOn} onClick={() => toggleNotify(!notifyOn)} />
             </Row>
           </Section>
 
-          <Section title="Images &amp; output" index={1}>
-            <Row title="Block image input" hint="stops attachments and screenshots from reaching the model">
+          <Section title={t("Images & output")} index={1}>
+            <Row title={t("Block image input")} hint={t("stops attachments and screenshots from reaching the model")}>
               <Switch on={settings.blockImages} onClick={() => onUpdate({ blockImages: !settings.blockImages })} />
             </Row>
-            <Row title="Auto-resize images" hint="downscale to 2000×2000 before sending">
+            <Row title={t("Auto-resize images")} hint={t("downscale to 2000×2000 before sending")}>
               <Switch on={settings.imageAutoResize} onClick={() => onUpdate({ imageAutoResize: !settings.imageAutoResize })} />
             </Row>
-            <Row title="Hide thinking blocks" hint="only affects rendering inside the Pi TUI">
+            <Row title={t("Hide thinking blocks")} hint={t("only affects rendering inside the Pi TUI")}>
               <Switch on={settings.hideThinkingBlock} onClick={() => onUpdate({ hideThinkingBlock: !settings.hideThinkingBlock })} />
             </Row>
-            <Row title="Show cache-miss notices" hint="flag significant prompt-cache misses in the transcript">
+            <Row title={t("Show cache-miss notices")} hint={t("flag significant prompt-cache misses in the transcript")}>
               <Switch
                 on={settings.showCacheMissNotices}
                 onClick={() => onUpdate({ showCacheMissNotices: !settings.showCacheMissNotices })}
@@ -465,7 +478,7 @@ export function SettingsView({
             </Row>
           </Section>
 
-          <Section title="Context &amp; retry" index={2}>
+          <Section title={t("Context & retry")} index={2}>
             <Row title="Auto compaction" hint={`keep ${settings.compaction.keepRecentTokens.toLocaleString()} recent tokens`}>
               <Switch on={settings.compaction.enabled} onClick={() => onUpdate({ compaction: { ...settings.compaction, enabled: !settings.compaction.enabled } })} />
             </Row>

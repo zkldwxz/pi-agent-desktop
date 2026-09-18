@@ -3,6 +3,7 @@ import type { BrowserState, DesignPick } from "@shared/browser";
 import type { ChatMessage } from "@shared/types";
 import { DesignPickBar } from "../agent/DesignPickBar";
 import { cn } from "../../lib/cn";
+import { t, useLocale } from "../../lib/i18n";
 import {
   ArrowUpIcon,
   ChevronDownIcon,
@@ -67,6 +68,7 @@ export function BrowserPanel({
   onClose?: () => void;
 }) {
   const [draft, setDraft] = useState(displayUrl(state.url));
+  useLocale();
   const [editing, setEditing] = useState(false);
   const [instruction, setInstruction] = useState("");
   const placeholderRef = useRef<HTMLDivElement>(null);
@@ -158,7 +160,7 @@ export function BrowserPanel({
         </button>
         <button
           type="button"
-          aria-label={state.loading ? "Stop" : "Reload"}
+          aria-label={state.loading ? t("Stop") : t("Reload")}
           onClick={() => (state.loading ? void window.pi.browserStop() : void window.pi.browserReload())}
           className="pressable flex size-7 items-center justify-center rounded-[6px] text-ink-2 hover:bg-hover"
         >
@@ -215,7 +217,7 @@ export function BrowserPanel({
 
         <button
           type="button"
-          aria-label="Design mode"
+          aria-label={t("Design mode")}
           title="Design mode (Shift+Ctrl+D) — pick an element and hand it to the agent"
           onClick={() => void window.pi.setDesignMode(!state.designMode)}
           className={cn(
@@ -227,7 +229,7 @@ export function BrowserPanel({
         </button>
         <button
           type="button"
-          aria-label="Toggle DevTools"
+          aria-label={t("Toggle DevTools")}
           title="Toggle DevTools"
           onClick={() => void window.pi.toggleDevTools()}
           className={cn(
@@ -239,8 +241,8 @@ export function BrowserPanel({
         </button>
         <button
           type="button"
-          aria-label={expanded ? "Return to the dock" : "Open fullscreen"}
-          title={expanded ? "Return to the dock" : "Open fullscreen"}
+          aria-label={expanded ? t("Return to the dock") : t("Open fullscreen")}
+          title={expanded ? t("Return to the dock") : t("Open fullscreen")}
           onClick={() => onExpandedChange(!expanded)}
           className="pressable flex size-7 items-center justify-center rounded-[6px] text-ink-2 hover:bg-hover"
         >
@@ -249,8 +251,8 @@ export function BrowserPanel({
         {onClose ? (
           <button
             type="button"
-            aria-label="Close browser"
-            title="Close browser"
+            aria-label={t("Close browser")}
+            title={t("Close browser")}
             onClick={onClose}
             className="pressable flex size-7 items-center justify-center rounded-[6px] text-ink-2 hover:bg-hover"
           >
@@ -267,7 +269,7 @@ export function BrowserPanel({
       <div ref={placeholderRef} className="relative min-h-0 flex-1">
         {!state.url ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-            <div className="text-[13px] font-medium text-ink">Nothing loaded</div>
+            <div className="text-[13px] font-medium text-ink">{t("Nothing loaded")}</div>
             <p className="max-w-sm text-[12px] text-ink-3">
               Enter a URL above, or let Pi open one. The page renders in an embedded Chromium view — its own session, so site
               logins persist between restarts.

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChevronDownIcon, SparkIcon } from "../icons";
 import { formatDuration } from "../../lib/format";
 import { cn } from "../../lib/cn";
+import { t, tf, useLocale } from "../../lib/i18n";
 
 /**
  * One reasoning beat, rendered like the registry's ThinkingState:
@@ -28,6 +29,7 @@ export function AgentTrace({
   durationMs?: number;
 }) {
   const [manual, setManual] = useState<boolean | null>(null);
+  useLocale();
   const rows = text
     .split(/\n{2,}/)
     .map((line) => line.replace(/\s+/g, " ").trim())
@@ -38,7 +40,9 @@ export function AgentTrace({
   const expanded = manual ?? working;
 
   const settled =
-    durationMs && durationMs >= 2000 ? `Thought for ${formatDuration(durationMs)}` : "Thought briefly";
+    durationMs && durationMs >= 2000
+      ? tf("Thought for {duration}", { duration: formatDuration(durationMs) })
+      : t("Thought briefly");
 
   return (
     <div className="flex w-full flex-col">
@@ -53,7 +57,7 @@ export function AgentTrace({
           className={cn("shrink-0 transition-colors duration-200", working ? "text-ink-2" : "text-ink-3")}
         />
         {working ? (
-          <span className="shimmer-text text-[13px] font-medium whitespace-nowrap">Thinking</span>
+          <span className="shimmer-text text-[13px] font-medium whitespace-nowrap">{t("Thinking")}</span>
         ) : (
           <span
             className="text-[13px] font-medium whitespace-nowrap text-ink-2"

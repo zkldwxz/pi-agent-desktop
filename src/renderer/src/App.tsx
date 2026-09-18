@@ -11,6 +11,7 @@ import { TerminalPanel } from "./components/panel/TerminalPanel";
 import type { FileEntry } from "@shared/workspace";
 import { cn } from "./lib/cn";
 import { playDoneChime } from "./lib/sound";
+import { t, useLocale } from "./lib/i18n";
 import type { BrowserState, DesignPick } from "@shared/browser";
 import type { UiAnswer, UiNotification, UiRequest } from "@shared/ui";
 import { ApprovalPrompt, NoticeStack } from "./components/agent/ApprovalPrompt";
@@ -104,6 +105,8 @@ export function App() {
   const [pendingSession, setPendingSession] = useState<string | null>(null);
   /** owned here so the title bar and the rail toggle the same state */
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  /* the whole shell re-renders when the language changes */
+  useLocale();
   const [browser, setBrowser] = useState<BrowserState>({
     url: "",
     title: "",
@@ -559,7 +562,7 @@ export function App() {
     if (!was || streaming) return;
     if (localStorage.getItem("pi-sound-done") !== "off") playDoneChime();
     if (localStorage.getItem("pi-notify-done") !== "off" && !document.hasFocus()) {
-      void window.pi.notify({ title: "Pi Agent", body: "The run finished." });
+      void window.pi.notify({ title: "Pi Agent", body: t("The run finished.") });
     }
   }, [streaming]);
 
@@ -719,7 +722,7 @@ export function App() {
                       className="pressable absolute bottom-3 left-1/2 flex h-7 -translate-x-1/2 items-center gap-1.5 rounded-full bg-ink px-3 text-[11.5px] font-medium text-canvas shadow-overlay"
                       style={{ animation: "pop-in 200ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "bottom center" }}
                     >
-                      {streaming ? "Follow the stream" : "Jump to latest"}
+                      {streaming ? t("Follow the stream") : t("Jump to latest")}
                     </button>
                   ) : null}
                 </div>

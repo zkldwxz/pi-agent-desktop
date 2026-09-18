@@ -5,6 +5,7 @@ import { buildTurns, toolSignature } from "../../lib/agent-view";
 import { ModelThinkingControl } from "./ModelThinkingControl";
 import { CacheRing } from "./CacheRing";
 import { ContextBadge } from "../panel/ContextBadge";
+import { t, useLocale } from "../../lib/i18n";
 
 /** Files this session has already read or edited, as real `@path` mentions. */
 function recentFiles(messages: ChatMessage[]): string[] {
@@ -63,6 +64,7 @@ export function AgentComposer({
   /* the workspace itself is the real @ catalogue: one bounded walk per
    * workspace, refreshed when the folder changes */
   const [workspaceFiles, setWorkspaceFiles] = useState<string[]>([]);
+  useLocale();
   useEffect(() => {
     let cancelled = false;
     void window.pi
@@ -105,7 +107,7 @@ export function AgentComposer({
           variant="Rounded"
           demo={false}
           forceWide={messages.length > 0}
-          placeholder={messages.length ? "Send follow-up…" : "Ask Pi to build, analyze or explain anything…"}
+          placeholder={messages.length ? t("Send follow-up…") : t("Ask Pi to build, analyze or explain anything…")}
           controls={
             <ModelThinkingControl state={state} onSetModel={onSetModel} onSetThinking={onSetThinking} />
           }

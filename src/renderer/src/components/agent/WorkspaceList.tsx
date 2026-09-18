@@ -15,6 +15,7 @@ import {
   TrashIcon,
 } from "../icons";
 import { relativeTime } from "../../lib/format";
+import { t, tf, useLocale } from "../../lib/i18n";
 
 export type GroupMode = "workspace" | "date" | "status";
 export type OrderMode = "recent" | "name";
@@ -222,6 +223,7 @@ export function WorkspaceList({
    * session, so the row answers the click itself: it highlights immediately and
    * holds keyboard focus, which is also what lets the next arrow key move. */
   const [picked, setPicked] = useState<string | null>(null);
+  useLocale();
   const rowRefs = useRef(new Map<string, HTMLButtonElement>());
 
   useEffect(() => {
@@ -295,14 +297,14 @@ export function WorkspaceList({
   if (!sessions.length) {
     return (
       <div className="flex flex-col gap-2 px-3 py-4">
-        <span className="text-[11.5px] text-ink-3">No sessions yet.</span>
+        <span className="text-[11.5px] text-ink-3">{t("No sessions yet.")}</span>
         <button
           type="button"
           onClick={onAddFolder}
           className="pressable inline-flex h-7 w-fit items-center gap-1.5 rounded-chip bg-field px-2 text-[11.5px] text-ink-2 hover:bg-hover-2"
         >
           <PlusIcon size={11} />
-          Add a folder
+          {t("Add a folder")}
         </button>
       </div>
     );
@@ -358,8 +360,8 @@ export function WorkspaceList({
           </button>
           <button
             type="button"
-            title="New chat in this workspace"
-            aria-label="New chat in this workspace"
+            title={t("New chat in this workspace")}
+            aria-label={t("New chat in this workspace")}
             onClick={(event) => {
               event.stopPropagation();
               onNewInWorkspace?.(workspace.path || workspace.key);
@@ -387,11 +389,11 @@ export function WorkspaceList({
               onKeyDown={(event) => {
                 if (event.key === "Escape") setRenaming(null);
               }}
-              aria-label="Workspace name"
+              aria-label={t("Workspace name")}
               className="h-6 min-w-0 flex-1 rounded-[5px] bg-field px-1.5 text-[11.5px] text-ink outline-none"
             />
             <button type="submit" className="pressable h-6 rounded-[5px] bg-ink px-2 text-[11px] text-canvas">
-              Save
+              {t("Save")}
             </button>
           </form>
         ) : null}
@@ -452,7 +454,7 @@ export function WorkspaceList({
                     className="pressable flex items-center gap-1.5 rounded-[6px] px-2 py-1 text-[11.5px] text-ink-3 hover:bg-hover hover:text-ink-2"
                   >
                     <ChevronDownIcon size={10} />
-                    Show {hidden} more
+                    {tf("Show {count} more", { count: hidden })}
                   </button>
                 ) : null}
                 {isExpanded && sorted.length > limit ? (
@@ -462,7 +464,7 @@ export function WorkspaceList({
                     className="pressable flex items-center gap-1.5 rounded-[6px] px-2 py-1 text-[11.5px] text-ink-3 hover:bg-hover hover:text-ink-2"
                   >
                     <ChevronDownIcon size={10} className="rotate-180" />
-                    Show less
+                    {t("Show less")}
                   </button>
                 ) : null}
               </GlideList>
@@ -479,14 +481,14 @@ export function WorkspaceList({
           The chat search that used to grow out of the magnifier here was a
           registry demo: the command palette (Ctrl K) is the real search. */}
       <div className="flex items-center gap-1 px-2.5 pb-1">
-        <span className="text-[11px] tracking-[0.3px] text-ink-3">Workspaces</span>
+        <span className="text-[11px] tracking-[0.3px] text-ink-3">{t("Workspaces")}</span>
         <span className="flex-1" />
         {collapseControl}
         <div className="relative">
           <button
             type="button"
             data-popover-trigger
-            aria-label="Workspace options"
+            aria-label={t("Workspace options")}
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((value) => !value)}
             className={cn(
@@ -499,9 +501,9 @@ export function WorkspaceList({
           <Popover open={menuOpen} onClose={() => setMenuOpen(false)} anchor="top-right" className="w-52 p-1">
             <GlideList rowSelector="[data-row]" highlightClassName="bg-hover" radius={6}>
               <MenuRow
-                label="Grouping"
+                label={t("Grouping")}
                 value={
-                  prefs.group === "workspace" ? "Workspace" : prefs.group === "date" ? "Date" : "Status"
+                  prefs.group === "workspace" ? t("Workspace") : prefs.group === "date" ? t("Date") : t("Status")
                 }
                 onClick={() =>
                   onPrefs({
@@ -510,23 +512,23 @@ export function WorkspaceList({
                 }
               />
               <MenuRow
-                label="Ordering"
-                value={prefs.order === "recent" ? "Recent" : "Name"}
+                label={t("Ordering")}
+                value={prefs.order === "recent" ? t("Recent") : t("Name")}
                 onClick={() => onPrefs({ order: prefs.order === "recent" ? "name" : "recent" })}
               />
               <MenuRow
-                label="Show"
-                value={prefs.show === 0 ? "All" : `${prefs.show} chats`}
+                label={t("Show")}
+                value={prefs.show === 0 ? t("All") : `${prefs.show} ${t("chats")}`}
                 onClick={() => onPrefs({ show: prefs.show === 3 ? 5 : prefs.show === 5 ? 0 : 3 })}
               />
 
               <div className="my-1 border-t border-line px-2 pt-1.5 pb-0.5 text-[10.5px] tracking-[0.4px] text-ink-3">
-                FILTERS
+                {t("FILTERS")}
               </div>
               <MenuRow
-                label="Status"
+                label={t("Status")}
                 value={
-                  prefs.statusFilter === "all" ? "Any" : prefs.statusFilter === "running" ? "Running" : "Failed"
+                  prefs.statusFilter === "all" ? t("Any") : prefs.statusFilter === "running" ? t("Running") : t("Failed")
                 }
                 onClick={() =>
                   onPrefs({
@@ -540,13 +542,13 @@ export function WorkspaceList({
 
               <div className="my-1 border-t border-line" />
               <MenuRow
-                label={allOpen ? "Expand All" : "Collapse All"}
+                label={allOpen ? t("Expand All") : t("Collapse All")}
                 onClick={() => {
                   if (allOpen) setOpen({});
                   else setOpen(Object.fromEntries(workspaces.map((workspace) => [workspace.key, true])));
                 }}
               />
-              <MenuRow label="Mark All as Read" hint={unread ? String(unread) : undefined} onClick={onReadAll} />
+              <MenuRow label={t("Mark All as Read")} hint={unread ? String(unread) : undefined} onClick={onReadAll} />
             </GlideList>
           </Popover>
         </div>
@@ -566,7 +568,7 @@ export function WorkspaceList({
                 size={10}
                 className={cn("transition-transform duration-200", showArchived ? "rotate-0" : "-rotate-90")}
               />
-              <span>Archived ({archivedWorkspaces.length})</span>
+              <span>{tf("Archived ({count})", { count: archivedWorkspaces.length })}</span>
             </button>
             {showArchived ? (
               <div className="mt-1 flex flex-col opacity-80">
@@ -582,7 +584,7 @@ export function WorkspaceList({
           className="pressable mt-2 flex w-full items-center gap-1.5 rounded-[6px] px-2 py-1.5 text-[11.5px] text-ink-3 hover:bg-hover hover:text-ink-2"
         >
           <FolderOpenIcon size={11} />
-          Open another folder
+          {t("Open another folder")}
         </button>
       </div>
 
@@ -603,7 +605,7 @@ export function WorkspaceList({
               </div>
               <ContextRow
                 icon={<PlusIcon size={12} />}
-                label="New chat"
+                label={t("New chat")}
                 onClick={() => {
                   onNewInWorkspace?.(contextMenu.workspace.path || contextMenu.workspace.key);
                   setContextMenu(null);
@@ -611,7 +613,7 @@ export function WorkspaceList({
               />
               <ContextRow
                 icon={<PencilIcon size={12} />}
-                label="Rename"
+                label={t("Rename")}
                 onClick={() => {
                   setRenaming({ key: contextMenu.workspace.key, label: contextMenu.workspace.label });
                   setDraft(contextMenu.workspace.label);
@@ -620,7 +622,7 @@ export function WorkspaceList({
               />
               <ContextRow
                 icon={<FolderOpenIcon size={12} />}
-                label="Open in IDE"
+                label={t("Open in IDE")}
                 onClick={() => {
                   void openInIde(contextMenu.workspace.path || contextMenu.workspace.key);
                   setContextMenu(null);
@@ -628,7 +630,7 @@ export function WorkspaceList({
               />
               <ContextRow
                 icon={<FolderIcon size={12} />}
-                label={contextMenu.isArchived ? "Unarchive" : "Archive workspace"}
+                label={contextMenu.isArchived ? t("Unarchive") : t("Archive workspace")}
                 onClick={() => {
                   toggleArchive(contextMenu.workspace.key);
                   setContextMenu(null);
@@ -641,7 +643,7 @@ export function WorkspaceList({
                 danger
                 armed={contextMenu.confirming}
                 icon={<TrashIcon size={12} />}
-                label={contextMenu.confirming ? "Click again to delete" : "Delete workspace"}
+                label={contextMenu.confirming ? t("Click again to delete") : t("Delete workspace")}
                 onClick={() => {
                   if (!contextMenu.confirming) {
                     setContextMenu({ ...contextMenu, confirming: true });

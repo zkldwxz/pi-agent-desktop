@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import LoadingState from "../beautiful/primitives/LoadingState";
+import { t } from "../../lib/i18n";
 
 const IDLE_LABELS = ["Thinking", "Reading context", "Working"];
 
@@ -27,7 +28,7 @@ export function AgentWorking({
 
   return (
     <div style={{ animation: "fade-in 220ms ease-out both" }}>
-      <LoadingState label={label ?? IDLE_LABELS[index % IDLE_LABELS.length]} variant={variant} />
+      <LoadingState label={label ?? t(IDLE_LABELS[index % IDLE_LABELS.length])} variant={variant} />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { Suspense, lazy, memo, useEffect, useState, type ReactNode } from "react
 import type { ChatMessage, HostState } from "@shared/types";
 import type { FileEntry } from "@shared/workspace";
 import { cn } from "../../lib/cn";
+import { t, useLocale } from "../../lib/i18n";
 // The dock is always mounted but its panels are not; each arrives on demand.
 const ChangesPanel = lazy(() => import("./ChangesPanel").then((m) => ({ default: m.ChangesPanel })));
 const FileBrowser = lazy(() => import("./FileBrowser").then((m) => ({ default: m.FileBrowser })));
@@ -45,6 +46,16 @@ const TOOLS: Array<{ key: DockTool; label: string; icon: ReactNode }> = [
   { key: "canvas", label: "Canvas", icon: <LayersIcon size={14} /> },
   { key: "tasks", label: "Tasks", icon: <CheckCircleIcon size={14} /> },
 ];
+
+/* tab labels are translated at render time, the keys stay stable */
+const TOOL_LABEL: Record<DockTool, string> = {
+  file: "Files",
+  terminal: "Terminal",
+  changes: "Changes",
+  browser: "Browser",
+  canvas: "Canvas",
+  tasks: "Tasks",
+};
 
 const WIDTH_OPEN = 340;
 
@@ -96,6 +107,7 @@ export const ToolDock = memo(function ToolDock({
   // (the memo is what keeps a streaming answer from re-rendering this subtree
   // on every token — its inputs are deferred by the app)
   const [showAll, setShowAll] = useState(false);
+  useLocale();
   const workspaceName = baseName(cwd);
   /* no tool picked yet lands on Files — tabs are one click, always */
   const activeTool: DockTool = tool ?? "file";
@@ -139,7 +151,7 @@ export const ToolDock = memo(function ToolDock({
                 <button
                   key={entry.key}
                   type="button"
-                  title={entry.label}
+                  title={t(TOOL_LABEL[entry.key])}
                   aria-pressed={activeTool === entry.key}
                   onClick={() => pick(entry.key)}
                   style={{ animation: `row-enter 240ms cubic-bezier(0.23,1,0.32,1) ${index * 25}ms both` }}

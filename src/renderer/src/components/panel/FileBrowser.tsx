@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FileEntry } from "@shared/workspace";
 import { cn } from "../../lib/cn";
 import { ChevronDownIcon, EyeIcon, FolderIcon, RefreshIcon } from "../icons";
+import { t, useLocale } from "../../lib/i18n";
 
 function formatSize(bytes?: number): string {
   if (bytes === undefined) return "";
@@ -42,6 +43,7 @@ export function FileBrowser({
   const setShowAll = (value: boolean) => (onShowAll ? onShowAll(value) : setLocalShowAll(value));
   const [error, setError] = useState<string | undefined>(undefined);
   const loadedFor = useRef<string>("");
+  useLocale();
 
   const loadRoot = useCallback(async () => {
     setLoading(true);
@@ -140,7 +142,7 @@ export function FileBrowser({
         <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-ink-3">{root}</span>
         <button
           type="button"
-          title={showAll ? "Hide ignored folders" : "Show ignored folders"}
+          title={showAll ? t("Hide ignored folders") : t("Show ignored folders")}
           onClick={() => setShowAll(!showAll)}
           className={cn(
             "pressable flex size-6 items-center justify-center rounded-[5px]",
@@ -151,7 +153,7 @@ export function FileBrowser({
         </button>
         <button
           type="button"
-          title="Refresh"
+          title={t("Refresh")}
           onClick={() => void loadRoot()}
           className="pressable flex size-6 items-center justify-center rounded-[5px] text-ink-3 hover:bg-hover hover:text-ink"
         >
@@ -173,7 +175,7 @@ export function FileBrowser({
         ) : error ? (
           <div className="px-1 py-4 text-[11.5px] text-red">{error}</div>
         ) : entries.length === 0 ? (
-          <div className="px-1 py-4 text-[11.5px] text-ink-3">Empty folder.</div>
+          <div className="px-1 py-4 text-[11.5px] text-ink-3">{t("Empty folder.")}</div>
         ) : (
           <div className="flex flex-col gap-px">
             {entries.map((entry) => (

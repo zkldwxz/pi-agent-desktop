@@ -1,5 +1,6 @@
 import { PanelLeftIcon } from "../icons";
 import { cn } from "../../lib/cn";
+import { t, useLocale } from "../../lib/i18n";
 
 /**
  * The sidebar's trigger, pinned in the title bar.
@@ -10,12 +11,13 @@ import { cn } from "../../lib/cn";
  * button in the window chrome.
  */
 export function SidebarToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+  useLocale();
   return (
     <button
       type="button"
       aria-expanded={!collapsed}
-      title={collapsed ? "Show the sidebar" : "Hide the sidebar"}
-      aria-label={collapsed ? "Show the sidebar" : "Hide the sidebar"}
+      title={collapsed ? t("Show the sidebar") : t("Hide the sidebar")}
+      aria-label={collapsed ? t("Show the sidebar") : t("Hide the sidebar")}
       onClick={onToggle}
       className={cn(
         "pressable flex size-6 shrink-0 items-center justify-center rounded-[6px]",

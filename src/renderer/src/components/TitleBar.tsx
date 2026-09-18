@@ -1,5 +1,6 @@
 import { Logo } from "./Logo";
 import { MinusIcon, MoonIcon, SquareIcon, SunIcon, XIcon } from "./icons";
+import { t, useLocale } from "../lib/i18n";
 
 function WindowButton({
   onClick,
@@ -39,6 +40,8 @@ export function TitleBar({
   /** the sidebar's trigger — visible whether the rail is open or collapsed */
   sidebar?: React.ReactNode;
 }) {
+  useLocale();
+
   return (
     <div className="titlebar-drag flex h-10 shrink-0 items-center gap-2 border-b border-line bg-canvas px-2.5">
       <Logo />
@@ -64,7 +67,7 @@ export function TitleBar({
           className={`pressable relative z-10 flex h-5 w-[26px] items-center justify-center rounded-full ${
             dark ? "text-ink-3" : "text-ink"
           }`}
-          aria-label="Light mode"
+          aria-label={t("Light mode")}
         >
           <SunIcon size={12} />
         </button>
@@ -74,20 +77,20 @@ export function TitleBar({
           className={`pressable relative z-10 flex h-5 w-[26px] items-center justify-center rounded-full ${
             dark ? "text-ink" : "text-ink-3"
           }`}
-          aria-label="Dark mode"
+          aria-label={t("Dark mode")}
         >
           <MoonIcon size={12} />
         </button>
       </div>
 
       <div className="titlebar-no-drag flex items-center gap-0.5 pl-1.5">
-        <WindowButton onClick={() => window.pi.minimize()} label="Minimize">
+        <WindowButton onClick={() => window.pi.minimize()} label={t("Minimize")}>
           <MinusIcon size={13} />
         </WindowButton>
-        <WindowButton onClick={() => window.pi.maximize()} label="Maximize">
+        <WindowButton onClick={() => window.pi.maximize()} label={t("Maximize")}>
           <SquareIcon size={13} />
         </WindowButton>
-        <WindowButton onClick={() => window.pi.close()} label="Close" danger>
+        <WindowButton onClick={() => window.pi.close()} label={t("Close")} danger>
           <XIcon size={13} />
         </WindowButton>
       </div>
