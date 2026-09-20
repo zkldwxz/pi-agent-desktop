@@ -186,8 +186,9 @@ export class PiHost {
     this.todos = EMPTY_TODOS;
     this.tools.clear();
     await this.bindSession();
-    await this.refreshSessions();
+    // paint the new (empty) composer now; the sidebar list is a background refresh
     this.emit();
+    this.refreshSessionsInBackground();
   }
 
   async switchSession(sessionPath: string): Promise<void> {
@@ -196,8 +197,11 @@ export class PiHost {
     this.restoreTodos();
     this.tools.clear();
     await this.bindSession();
-    await this.refreshSessions();
+    // Opening a conversation is the critical path: emit the transcript
+    // immediately and let SessionManager.list re-read the project's session
+    // files in the background instead of blocking the swap behind it.
     this.emit();
+    this.refreshSessionsInBackground();
   }
 
   /** The prompts this session can be branched from, oldest first. */
@@ -225,9 +229,10 @@ export class PiHost {
     this.todos = EMPTY_TODOS;
     this.tools.clear();
     await this.bindSession();
-    await this.refreshSessions();
     this.restoreTodos();
+    // emit the branch immediately; the session list follows in the background
     this.emit();
+    this.refreshSessionsInBackground();
     return { cancelled: false };
   }
 
@@ -712,6 +717,18 @@ export class PiHost {
     const listed = await SessionManager.list(this.cwd);
     const session = this.runtime?.session;
     this.sessions = serializeSessionList(listed, session?.sessionFile, session?.isStreaming);
+  }
+
+  /**
+   * Refresh the sidebar's session list without gating the transcript on it.
+   *
+   * `SessionManager.list` re-reads the head of every `.jsonl` in the project,
+   * which is tens to hundreds of ms on a machine with a long history. Session
+   * swaps, new sessions and forks need that list to be *eventually* right, not
+   * synchronously — so it runs off the critical path and re-emits when it lands.
+   */
+  private refreshSessionsInBackground(): void {
+    void this.refreshSessions().then(() => this.emit());
   }
 
   private async refreshModels(): Promise<void> {

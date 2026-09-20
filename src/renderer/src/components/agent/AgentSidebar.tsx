@@ -145,6 +145,15 @@ export function AgentSidebar({
       : DEFAULT_SIDEBAR_WIDTH;
   });
   const [isResizing, setIsResizing] = useState(false);
+  /* Promote the aside only while the collapse runs — width is not compositable,
+   * but `will-change` lets the browser skip needless work on the subtree for
+   * those 300ms instead of keeping the hint (and its memory) forever. */
+  const [railAnimating, setRailAnimating] = useState(false);
+  useEffect(() => {
+    setRailAnimating(true);
+    const id = window.setTimeout(() => setRailAnimating(false), 340);
+    return () => window.clearTimeout(id);
+  }, [collapsed]);
 
   // while dragging, lock the cursor and kill text selection app-wide
   useEffect(() => {
@@ -187,16 +196,34 @@ export function AgentSidebar({
     [collapsed, sidebarWidth],
   );
 
+  /* A cheap fingerprint of the scoped session list. Opening an existing
+   * conversation refreshes state.sessions' active row but leaves its contents
+   * (path / count / mtime / status) unchanged, so keying the all-projects
+   * fetch on this keeps a plain open from re-scanning every project on disk
+   * (~170ms on a machine with a long history) — while a genuinely new, removed
+   * or renamed session still triggers exactly one refresh. */
+  const sessionsSignature = useMemo(
+    () =>
+      state.sessions
+        .map((session) => `${session.path}~${session.messageCount}~${session.modified}~${session.status}`)
+        .join("|"),
+    [state.sessions],
+  );
+  const lastAllSignatureRef = useRef<string | null>(null);
+
   // one fetch for every project's sessions; grouping by workspace needs them all
   useEffect(() => {
+    if (sessionsSignature === lastAllSignatureRef.current) return;
     let cancelled = false;
     void window.pi.listAllSessions().then((sessions) => {
-      if (!cancelled && sessions.length) setAll(sessions);
+      if (cancelled || !sessions.length) return;
+      lastAllSignatureRef.current = sessionsSignature;
+      setAll(sessions);
     });
     return () => {
       cancelled = true;
     };
-  }, [state.sessions]);
+  }, [sessionsSignature]);
 
   useEffect(() => localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)), [prefs]);
   useEffect(() => localStorage.setItem(RENAME_KEY, JSON.stringify(renamed)), [renamed]);
@@ -215,6 +242,7 @@ export function AgentSidebar({
       style={{
         width: collapsed ? WIDTH_COLLAPSED : sidebarWidth,
         transition: isResizing ? "none" : "width 280ms cubic-bezier(0.16, 1, 0.3, 1)",
+        willChange: railAnimating ? "width" : undefined,
       }}
     >
       <div className="flex min-h-0 flex-1 flex-col">

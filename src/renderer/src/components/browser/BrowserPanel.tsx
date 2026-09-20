@@ -139,7 +139,7 @@ export function BrowserPanel({
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-page">
       {/* top bar — nav · address · design · devtools */}
-      <div className="flex h-[42px] shrink-0 items-center gap-1 border-b border-line px-2">
+      <div className="relative flex h-[42px] shrink-0 items-center gap-1 border-b border-line px-2">
         <button
           type="button"
           aria-label="Back"
@@ -259,6 +259,15 @@ export function BrowserPanel({
             <XIcon size={14} />
           </button>
         ) : null}
+
+        {/* loading progress — the native view composites above the page area,
+            so it lives on the bar's bottom edge where it stays visible */}
+        <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 overflow-hidden">
+          <span
+            className="browser-progress block h-full w-1/3 rounded-full"
+            style={{ opacity: state.loading ? 1 : 0 }}
+          />
+        </span>
       </div>
 
       {state.error ? (

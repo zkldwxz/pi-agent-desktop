@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import type { ChatMessage, ToolActivity } from "@shared/types";
 import { buildTurns, type TurnView } from "../lib/agent-view";
 import { formatDuration, relativeTime } from "../lib/format";
@@ -329,7 +329,7 @@ function TurnFooter({
  * keeps its own trace, so a run that thinks before each tool call shows one
  * per call instead of a single frozen block at the top.
  */
-function TurnItems({
+const TurnItems = memo(function TurnItems({
   turn,
   onFork,
   live,
@@ -366,4 +366,4 @@ function TurnItems({
       <AgentAnswer key={item.key} turn={turn} item={item} isLast={isLast} streaming={live && isLast} />
     );
   });
-}
+});

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import ToolChips, {
   type ToolDiff,
   type ToolDiffLine,
@@ -17,7 +17,7 @@ import { groupRuns, type ToolGroupView, type ToolRun } from "../../lib/agent-vie
  * run settles and expands on click; inside it each call is still an expandable
  * row, and the edit group still carries its file-diff chips and hover preview.
  */
-export function AgentToolRun({ runs }: { runs: ToolRun[] }) {
+export const AgentToolRun = memo(function AgentToolRun({ runs }: { runs: ToolRun[] }) {
   const groups = useMemo(() => groupRuns(runs), [runs]);
   if (!groups.length) return null;
 
@@ -30,7 +30,7 @@ export function AgentToolRun({ runs }: { runs: ToolRun[] }) {
       ))}
     </div>
   );
-}
+});
 
 function GroupChips({ group, defaultOpen }: { group: ToolGroupView; defaultOpen: boolean }) {
   const steps: ToolStep[] = group.runs.map((run) => ({

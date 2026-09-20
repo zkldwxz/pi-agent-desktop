@@ -1,3 +1,4 @@
+import { memo } from "react";
 import CodeBlock from "../beautiful/primitives/CodeBlock";
 import StreamingText from "../beautiful/primitives/StreamingText";
 import { StreamText } from "../motion";
@@ -27,7 +28,7 @@ type TextItem = Extract<TurnItem, { kind: "text" }>;
  * Only the last beat carries the turn's furniture: cited sources, the usage
  * ring and the fork button.
  */
-export function AgentAnswer({
+export const AgentAnswer = memo(function AgentAnswer({
   turn,
   item,
   isLast,
@@ -103,4 +104,4 @@ export function AgentAnswer({
           the same numbers twice */}
     </div>
   );
-}
+});

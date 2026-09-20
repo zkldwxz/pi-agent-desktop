@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { ChevronDownIcon, SparkIcon } from "../icons";
 import { formatDuration } from "../../lib/format";
 import { cn } from "../../lib/cn";
@@ -17,7 +17,7 @@ import { t, tf, useLocale } from "../../lib/i18n";
  * The earlier version defaulted to collapsed and revealed nothing while the
  * model worked, which read as a stuck spinner.
  */
-export function AgentTrace({
+export const AgentTrace = memo(function AgentTrace({
   text,
   working,
   durationMs,
@@ -92,4 +92,4 @@ export function AgentTrace({
       </div>
     </div>
   );
-}
+});
