@@ -1,0 +1,204 @@
+/* ══════════════════════════════════════════════════════════
+ * CODE THEMES — three palettes on one set of rules
+ *
+ * The .hljs-* classes below never name a colour: they map to --code-*
+ * variables, and the theme blocks define them. The active theme rides on
+ * <html data-code-theme="…"> (set from Settings ▸ Appearance ▸ Code style,
+ * stored in localStorage), and each theme carries a light and a dark palette
+ * so the code block follows the window's colour mode — the same arrangement
+ * the previous single GitHub theme had.
+ *
+ * Selector specificity is staged so every combination resolves exactly once:
+ *   :root                              → github, light   (0,1,0)
+ *   :root[data-code-theme="one"]       → one, light      (0,2,0)
+ *   :root[data-code-theme="dracula"]   → dracula, light  (0,2,0)
+ *   :root.dark                         → github, dark    (0,2,0, later)
+ *   :root.dark[data-code-theme="one"]  → one, dark       (0,3,0)
+ *   :root.dark[data-code-theme="dracula"] → dracula, dark (0,3,0)
+ *
+ * Palette sources: github.css / github-dark.css, atom-one-light.css /
+ * atom-one-dark.css, dracula.css (all highlight.js, MIT). Dracula's light
+ * half is derived — the official theme ships dark only — same hues darkened
+ * to read on a light surface.
+ * ══════════════════════════════════════════════════════════ */
+
+/* ── the one mapping, theme-independent ─────────────────── */
+
+.hljs {
+  color: var(--code-fg);
+}
+.hljs-doctag,
+.hljs-keyword,
+.hljs-meta .hljs-keyword,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-type,
+.hljs-variable.language_ {
+  color: var(--code-keyword);
+}
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.class_.inherited__,
+.hljs-title.function_ {
+  color: var(--code-title);
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-literal,
+.hljs-meta,
+.hljs-number,
+.hljs-operator,
+.hljs-variable,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id {
+  color: var(--code-attr);
+}
+.hljs-regexp,
+.hljs-string,
+.hljs-meta .hljs-string {
+  color: var(--code-string);
+}
+.hljs-built_in,
+.hljs-symbol {
+  color: var(--code-builtin);
+}
+.hljs-comment,
+.hljs-code,
+.hljs-formula {
+  color: var(--code-comment);
+}
+.hljs-name,
+.hljs-quote,
+.hljs-selector-tag,
+.hljs-selector-pseudo {
+  color: var(--code-name);
+}
+.hljs-subst {
+  color: var(--code-subst);
+}
+.hljs-section {
+  color: var(--code-section);
+  font-weight: bold;
+}
+.hljs-bullet {
+  color: var(--code-bullet);
+}
+.hljs-emphasis {
+  color: var(--code-fg);
+  font-style: italic;
+}
+.hljs-strong {
+  color: var(--code-fg);
+  font-weight: bold;
+}
+.hljs-addition {
+  color: var(--code-addition);
+}
+.hljs-deletion {
+  color: var(--code-deletion);
+}
+
+/* ── GitHub ─────────────────────────────────────────────── */
+
+:root,
+:root[data-code-theme="github"] {
+  --code-fg: #24292e;
+  --code-keyword: #d73a49;
+  --code-title: #6f42c1;
+  --code-attr: #005cc5;
+  --code-string: #032f62;
+  --code-builtin: #e36209;
+  --code-comment: #6a737d;
+  --code-name: #22863a;
+  --code-subst: #24292e;
+  --code-section: #005cc5;
+  --code-bullet: #735c0f;
+  --code-addition: #22863a;
+  --code-deletion: #b31d28;
+}
+
+:root.dark,
+:root.dark[data-code-theme="github"] {
+  --code-fg: #c9d1d9;
+  --code-keyword: #ff7b72;
+  --code-title: #d2a8ff;
+  --code-attr: #79c0ff;
+  --code-string: #a5d6ff;
+  --code-builtin: #ffa657;
+  --code-comment: #8b949e;
+  --code-name: #7ee787;
+  --code-subst: #c9d1d9;
+  --code-section: #1f6feb;
+  --code-bullet: #f2cc60;
+  --code-addition: #aff5b4;
+  --code-deletion: #ffdcd7;
+}
+
+/* ── One (Atom One Light / Atom One Dark) ────────────────── */
+
+:root[data-code-theme="one"] {
+  --code-fg: #383a42;
+  --code-keyword: #a626a4;
+  --code-title: #4078f2;
+  --code-attr: #986801;
+  --code-string: #50a14f;
+  --code-builtin: #e45649;
+  --code-comment: #a0a1a7;
+  --code-name: #0184bc;
+  --code-subst: #383a42;
+  --code-section: #e45649;
+  --code-bullet: #986801;
+  --code-addition: #50a14f;
+  --code-deletion: #e45649;
+}
+
+:root.dark[data-code-theme="one"] {
+  --code-fg: #abb2bf;
+  --code-keyword: #c678dd;
+  --code-title: #61afef;
+  --code-attr: #d19a66;
+  --code-string: #98c379;
+  --code-builtin: #e6c07b;
+  --code-comment: #5c6370;
+  --code-name: #e06c75;
+  --code-subst: #abb2bf;
+  --code-section: #61afef;
+  --code-bullet: #d19a66;
+  --code-addition: #98c379;
+  --code-deletion: #e06c75;
+}
+
+/* ── Dracula (official dark; derived light) ──────────────── */
+
+:root[data-code-theme="dracula"] {
+  --code-fg: #34364a;
+  --code-keyword: #b3297e;
+  --code-title: #0e8a52;
+  --code-attr: #6b46c1;
+  --code-string: #9b8a1e;
+  --code-builtin: #b85c19;
+  --code-comment: #8b8ea0;
+  --code-name: #0e7c9c;
+  --code-subst: #34364a;
+  --code-section: #6b46c1;
+  --code-bullet: #9b8a1e;
+  --code-addition: #0e8a52;
+  --code-deletion: #cc2f3e;
+}
+
+:root.dark[data-code-theme="dracula"] {
+  --code-fg: #f8f8f2;
+  --code-keyword: #ff79c6;
+  --code-title: #50fa7b;
+  --code-attr: #bd93f9;
+  --code-string: #f1fa8c;
+  --code-builtin: #ffb86c;
+  --code-comment: #6272a4;
+  --code-name: #8be9fd;
+  --code-subst: #f8f8f2;
+  --code-section: #bd93f9;
+  --code-bullet: #ffb86c;
+  --code-addition: #50fa7b;
+  --code-deletion: #ff5555;
+}

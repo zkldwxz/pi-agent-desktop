@@ -1,4 +1,5 @@
 import type { ChatMessage, ToolActivity } from "@shared/types";
+import { getLocale, t, tf, type Locale } from "./i18n";
 
 /* ─────────────────────────────────────────────────────────
  * Agent view model
@@ -245,15 +246,15 @@ export function buildToolRun(
 
   switch (name) {
     case "read": {
-      run.label = "Read";
+      run.label = t("Read");
       run.chip = file ? `${baseName(file)}${pickString(input, ["offset"]) ? `:${input.offset}` : ""}` : "(no path)";
       break;
     }
     case "write": {
-      run.label = "Write";
+      run.label = t("Write");
       const content = pickString(input, ["content"]) ?? "";
       const lineCount = content ? content.split("\n").length : 0;
-      run.label = lineCount ? `Write ${lineCount} lines` : "Write";
+      run.label = lineCount ? tf("Write {count} lines", { count: lineCount }) : t("Write");
       run.chip = file ? baseName(file) : "(no path)";
       if (content) {
         run.detail = content
@@ -264,7 +265,7 @@ export function buildToolRun(
       break;
     }
     case "edit": {
-      run.label = "Edit";
+      run.label = t("Edit");
       run.chip = file ? baseName(file) : "(no path)";
       const patch = typeof meta.patch === "string" ? meta.patch : typeof meta.diff === "string" ? meta.diff : "";
       if (patch) {
@@ -274,7 +275,7 @@ export function buildToolRun(
         run.diffLines = parsed.lines;
         run.add = parsed.add;
         run.del = parsed.del;
-        run.label = `Edit ${baseName(file ?? "file")}`;
+        run.label = tf("Edit {name}", { name: baseName(file ?? "file") });
         run.file = file ? `${baseName(file)}${firstHunkLine(patch) ?? ""}` : undefined;
         run.detail = parsed.lines
           .filter((line) => line.tone !== "ctx")
@@ -287,8 +288,10 @@ export function buildToolRun(
       break;
     }
     case "bash":
+    case "run":
+    case "shell":
     case "powershell": {
-      run.label = icon === "run" ? "Run" : name;
+      run.label = t("Terminal");
       run.chip = target ? truncate(target) : "command";
       run.detailMono = true;
       /* the whole point of clicking a run open is seeing what it printed:
@@ -298,29 +301,29 @@ export function buildToolRun(
         const shown = lines.slice(0, 60);
         run.detail = shown.map((text) => ({ text: truncate(text, 400) }));
         if (lines.length > shown.length) {
-          run.detail.push({ text: `… ${lines.length - shown.length} more lines` });
+          run.detail.push({ text: tf("… {count} more lines", { count: lines.length - shown.length }) });
         }
       }
       break;
     }
     case "grep":
     case "find": {
-      run.label = name === "grep" ? "Search" : "Find";
+      run.label = name === "grep" ? t("Search") : t("Find");
       run.chip = target ? truncate(target, 40) : "pattern";
       const hits = resultText ? resultText.split("\n").filter(Boolean).length : 0;
-      if (hits) run.detail = [{ text: `${hits} matching lines` }];
+      if (hits) run.detail = [{ text: tf("{count} matching lines", { count: hits }) }];
       break;
     }
     case "ls": {
-      run.label = "List";
+      run.label = t("List");
       run.chip = file ? baseName(file) : ".";
       const entries = resultText ? resultText.split("\n").filter(Boolean).length : 0;
-      if (entries) run.detail = [{ text: `${entries} entries` }];
+      if (entries) run.detail = [{ text: tf("{count} entries", { count: entries }) }];
       break;
     }
     default: {
       if (SEARCH_TOOLS.has(name)) {
-        run.label = "Search the web";
+        run.label = t("Search the web");
         run.chip = target ? truncate(target, 40) : "web";
       } else {
         // an unrecognised tool (an MCP or extension tool) reads as itself;
@@ -347,7 +350,9 @@ export function buildLiveToolRun(activity: ToolActivity): ToolRun {
   );
 }
 
-const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
+/** `${count} files` — the count carries the key, so each language can order it. */
+const plural = (count: number, one: string, many = `${one}s`) =>
+  tf(`{count} ${count === 1 ? one : many}`, { count });
 
 /** Which summary row a call belongs to: file edits, exploration, or anything else. */
 function bucketOf(run: ToolRun): ToolBucket {
@@ -433,9 +438,9 @@ function groupLabel(group: ToolGroupView): string {
   if (bucket === "edit") {
     if (group.files === 1) {
       const name = (runs.find((run) => run.path)?.path ?? "").replace(/[\\/]+$/, "").split(/[\\/]/).pop();
-      if (name) return `${live ? "Editing" : "Edited"} ${name} ×${runs.length}`;
+      if (name) return tf(live ? "Editing {name} ×{count}" : "Edited {name} ×{count}", { name, count: runs.length });
     }
-    return `${live ? "Editing" : "Edited"} ${plural(group.files || runs.length, "file")}`;
+    return `${t(live ? "Editing" : "Edited")} ${plural(group.files || runs.length, "file")}`;
   }
 
   if (bucket === "other") return plural(runs.length, "call");
@@ -443,12 +448,12 @@ function groupLabel(group: ToolGroupView): string {
   const parts: string[] = [];
   if (group.files) parts.push(plural(group.files, "file"));
   if (group.searches) parts.push(plural(group.searches, "search", "searches"));
-  if (group.commands) parts.push(`${live ? "running" : "ran"} ${plural(group.commands, "command")}`);
-  if (!parts.length) return live ? "Exploring" : "Explored";
+  if (group.commands) parts.push(`${t(live ? "running" : "ran")} ${plural(group.commands, "command")}`);
+  if (!parts.length) return t(live ? "Exploring" : "Explored");
   if (!group.files && !group.searches) {
-    return `${live ? "Running" : "Ran"} ${plural(group.commands, "command")}`;
+    return `${t(live ? "Running" : "Ran")} ${plural(group.commands, "command")}`;
   }
-  return `${live ? "Exploring" : "Explored"} · ${parts.join(", ")}`;
+  return `${t(live ? "Exploring" : "Explored")} · ${parts.join(", ")}`;
 }
 
 const FENCE = /```([a-zA-Z0-9+-]*)\n([\s\S]*?)(?:```|$)/g;
@@ -564,9 +569,16 @@ function harvestSources(text: string | undefined): TurnView["sources"] {
  * it (plus the live-activity array) collapses all of those rebuilds into one,
  * and skips the rebuild entirely for updates that did not touch the log.
  */
-const turnsCache = new WeakMap<ChatMessage[], Map<ToolActivity[] | null, TurnView[]>>();
+let turnsCache = new WeakMap<ChatMessage[], Map<ToolActivity[] | null, TurnView[]>>();
+
+/** A cached turn carries its tool labels, so the rows cannot outlive a language switch. */
+let turnsLocale: Locale = getLocale();
 
 export function buildTurns(messages: ChatMessage[], live: ToolActivity[]): TurnView[] {
+  if (turnsLocale !== getLocale()) {
+    turnsLocale = getLocale();
+    turnsCache = new WeakMap();
+  }
   let byLive = turnsCache.get(messages);
   if (!byLive) {
     byLive = new Map();
@@ -780,21 +792,79 @@ function buildTurnsUncached(messages: ChatMessage[], live: ToolActivity[]): Turn
   return turns;
 }
 
+/** A run of a diff line: `change` marks the part of it that actually changed. */
+export type DiffPiece = { text: string; change?: "add" | "del" };
+/** One row of the diff `CodeBlock` renders. */
+export type DiffRowView = {
+  old: number | null;
+  cur: number | null;
+  type: "add" | "del" | "ctx";
+  pieces: DiffPiece[];
+};
+
+/** Words, whitespace, single punctuation — and whole quoted strings, so that
+ *  `"-14C"` against `"-16C"` washes the literal and not the quote marks. */
+const DIFF_TOKEN = /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`[^`]*`|[A-Za-z0-9_$]+|\s+|[^\s]/g;
+
+/** One replaced line, split into shared head / changed middle / shared tail. */
+function splitChange(before: string, after: string): { del: DiffPiece[]; add: DiffPiece[] } {
+  const a = before.match(DIFF_TOKEN) ?? [];
+  const b = after.match(DIFF_TOKEN) ?? [];
+  let head = 0;
+  while (head < a.length && head < b.length && a[head] === b[head]) head += 1;
+  let tail = 0;
+  while (tail < a.length - head && tail < b.length - head && a[a.length - 1 - tail] === b[b.length - 1 - tail]) tail += 1;
+
+  /* An edit that kept little of the old line is a rewrite, not an edit: washing
+     three scattered words would read as noise, so the row tint carries it. */
+  if (head + tail < Math.min(a.length, b.length) * 0.4) {
+    return { del: [{ text: before }], add: [{ text: after }] };
+  }
+
+  const cut = (tokens: string[], change: "add" | "del"): DiffPiece[] => {
+    const out: DiffPiece[] = [];
+    if (head) out.push({ text: tokens.slice(0, head).join("") });
+    const middle = tokens.slice(head, tokens.length - tail).join("");
+    if (middle) out.push({ text: middle, change });
+    if (tail) out.push({ text: tokens.slice(tokens.length - tail).join("") });
+    return out;
+  };
+  return { del: cut(a, "del"), add: cut(b, "add") };
+}
+
+/** Pair each run of removals with the additions that replaced it, so the words
+ *  that survived the edit are not washed as though they had changed. */
+function markChangedWords(rows: DiffRowView[]): DiffRowView[] {
+  for (let i = 0; i < rows.length; i += 1) {
+    if (rows[i].type !== "del") continue;
+    let delEnd = i;
+    while (delEnd < rows.length && rows[delEnd].type === "del") delEnd += 1;
+    let addEnd = delEnd;
+    while (addEnd < rows.length && rows[addEnd].type === "add") addEnd += 1;
+
+    const pairs = Math.min(delEnd - i, addEnd - delEnd);
+    for (let k = 0; k < pairs; k += 1) {
+      const before = rows[i + k].pieces.map((piece) => piece.text).join("");
+      const after = rows[delEnd + k].pieces.map((piece) => piece.text).join("");
+      const split = splitChange(before, after);
+      rows[i + k].pieces = split.del;
+      rows[delEnd + k].pieces = split.add;
+    }
+    i = addEnd - 1;
+  }
+  return rows;
+}
+
 /** Parsed diff lines → the row shape `CodeBlock` renders in Diff view.
  *
  * The parser already resolved every line's old/new number from the hunk headers,
  * so the rows carry that straight through. Recomputing them here is what made a
  * change at line 35 show up as 35 in a single-hunk patch and 38 in a multi-hunk
  * one — the second hunk's numbers restarted from where the first one ended. */
-export function toDiffRows(lines: DiffLine[]): {
-  old: number | null;
-  cur: number | null;
-  type: "add" | "del" | "ctx";
-  pieces: { text: string }[];
-}[] {
+export function toDiffRows(lines: DiffLine[]): DiffRowView[] {
   let oldLine = 0;
   let curLine = 0;
-  return lines.map((line) => {
+  const rows = lines.map((line) => {
     // fall back to counting only for callers that pass bare {text, tone}
     if (line.old === undefined && line.cur === undefined) {
       if (line.tone === "add") curLine += 1;
@@ -817,4 +887,5 @@ export function toDiffRows(lines: DiffLine[]): {
       pieces: [{ text: line.text }],
     };
   });
+  return markChangedWords(rows);
 }

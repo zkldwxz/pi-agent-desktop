@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { UiNotification, UiRequest } from "@shared/ui";
 import ApprovalCard from "../beautiful/primitives/ApprovalCard";
 import { cn } from "../../lib/cn";
+import { t } from "../../lib/i18n";
 import { AlertIcon, CheckCircleIcon, XIcon } from "../icons";
 import { useFocusTrap } from "../motion";
 
@@ -58,14 +59,14 @@ export function ApprovalPrompt({ request, onAnswer }: { request: UiRequest; onAn
       >
         <div className="mb-1.5 flex items-center gap-2 px-1">
           <span className="inline-flex h-4 items-center rounded-chip bg-ink px-1.5 font-mono text-[9.5px] text-canvas">
-            agent
+            {t("agent")}
           </span>
-          <span className="text-[11px] text-ink-3">needs a decision</span>
+          <span className="text-[11px] text-ink-3">{t("needs a decision")}</span>
           <span className="flex-1" />
           <button
             type="button"
             onClick={() => onAnswer({ id: request.id, cancelled: true })}
-            aria-label="Dismiss"
+            aria-label={t("Dismiss")}
             className="pressable flex size-5 items-center justify-center rounded-[5px] text-ink-3 hover:bg-hover hover:text-ink"
           >
             <XIcon size={11} />
@@ -95,14 +96,14 @@ export function ApprovalPrompt({ request, onAnswer }: { request: UiRequest; onAn
                 onClick={() => onAnswer({ id: request.id, value })}
                 className="pressable-soft pressable h-7 rounded-control bg-ink px-3 text-[12px] font-medium text-canvas"
               >
-                Send
+                {t("Send")}
               </button>
               <button
                 type="button"
                 onClick={() => onAnswer({ id: request.id, cancelled: true })}
                 className="pressable h-7 rounded-control px-2.5 text-[12px] text-ink-3 hover:bg-hover hover:text-ink-2"
               >
-                Skip
+                {t("Skip")}
               </button>
             </div>
           </div>
@@ -110,7 +111,7 @@ export function ApprovalPrompt({ request, onAnswer }: { request: UiRequest; onAn
           <ApprovalCard
             resettable={false}
             questions={questions}
-            labels={{ skip: "Skip", continue: "Continue", send: "Send" }}
+            labels={{ skip: t("Skip"), continue: t("Continue"), send: t("Send") }}
             onSubmitted={(answers) => {
               const picked = answers[0] ?? [];
               if (!picked.length) {

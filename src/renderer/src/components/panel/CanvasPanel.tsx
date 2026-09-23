@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { ChatMessage } from "@shared/types";
 import Flowchart, { type StepNode } from "../beautiful/primitives/Flowchart";
 import { buildToolGroups, buildTurns, toolSignature } from "../../lib/agent-view";
+import { t, tf, useLocale } from "../../lib/i18n";
 import { cn } from "../../lib/cn";
 
 const ACCENT = "var(--accent)";
@@ -14,10 +15,10 @@ function summarize(turn: ReturnType<typeof buildTurns>[number]): string {
   const calls = turn.toolRuns.length;
   const files = new Set(turn.toolRuns.map((run) => run.path).filter(Boolean)).size;
   const edits = groups.filter((group) => group.bucket === "edit").reduce((sum, group) => sum + group.runs.length, 0);
-  if (!calls) return turn.fullText.trim() ? "answered" : "no work recorded";
-  const parts = [`${calls} call${calls === 1 ? "" : "s"}`];
-  if (files) parts.push(`${files} file${files === 1 ? "" : "s"}`);
-  if (edits) parts.push(`${edits} edit${edits === 1 ? "" : "s"}`);
+  if (!calls) return turn.fullText.trim() ? t("answered") : t("no work recorded");
+  const parts = [tf(calls === 1 ? "{count} call" : "{count} calls", { count: calls })];
+  if (files) parts.push(tf(files === 1 ? "{count} file" : "{count} files", { count: files }));
+  if (edits) parts.push(tf(edits === 1 ? "{count} edit" : "{count} edits", { count: edits }));
   return parts.join(" · ");
 }
 
@@ -43,6 +44,7 @@ export function CanvasPanel({
 }) {
   const turns = useMemo(() => buildTurns(messages, []), [messages]);
   const [picked, setPicked] = useState<string | null>(null);
+  const locale = useLocale();
 
   // the graph only redraws when the work changed; the Flowchart re-measures
   // every card, so a streaming answer rebuilding it was the dock's worst cost
@@ -60,18 +62,18 @@ export function CanvasPanel({
         hue: turn.toolRuns.some((run) => run.icon === "write") ? GREEN : ACCENT,
       },
       hue: turn.toolRuns.some((run) => run.icon === "write") ? GREEN : ACCENT,
-      title: (turn.prompt ?? "New session").replace(/\s+/g, " ").slice(0, 60),
+      title: (turn.prompt ?? t("New session")).replace(/\s+/g, " ").slice(0, 60),
       caption: summarize(turn),
     }));
-  }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [signature, locale]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const active = useMemo(() => turns.find((turn) => turn.key === picked) ?? null, [signature, picked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!turns.length) {
     return (
       <div className="flex flex-col gap-1 px-3 py-6 text-[11.5px] text-ink-3">
-        <span>Nothing to draw yet.</span>
-        <span className="text-[11px]">A session becomes a graph here as the agent works.</span>
+        <span>{t("Nothing to draw yet.")}</span>
+        <span className="text-[11px]">{t("A session becomes a graph here as the agent works.")}</span>
       </div>
     );
   }
@@ -87,8 +89,8 @@ export function CanvasPanel({
             onClick={() => onJumpToTurn(active.key)}
             className="pressable flex items-baseline gap-2 rounded-[7px] px-1.5 py-1 text-left hover:bg-hover"
           >
-            <span className="min-w-0 flex-1 text-[12px] leading-snug text-ink">{active.prompt ?? "New session"}</span>
-            <span className="shrink-0 text-[10.5px] text-ink-3">jump →</span>
+            <span className="min-w-0 flex-1 text-[12px] leading-snug text-ink">{active.prompt ?? t("New session")}</span>
+            <span className="shrink-0 text-[10.5px] text-ink-3">{t("jump →")}</span>
           </button>
 
           {buildToolGroups(active).map((group) => (
@@ -103,7 +105,7 @@ export function CanvasPanel({
           ))}
         </div>
       ) : (
-        <div className="px-1.5 pt-2 text-[11px] text-ink-3">Pick a card for its tools and files.</div>
+        <div className="px-1.5 pt-2 text-[11px] text-ink-3">{t("Pick a card for its tools and files.")}</div>
       )}
     </div>
   );

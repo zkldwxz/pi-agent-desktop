@@ -9,11 +9,20 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
+    /* pi's extensions are loaded by jiti, and importing "./x.ts" is the house
+     * style there — the same files are typechecked here */
+    "allowImportingTsExtensions": true,
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
       "@shared/*": ["src/shared/*"]
     }
   },
-  "include": ["electron.vite.config.ts", "src/main/**/*.ts", "src/preload/**/*.ts", "src/shared/**/*.ts"]
+  "include": [
+    "electron.vite.config.ts",
+    "src/main/**/*.ts",
+    "src/preload/**/*.ts",
+    "src/shared/**/*.ts",
+    "resources/extensions/**/*.ts"
+  ]
 }

@@ -1,28 +1,26 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import type { ContextBreakdown, HostState, ModelInfo } from "@shared/types";
+import type { HostState, ModelInfo } from "@shared/types";
 import { cn } from "../../lib/cn";
 import { formatContext } from "../../lib/format";
+import { t, tf } from "../../lib/i18n";
 import { GlideList, Popover } from "../motion";
-import { BrainIcon, ChevronDownIcon, GlobeIcon, LayersIcon } from "../icons";
+import { ThinkingTrack, ThinkingTrackEnds, thinkingBadgeClass, thinkingLevelClass } from "../ThinkingTrack";
+import { ArrowLeftIcon, ChevronDownIcon, GlobeIcon, RefreshIcon } from "../icons";
 
 /**
- * Model and thinking depth, as one control in the prompt bar.
+ * The one composer chip that qualifies a prompt: which model reads it, and how
+ * hard that model thinks.
  *
- * Both sit on the prompt bar's bottom row, immediately right of the attach
- * button, because they qualify the prompt you are about to write — the model
- * decides how it is read, the depth how hard it thinks. The context ring that
- * used to sit beside the model lives in the prompt bar's footer, under
- * dictation.
+ * Model and depth are the same decision — you pick a model and then decide how
+ * much to spend on it — so they live in one control, and the card the chip opens
+ * is small enough to read without looking up: the depth, the name, the track.
+ * The model list is a second state behind the name, because switching the model
+ * is the rarer half of the job and it is the only thing that needs a scroll.
  *
- * The menu carries three things: the models, the thinking track, and the context
- * ledger. The ledger answers "what is already in the window" — system prompt,
- * tool schemas, skills — with sizes rather than percentages, because the sizes
- * are what you can act on.
- *
- * Both controls are optimistic: clicking writes the pending value locally and
- * sends it to the host, so the track and the label move on the same frame as the
- * click. The host's state takes over as soon as it arrives, and the pending value
- * is dropped if it never does.
+ * Both halves are optimistic: the pick moves the chip on the same frame as the
+ * click and the host's state takes over when it arrives. A depth is committed when
+ * the drag ends, not as it crosses each step, so sliding across the ramp does not
+ * write to the host six times.
  */
 export function ModelThinkingControl({
   state,
@@ -34,7 +32,8 @@ export function ModelThinkingControl({
   onSetThinking: (level: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-
+  /** `card` is the depth and the name, `list` is the models behind the name */
+  const [view, setView] = useState<"card" | "list">("card");
   const hostModelKey = state.snapshot?.model
     ? `${state.snapshot.model.provider}/${state.snapshot.model.id}`
     : "";
@@ -42,25 +41,6 @@ export function ModelThinkingControl({
   const modelKey = pendingModelKey ?? hostModelKey;
   const current =
     state.models.find((model) => `${model.provider}/${model.id}` === modelKey) ?? state.snapshot?.model ?? null;
-
-  const hostLevel = state.snapshot?.thinkingLevel ?? "off";
-  const [pendingLevel, setPendingLevel] = useState<string | null>(null);
-  const level = pendingLevel ?? hostLevel;
-
-  const levels = state.snapshot?.thinkingLevels ?? ["off"];
-  const index = Math.max(0, levels.indexOf(level));
-
-  /* Drop the optimistic value once the host agrees, or after a beat if it does
-   * not — a rejected request must not leave the control lying about the state. */
-  useEffect(() => {
-    if (pendingLevel === null) return;
-    if (hostLevel === pendingLevel) {
-      setPendingLevel(null);
-      return;
-    }
-    const timer = window.setTimeout(() => setPendingLevel(null), 1500);
-    return () => window.clearTimeout(timer);
-  }, [pendingLevel, hostLevel]);
 
   useEffect(() => {
     if (pendingModelKey === null) return;
@@ -72,6 +52,68 @@ export function ModelThinkingControl({
     return () => window.clearTimeout(timer);
   }, [pendingModelKey, hostModelKey]);
 
+  const pickModel = useCallback(
+    (provider: string, id: string) => {
+      setPendingModelKey(`${provider}/${id}`);
+      onSetModel(provider, id);
+      setOpen(false);
+    },
+    [onSetModel],
+  );
+
+  const hostLevel = state.snapshot?.thinkingLevel ?? "off";
+  const [pendingLevel, setPendingLevel] = useState<string | null>(null);
+  /* what the pointer is over right now — the label follows it, the host does not
+     hear until the drag is released */
+  const [slideLevel, setSlideLevel] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (pendingLevel === null) return;
+    if (hostLevel === pendingLevel) {
+      setPendingLevel(null);
+      return;
+    }
+    const timer = window.setTimeout(() => setPendingLevel(null), 1500);
+    return () => window.clearTimeout(timer);
+  }, [pendingLevel, hostLevel]);
+
+  const commitLevel = useCallback(
+    (next: string) => {
+      setSlideLevel(null);
+      setPendingLevel(next);
+      onSetThinking(next);
+    },
+    [onSetThinking],
+  );
+
+  /* Before the host reports a model, fall back to the levels it says the session
+     can take; after it does, the list belongs to that model — otherwise the chip
+     offers depths the new model will refuse. */
+  const levels = current?.thinkingLevels ?? state.snapshot?.thinkingLevels ?? ["off"];
+  const canThink = levels.length > 1;
+  /* the track is told what is committed, never what the pointer is hovering —
+     otherwise a release would compare against its own preview and skip the write */
+  const committed = levels.includes(pendingLevel ?? hostLevel) ? (pendingLevel ?? hostLevel) : "off";
+  const shown = slideLevel ?? committed;
+  const short = current?.name?.replace(/\(.*\)/, "").trim() ?? t("No model");
+
+  /* The reset is only worth a button while the session is running at something
+     other than the depth the settings file would have started this model on. */
+  const fallback = state.settings.defaultThinkingLevel;
+  const resetTo = fallback && fallback !== committed && levels.includes(fallback) ? fallback : null;
+  const resetLabel = resetTo ? tf("Back to {level}", { level: t(resetTo) }) : "";
+
+  const toggle = () => {
+    if (open) {
+      setOpen(false);
+      setSlideLevel(null);
+      return;
+    }
+    /* a model that cannot think has no card to show — go straight to its list */
+    setView(canThink ? "card" : "list");
+    setOpen(true);
+  };
+
   const grouped = useMemo(() => {
     const map = new Map<string, ModelInfo[]>();
     for (const model of state.models) {
@@ -82,132 +124,122 @@ export function ModelThinkingControl({
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [state.models]);
 
-  const pickModel = useCallback(
-    (provider: string, id: string) => {
-      setPendingModelKey(`${provider}/${id}`);
-      onSetModel(provider, id);
-      setOpen(false);
-    },
-    [onSetModel],
-  );
-
-  const pickLevel = useCallback(
-    (next: string) => {
-      setPendingLevel(next);
-      onSetThinking(next);
-      if (next === "max") window.dispatchEvent(new CustomEvent("pi:celebrate"));
-    },
-    [onSetThinking],
-  );
-
-  const short = current?.name?.replace(/\(.*\)/, "").trim() ?? "No model";
-
-  /* the ledger is asked for when the menu opens, not on every host tick */
-  const [ledger, setLedger] = useState<ContextBreakdown | null>(null);
-  const messageCount = state.snapshot?.messageCount ?? 0;
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    void window.pi
-      .getContextBreakdown()
-      .then((value) => {
-        if (!cancelled) setLedger(value);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [open, messageCount]);
-
   return (
-    <div className="relative flex min-w-0 items-center gap-1.5">
+    <div className="relative flex min-w-0 items-center">
       <button
         type="button"
         data-popover-trigger
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-        title={`${current?.name ?? "No model"} · thinking ${level}`}
+        onClick={toggle}
+        title={tf("Model — {model}", { model: current?.name ?? t("No model") })}
         className={cn(
-          "pressable inline-flex h-6 max-w-[190px] items-center gap-1 rounded-chip px-1.5",
+          /* 28px like the attach / dictation / send buttons beside it — the whole
+             row shares one height and one bottom line */
+          "pressable inline-flex h-7 min-w-0 items-center gap-1.5 rounded-[8px] py-0 pl-2 pr-1.5",
           open ? "bg-field text-ink" : "text-ink-2 hover:bg-hover-2",
         )}
       >
-        <span className="min-w-0 truncate text-[11.5px]">{short}</span>
-        {level !== "off" ? <span className="shrink-0 font-mono text-[10px] text-ink-3">{level}</span> : null}
+        <span className="min-w-0 truncate text-[12.5px]">{short}</span>
+        {canThink ? (
+          <span
+            className={cn(
+              "shrink-0 rounded-[5px] px-1 py-px text-[10.5px] leading-[15px] transition-colors duration-300",
+              thinkingBadgeClass(shown),
+            )}
+          >
+            {t(shown)}
+          </span>
+        ) : null}
         <ChevronDownIcon
-          size={11}
+          size={12}
           className="shrink-0 text-ink-3 transition-transform duration-300 ease-out-strong"
           style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
         />
       </button>
 
-      <Popover open={open} onClose={() => setOpen(false)} anchor="bottom-right" className="w-72">
-        {/* The model list scrolls; the two controls under it do not. The ledger
-            has to be visible the moment the menu opens — behind a scroll it may
-            as well not exist, since nobody scrolls a menu to find an answer they
-            did not know was there. */}
-        <div className="flex max-h-[min(520px,74vh)] flex-col">
-          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-2">
-            <div className="px-1 pb-1 text-[10px] tracking-[0.4px] text-ink-3">MODEL</div>
-            {/* Memoised: the glide highlight moves on every pointer move, and
-                re-rendering a hundred model rows for that is what made the menu
-                feel like it lagged behind the cursor. */}
-            <ModelGroups grouped={grouped} currentKey={modelKey} onPick={pickModel} />
-          </div>
-
-          <div className="shrink-0 border-t border-line p-2">
-            <div className="flex items-center gap-1.5 px-1 pb-1">
-              <BrainIcon size={11} className="text-ink-3" />
-              <span className="text-[10px] tracking-[0.4px] text-ink-3">THINKING</span>
-              <span className="flex-1" />
-              <span className="font-mono text-[10.5px] text-ink-2">{level}</span>
+      <Popover
+        open={open}
+        onClose={() => {
+          setOpen(false);
+          /* a drag that never committed must not leave its preview on the chip */
+          setSlideLevel(null);
+        }}
+        anchor="bottom-right"
+        className="w-72"
+      >
+        {view === "card" ? (
+          <div className="px-3 pb-2 pt-1.5">
+            {/* row 1 — the depth, in its own colour, with the way back out of it */}
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate text-[13px] font-medium transition-colors duration-300",
+                  thinkingLevelClass(shown),
+                )}
+              >
+                {t(shown)}
+              </span>
+              {resetTo ? (
+                <button
+                  type="button"
+                  onClick={() => commitLevel(resetTo)}
+                  title={resetLabel}
+                  aria-label={resetLabel}
+                  className="pressable shrink-0 rounded-[5px] p-1 text-ink-3 transition-colors hover:bg-hover-2 hover:text-ink"
+                >
+                  <RefreshIcon size={12} />
+                </button>
+              ) : null}
             </div>
-            {levels.length > 1 ? (
-              <div className="px-2.5 pt-1.5 pb-2">
-                <div className="relative h-1.5 rounded-full bg-field">
-                  <div
-                    className="absolute inset-y-0 left-0 rounded-full bg-accent"
-                    style={{
-                      width: `${(index / (levels.length - 1)) * 100}%`,
-                      transition: "width 220ms cubic-bezier(0.23,1,0.32,1)",
-                    }}
-                  />
-                  {levels.map((entry, position) => (
-                    <button
-                      key={entry}
-                      type="button"
-                      title={entry}
-                      aria-label={`Thinking depth ${entry}`}
-                      aria-current={position === index}
-                      onClick={() => pickLevel(entry)}
-                      className="group/step absolute top-1/2 flex size-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
-                      style={{ left: `${(position / (levels.length - 1)) * 100}%` }}
-                    >
-                      <span
-                        className={cn(
-                          "rounded-full transition-[width,height,background-color] duration-200",
-                          position === index
-                            ? "size-3 bg-ink shadow-[0_0_0_2px_var(--surface)]"
-                            : position <= index
-                              ? "size-2 bg-accent group-hover/step:size-2.5"
-                              : "size-1.5 bg-line-strong group-hover/step:size-2.5 group-hover/step:bg-ink-3",
-                        )}
-                      />
-                    </button>
-                  ))}
-                </div>
-                <div className="mt-2 flex justify-between">
-                  <span className="font-mono text-[9.5px] text-ink-3">{levels[0]}</span>
-                  <span className="font-mono text-[9.5px] text-ink-3">{levels.at(-1)}</span>
-                </div>
-              </div>
-            ) : (
-              <div className="px-1.5 pb-2 text-[11px] text-ink-3">This model does not expose thinking levels.</div>
-            )}
-
-            <ContextLedger ledger={ledger} />
+            {/* row 2 — the model, and the only way into the list */}
+            <button
+              type="button"
+              onClick={() => setView("list")}
+              title={t("Switch model")}
+              className={cn(
+                "-mx-1.5 mt-1 flex w-[calc(100%+12px)] items-center gap-1.5 rounded-[6px] px-1.5 py-1 text-left",
+                "text-ink-2 transition-colors hover:bg-hover-2",
+              )}
+            >
+              <span className="min-w-0 flex-1 truncate text-[11.5px]">{current?.name ?? t("No model")}</span>
+              <ChevronDownIcon
+                size={11}
+                className="shrink-0 text-ink-3"
+                style={{ transform: "rotate(-90deg)" }}
+              />
+            </button>
+            {/* row 3 — the track */}
+            <div className="mt-1">
+              <ThinkingTrack levels={levels} value={committed} onPick={commitLevel} onSlide={setSlideLevel} />
+              <ThinkingTrackEnds levels={levels} />
+            </div>
           </div>
-        </div>
+        ) : (
+          /* The list is the only part of this control that scrolls, and it gets
+             the whole height for it. */
+          <div className="flex max-h-[min(420px,62vh)] flex-col">
+            <div className="flex shrink-0 items-center gap-1 px-1.5 pb-1 pt-1.5">
+              {canThink ? (
+                <button
+                  type="button"
+                  onClick={() => setView("card")}
+                  aria-label={t("Back to depth")}
+                  title={t("Back to depth")}
+                  className="pressable -ml-0.5 shrink-0 rounded-[5px] p-1 text-ink-3 transition-colors hover:bg-hover-2 hover:text-ink"
+                >
+                  <ArrowLeftIcon size={12} />
+                </button>
+              ) : null}
+              <span className="text-[10px] tracking-[0.4px] text-ink-3">{t("MODEL")}</span>
+            </div>
+            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+              {/* Memoised: the glide highlight moves on every pointer move, and
+                  re-rendering a hundred model rows for that is what made the menu
+                  feel like it lagged behind the cursor. */}
+              <ModelGroups grouped={grouped} currentKey={modelKey} onPick={pickModel} />
+            </div>
+          </div>
+        )}
       </Popover>
     </div>
   );
@@ -265,46 +297,3 @@ const ModelGroups = memo(function ModelGroups({
   );
 });
 
-/**
- * What the window is holding, as sizes.
- *
- * Every row is a token count and a short qualifier; there are deliberately no
- * percentages, because "tool definitions cost 9k tokens" is actionable and "8%"
- * is not. The footer says the numbers are estimates.
- */
-function ContextLedger({ ledger }: { ledger: ContextBreakdown | null }) {
-  const hasWindow = Boolean(ledger?.contextWindow);
-  return (
-    <div className="mt-1 border-t border-line pt-2">
-      <div className="flex items-center gap-1.5 px-1 pb-1">
-        <LayersIcon size={11} className="text-ink-3" />
-        <span className="text-[10px] tracking-[0.4px] text-ink-3">CONTEXT</span>
-        <span className="flex-1" />
-        <span className="font-mono text-[10.5px] text-ink-2 tabular-nums">
-          {ledger?.used != null ? ledger.used.toLocaleString() : "—"}
-          {hasWindow ? ` / ${ledger?.contextWindow.toLocaleString()}` : ""}
-        </span>
-      </div>
-      {ledger?.parts.length ? (
-        <div className="flex flex-col">
-          {ledger.parts.map((part) => (
-            <div key={part.key} className="flex items-baseline gap-2 px-1.5 py-[3px]">
-              <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink-2">{part.label}</span>
-              {part.detail ? (
-                <span className="shrink-0 font-mono text-[9.5px] text-ink-3">{part.detail}</span>
-              ) : null}
-              <span className="w-14 shrink-0 text-right font-mono text-[11px] text-ink tabular-nums">
-                {part.tokens.toLocaleString()}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="px-1.5 pb-1 text-[11px] text-ink-3">Waiting for the session…</div>
-      )}
-      <div className="px-1.5 pt-1 text-[10px] leading-snug text-ink-3">
-        Estimates from the session&apos;s own prompt, tool schemas and skill files.
-      </div>
-    </div>
-  );
-}

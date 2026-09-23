@@ -1,5 +1,5 @@
 import { readdir, readFile, stat } from "node:fs/promises";
-import { basename, dirname, extname, join, normalize, sep } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, normalize, resolve, sep } from "node:path";
 import type { DirListing, FileContent, FileEntry } from "@shared/workspace";
 
 const SKIP = new Set([
@@ -91,10 +91,17 @@ export function languageFor(path: string): string {
   return LANG_BY_EXT[extname(name)] ?? "txt";
 }
 
-/** Refuse to walk outside the project root. */
-function assertInside(root: string, target: string): string {
-  const resolved = normalize(target);
+/**
+ * Refuse to walk outside the project root.
+ *
+ * A tool call spells the file it touched relative to the workspace
+ * (`src/renderer/src/App.tsx`), so a relative target is read against the root —
+ * normalising alone left it relative, which failed the check below and turned
+ * every diff opened from the changes list into "Path is outside the workspace".
+ */
+export function assertInside(root: string, target: string): string {
   const rootResolved = normalize(root);
+  const resolved = isAbsolute(target) ? normalize(target) : resolve(rootResolved, target);
   if (resolved !== rootResolved && !resolved.startsWith(rootResolved.endsWith(sep) ? rootResolved : rootResolved + sep)) {
     throw new Error("Path is outside the workspace");
   }

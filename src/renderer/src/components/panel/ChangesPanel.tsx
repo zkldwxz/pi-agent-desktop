@@ -1,11 +1,15 @@
 import { useMemo, useState } from "react";
 import type { ChatMessage } from "@shared/types";
-import { buildTurns, toolSignature, type DiffLine, type TurnView } from "../../lib/agent-view";
+import { buildTurns, toDiffRows, toolSignature, type DiffLine, type TurnView } from "../../lib/agent-view";
+import { t, tf } from "../../lib/i18n";
 import { cn } from "../../lib/cn";
 import { ChevronDownIcon, FilePenIcon } from "../icons";
 
 export interface ChangeEntry {
+  /** the row's label — the basename plus the first hunk's line (`App.tsx:361`) */
   file: string;
+  /** where the file actually is; `file` is a label, not something to open */
+  path?: string;
   add: number;
   del: number;
   toolName: string;
@@ -16,15 +20,19 @@ export interface ChangeEntry {
 
 /** Every file this session wrote to, with its line delta and its diff hunks. */
 export function collectChanges(turns: TurnView[]): ChangeEntry[] {
-  const byFile = new Map<string, ChangeEntry>();
+  const byKey = new Map<string, ChangeEntry>();
   for (const turn of turns) {
     for (const run of turn.toolRuns) {
       if (run.icon !== "write") continue;
       // a path-less edit still needs a unique row label
-      const file = run.file ?? `${run.toolName} #${byFile.size + 1}`;
-      const existing = byFile.get(file);
-      byFile.set(file, {
-        file,
+      const label = run.file ?? `${run.toolName} #${byKey.size + 1}`;
+      // the label carries the hunk's first line, so it cannot be the identity:
+      // one file edited at :120 and later at :400 would split into two rows
+      const key = run.path ?? label;
+      const existing = byKey.get(key);
+      byKey.set(key, {
+        file: existing?.file ?? label,
+        path: run.path ?? existing?.path,
         add: (existing?.add ?? 0) + (run.add ?? 0),
         del: (existing?.del ?? 0) + (run.del ?? 0),
         toolName: run.toolName,
@@ -37,7 +45,7 @@ export function collectChanges(turns: TurnView[]): ChangeEntry[] {
       });
     }
   }
-  return [...byFile.values()].sort((a, b) => b.add + b.del - (a.add + a.del));
+  return [...byKey.values()].sort((a, b) => b.add + b.del - (a.add + a.del));
 }
 
 /** How many diff rows an expanded file shows before it stops. */
@@ -93,8 +101,8 @@ export function ChangesPanel({
   if (!changes.length) {
     return (
       <div className="flex flex-col gap-1 px-3 py-6 text-[11.5px] text-ink-3">
-        <span>No edits yet.</span>
-        <span className="text-[11px]">Files the agent writes with edit or write will be listed here.</span>
+        <span>{t("No edits yet.")}</span>
+        <span className="text-[11px]">{t("Files the agent writes with edit or write will be listed here.")}</span>
       </div>
     );
   }
@@ -103,7 +111,7 @@ export function ChangesPanel({
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 pb-2">
         <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink-2">
-          {changes.length} file{changes.length === 1 ? "" : "s"} touched
+          {tf(changes.length === 1 ? "{count} file touched" : "{count} files touched", { count: changes.length })}
         </span>
         <span className="shrink-0 font-mono text-[10.5px] tabular-nums">
           <span className="text-green">+{totals.add}</span> <span className="text-red">−{totals.del}</span>
@@ -120,7 +128,7 @@ export function ChangesPanel({
             const hidden = lines.length - shown.length;
 
             return (
-              <div key={change.file} className="flex flex-col">
+              <div key={change.path ?? change.file} className="flex flex-col">
                 <div
                   style={{ animation: `row-enter 240ms cubic-bezier(0.23,1,0.32,1) ${Math.min(index, 4) * 35}ms both` }}
                   className={cn(
@@ -133,7 +141,7 @@ export function ChangesPanel({
                     onClick={() => toggle(change.file)}
                     aria-expanded={expanded}
                     disabled={!lines.length}
-                    title={lines.length ? "Show this file's diff" : "No diff was recorded for this write"}
+                    title={lines.length ? t("Show this file's diff") : t("No diff was recorded for this write")}
                     className="flex min-w-0 flex-1 items-center gap-1.5 rounded-[7px] px-1.5 py-1.5 text-left disabled:cursor-default"
                   >
                     <ChevronDownIcon
@@ -155,8 +163,8 @@ export function ChangesPanel({
                   <button
                     type="button"
                     onClick={() => onOpen(change)}
-                    title="Open this file with its diff"
-                    aria-label={`Open ${change.file}`}
+                    title={t("Open this file with its diff")}
+                    aria-label={tf("Open {file}", { file: change.file })}
                     className="pressable flex size-5 shrink-0 items-center justify-center rounded-[5px] text-ink-3 opacity-0 hover:bg-hover-2 hover:text-ink group-hover/change:opacity-100 focus-visible:opacity-100"
                   >
                     <FilePenIcon size={12} />
@@ -172,7 +180,7 @@ export function ChangesPanel({
                         onClick={() => onOpen(change)}
                         className="pressable mt-1 rounded-chip px-1.5 py-0.5 text-[10.5px] text-ink-3 hover:bg-hover hover:text-ink-2"
                       >
-                        +{hidden} more lines — open the file
+                        {tf("+{count} more lines — open the file", { count: hidden })}
                       </button>
                     ) : null}
                   </div>
@@ -192,45 +200,67 @@ export function ChangesPanel({
  * Rows wrap instead of scrolling sideways: a 320px column that scrolls
  * horizontally hides the change it is describing. The gutter carries the real
  * line number the parser resolved, so a multi-hunk patch numbers correctly.
+ *
+ * The code itself stays in the normal ink and only the gutter is coloured, the
+ * way a diff is read everywhere else — green and red text on a green and red
+ * wash made both the wash and the colouring redundant, and the eye had to
+ * decode the tint before the line. The words that actually changed keep a
+ * stronger wash of their own, from the same rows the code card renders.
  */
 function DiffPreview({ lines }: { lines: DiffLine[] }) {
-  if (!lines.length) {
-    return <div className="px-1.5 py-1 text-[10.5px] text-ink-3">No diff was recorded.</div>;
+  const rows = toDiffRows(lines);
+  if (!rows.length) {
+    return <div className="px-1.5 py-1 text-[10.5px] text-ink-3">{t("No diff was recorded.")}</div>;
   }
 
   return (
     <div className="flex flex-col font-mono text-[10.5px] leading-[1.65]">
-      {lines.map((line, index) => {
-        if (line.tone === "ctx" && line.text.startsWith("@@")) {
+      {rows.map((row, index) => {
+        if (row.type === "ctx" && (row.pieces[0]?.text ?? "").startsWith("@@")) {
           return (
             <div key={index} className="mt-1 mb-0.5 truncate text-[10px] text-ink-3 first:mt-0">
-              {line.text}
+              {row.pieces.map((piece) => piece.text).join("")}
             </div>
           );
         }
+        const add = row.type === "add";
+        const del = row.type === "del";
         return (
           <div
             key={index}
             className={cn(
               "grid grid-cols-[26px_minmax(0,1fr)] items-start rounded-[3px]",
-              line.tone === "add" ? "bg-green-tint" : line.tone === "del" ? "bg-red-tint" : "",
+              add ? "bg-green-tint" : del ? "bg-red-tint" : "",
             )}
           >
             <span
               className={cn(
                 "select-none pr-1 text-right tabular-nums",
-                line.tone === "add" ? "text-green" : line.tone === "del" ? "text-red" : "text-ink-3",
+                add ? "text-green" : del ? "text-red" : "text-ink-3",
               )}
             >
-              {(line.tone === "del" ? line.old : line.cur) ?? ""}
+              {(del ? row.old : row.cur) ?? ""}
             </span>
-            <span
-              className={cn(
-                "min-w-0 break-words whitespace-pre-wrap",
-                line.tone === "add" ? "text-green" : line.tone === "del" ? "text-red" : "text-ink-2",
+            <span className="min-w-0 break-words whitespace-pre-wrap text-ink-2">
+              {row.pieces.map((piece, j) =>
+                piece.change ? (
+                  <span
+                    key={j}
+                    className="rounded-[3px]"
+                    style={{
+                      background: `color-mix(in srgb, var(--${piece.change === "add" ? "green" : "red"}) 18%, transparent)`,
+                      padding: "0 2px",
+                      margin: "0 -1px",
+                      boxDecorationBreak: "clone",
+                      WebkitBoxDecorationBreak: "clone",
+                    }}
+                  >
+                    {piece.text}
+                  </span>
+                ) : (
+                  <span key={j}>{piece.text}</span>
+                ),
               )}
-            >
-              {line.text || " "}
             </span>
           </div>
         );

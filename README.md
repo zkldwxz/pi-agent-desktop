@@ -29,6 +29,63 @@ npm run typecheck  # node + web projects
 Optional: `PI_DESKTOP_CWD=F:/Projects` sets the initial project folder. Otherwise it opens
 `F:/Projects` when present, then `process.cwd()`.
 
+## Web search and reading
+
+The desktop registers `web_search` and `web_fetch` for the main agent and its
+sub-agents. Existing installations of the bundled **Agent team** plugin must be
+reinstalled from the desktop's resource installer to pick up its new runtime;
+rebuilding the app alone does not overwrite files under `~/.pi/agent/extensions`.
+Both tools use Tavily: search returns ranked source links and snippets;
+fetch requests the full Markdown extraction and exposes it in resumable pages.
+Queries and requested URLs are sent to Tavily. No browser tab is opened by these tools.
+
+Keyless access works without setup and is rate-limited. Optionally set
+`TAVILY_API_KEY` in the environment before starting the desktop to use your
+Tavily account. Rate-limit and authentication failures are reported without
+silently switching providers or retrying billable operations.
+
+- Search: default 5 results, maximum 10; cache TTL 5 minutes, 64 entries / 4 MiB.
+- Reading: default 12,000 characters per page, maximum 24,000; cache TTL
+  15 minutes, 32 documents / 16 MiB. Markdown is retained exactly after newline
+  normalization; the extraction service determines source completeness.
+- Caches live in process memory, shared by parent and child agents and separated
+  by credentials. TTL expiry, LRU eviction or app restart removes the content.
+- Concurrent identical requests share one network operation. Cancelling one
+  caller keeps the operation alive for remaining callers; cancelling the last
+  caller aborts it. Failed requests are not cached.
+- `refresh: true` fetches current content. Resume with the returned `snapshot`
+  and `next_offset`; an expired or replaced snapshot reports that reading must
+  restart instead of combining different document versions.
+- Empty, challenge and failed extractions report an error. Use the existing
+  browser tools for rendered pages when extraction cannot read a source.
+
+Validation: `npm run test:web` runs offline cache, transport and pagination
+regressions. `npm run smoke:web` makes live Tavily requests for three public
+technical queries and logs source URLs plus cold/hot timings.
+`node scripts/agent-team-integration.mjs` checks that parent and child sessions
+receive the same tools while their extension state stays isolated.
+
+## Tool output and model cache
+
+`bash`, `read` and `grep` reuse Pi's implementations with smaller model-facing
+output budgets: 20 KiB, 24 KiB and 16 KiB respectively. Bash output is cleaned
+of ANSI/control sequences; complete oversized output is available through the
+reported temp-file path. Text reads report the next line offset; grep reports
+omissions and suggests narrowing the search. Images keep Pi's attachment path.
+File reads, searches and command executions always run against current state.
+
+Cache rates across the usage page, session ring and turn footer use
+`cacheRead / (input + cacheRead + cacheWrite)`. Output tokens are excluded from
+that denominator; cache write tokens are included. Provider costs remain based
+on the usage and prices reported by Pi.
+
+Plan mode keeps the tool catalog stable across phase changes and blocks write
+tools at execution through its hook. This avoids invalidating the tool portion
+of the request prefix. Changing models, thinking settings or actual tool
+configuration can still affect provider caching; no provider cache fields are
+injected based on model names. Existing Plan mode installations also need a
+plugin reinstall to pick up this change.
+
 ## Beautiful UI components
 
 All 26 primitives from the [Beautiful UI registry](https://www.beautifului.dev/r/registry.json)
@@ -187,6 +244,12 @@ The left icon rail switches between five views.
   clicking through opens it in the main column with the diff above the whole file, and the viewer's
   **Open with** list is read from the operating system — file manager, default application, and every
   editor registered for that extension.
+- The folder control at the end of the tool strip is a split button. The face opens the file browser
+  and wears the icon of the application folders are opened with — the file manager until one is
+  picked, whatever was picked after that, remembered across runs. The chevron lists what the shell has
+  registered for folders: `Directory\shell` and `Folder\shell`, where Explorer's own handler sits
+  beside every file manager and IDE the user installed, each row carrying the icon the OS draws for
+  it. A folder has no extension, so this is a different set of keys than the viewer's list uses.
 - Settings leads with a **Back** row and uses the same navigation rows as the session pane.
 - Answers render as GFM markdown: headings, ordered and nested lists, task lists, tables with column
   alignment, strikethrough, autolinks and footnotes. Fenced code goes to `CodeBlock`; inline HTML is

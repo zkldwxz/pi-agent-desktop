@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { ChatMessage, HostState } from "@shared/types";
 import TaskRows, { type TaskRow } from "../beautiful/primitives/TaskRows";
 import { buildTurns, toolSignature } from "../../lib/agent-view";
+import { t } from "../../lib/i18n";
 import { SessionOutline } from "./SessionOutline";
 import { EmptyState } from "../ui";
 import { cn } from "../../lib/cn";
@@ -42,7 +43,7 @@ export function TodoPanel({
         amount: todo.amount,
         status: todo.status === "running" ? "running" : todo.status,
         step: todo.status === "running" ? index + 1 : undefined,
-        details: todo.details.length ? todo.details : [{ label: "status", meta: todo.status }],
+        details: todo.details.length ? todo.details : [{ label: t("status"), meta: t(todo.status) }],
       }));
     }
     // fallback: what the agent has actually touched this session
@@ -64,7 +65,7 @@ export function TodoPanel({
   return (
     <div className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="flex items-center gap-2 px-3 py-2">
-        <span className="text-[11.5px] font-medium text-ink-2">{derived ? "Session activity" : "Task list"}</span>
+        <span className="text-[11.5px] font-medium text-ink-2">{derived ? t("Session activity") : t("Task list")}</span>
         <span className="flex-1" />
         <span className="font-mono text-[10.5px] text-ink-3 tabular-nums">
           {done}/{rows.length}
@@ -88,7 +89,7 @@ export function TodoPanel({
                 (view === 0 ? "Cards" : "Table") === label ? "text-ink" : "text-ink-3",
               )}
             >
-              {label}
+              {t(label)}
             </button>
           ))}
         </SlidingGroup>
@@ -100,27 +101,27 @@ export function TodoPanel({
               status: row.status === "running" ? "progress" : row.status === "done" ? "done" : "todo",
               owner: row.details[0]?.label ?? row.status,
             })) as TableRow[]}
-            labels={{ columns: { task: "Task", date: "Amount", status: "Status", owner: "Detail" } }}
+            labels={{ columns: { task: t("Task"), date: t("Amount"), status: t("Status"), owner: t("Detail") } }}
           />
         ) : null}
         {rows.length && view === 0 ? (
-          <TaskRows variant="List" rows={rows} instant labels={{ completed: "Done", failed: "Failed" }} />
+          <TaskRows variant="List" rows={rows} instant labels={{ completed: t("Done"), failed: t("Failed") }} />
         ) : (
           <EmptyState
-            title="No tasks yet"
-            body="Ask Pi to plan multi-step work and it will keep this list updated as it goes."
+            title={t("No tasks yet")}
+            body={t("Ask Pi to plan multi-step work and it will keep this list updated as it goes.")}
           />
         )}
       </div>
 
       {derived && rows.length ? (
         <div className="px-3 pb-3 text-[10.5px] leading-relaxed text-ink-3">
-          Derived from tool runs. Once the agent calls <span className="font-mono text-ink-2">todo_write</span>, its own list
-          takes over here.
+          {t("Derived from tool runs. Once the agent calls")} <span className="font-mono text-ink-2">todo_write</span>
+          {t(", its own list takes over here.")}
         </div>
       ) : null}
 
-      <div className="mt-1 border-t border-line px-3 pt-2 pb-1 text-[11.5px] font-medium text-ink-2">This session</div>
+      <div className="mt-1 border-t border-line px-3 pt-2 pb-1 text-[11.5px] font-medium text-ink-2">{t("This session")}</div>
       <SessionOutline messages={messages} onJump={onJumpToTurn} />
     </div>
   );

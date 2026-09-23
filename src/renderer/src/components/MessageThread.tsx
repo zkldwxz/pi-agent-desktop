@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useState } from "react";
+import { cacheHitRate } from "@shared/cache-usage";
 import type { ChatMessage, ToolActivity } from "@shared/types";
 import { buildTurns, type TurnView } from "../lib/agent-view";
 import { formatDuration, relativeTime } from "../lib/format";
@@ -288,7 +289,9 @@ function TurnFooter({
         <span className="font-mono tabular-nums">
           {long ? "· " : ""}
           {turn.usage.total >= 1000 ? `${(turn.usage.total / 1000).toFixed(1)}k` : turn.usage.total} tokens
-          {turn.usage.cacheRead ? ` (${Math.round((turn.usage.cacheRead / turn.usage.total) * 100)}% ${t("cached")})` : ""}
+          {turn.usage.cacheRead
+            ? ` (${Math.round(cacheHitRate(turn.usage) * 100)}% ${t("cached")})`
+            : ""}
         </span>
       ) : null}
       <span className="flex-1" />

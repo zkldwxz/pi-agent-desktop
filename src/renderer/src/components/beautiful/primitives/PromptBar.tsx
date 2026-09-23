@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createShader, playSweep, accentChain, ACCENTS } from "../atoms/glimm";
+import { t as tr, tf } from "../../../lib/i18n";
 
 /* The built-in "prism" palette is only cyan→indigo→magenta, so a sweep
  * reads as blue/purple. Build a true full-spectrum rainbow instead. */
@@ -159,11 +160,13 @@ export default function PromptBar({
   onAbort,
   prefill,
   onPrefillConsumed,
-  thinkingLevels,
-  thinkingLevel,
-  onSelectThinking,
   controls,
   controlsTrailing,
+  leadingAddon,
+  appendToken,
+  onDraftChange,
+  onPasteFiles,
+  sweepPalette = RAINBOW,
 }: {
   variant?: string;
   /** the self-running walkthrough; turn off when embedding in a real surface */
@@ -188,15 +191,27 @@ export default function PromptBar({
   /** host-driven text: a command palette / palette run drops text into the editor */
   prefill?: string;
   onPrefillConsumed?: () => void;
-  /** thinking depth for the current model — rendered inside the model menu */
-  thinkingLevels?: string[];
-  thinkingLevel?: string;
-  onSelectThinking?: (level: string) => void;
   /** host slot beside the input — this app puts the model and thinking controls here */
   controls?: ReactNode;
   /** host slot between the controls and dictation — this app puts the token
    *  ledger and context ring here (ambient, right side of the control row) */
   controlsTrailing?: ReactNode;
+  /** host slot beside the attach button — this app puts the Plan pill here */
+  leadingAddon?: ReactNode;
+  /** host-driven append: a nonce change appends the text to the current draft
+   *  (the prefill prop replaces; this one composes) and focuses the editor.
+   *  `mode: "replace"` swaps the whole draft instead of adding to it, which is
+   *  how a mode chip switches itself back off. */
+  appendToken?: { text: string; nonce: number; mode?: "append" | "replace" };
+  /** the draft on every keystroke — the host reads it to tell whether a slash
+   *  command is armed without owning the editor */
+  onDraftChange?: (text: string) => void;
+  /** host hook for pasted files (images). Return true when handled — the
+   *  default insert of file text is then suppressed. */
+  onPasteFiles?: (files: File[]) => boolean;
+  /** colours the celebrate sweep runs through. Defaults to the full spectrum;
+   *  the host passes an accent-only chain so the sweep matches the depth track. */
+  sweepPalette?: readonly string[];
 }) {
   const models = modelsProp && modelsProp.length ? modelsProp : MODELS;
   const commands = commandsProp && commandsProp.length ? commandsProp : COMMANDS;
@@ -291,7 +306,12 @@ export default function PromptBar({
 
   /* Build the shader with a pinned hue phase. createShader seeds its
    * internal hueShift from Math.random(), which made the sweep a different
-   * colour on every reload — pin it so the rainbow is identical each time. */
+   * colour on every reload — pin it so the band is identical each time. */
+  const paletteRef = useRef<readonly string[]>(sweepPalette);
+  useEffect(() => {
+    paletteRef.current = sweepPalette;
+  }, [sweepPalette]);
+
   const makeShader = () => {
     const canvas = glimmRef.current;
     if (!canvas) return null;
@@ -300,7 +320,7 @@ export default function PromptBar({
     try {
       return createShader({
         canvas,
-        palette: RAINBOW,
+        palette: paletteRef.current,
         direction: "ltr",
         bandTight: 10,
         swellAmount: 0.85,
@@ -333,12 +353,13 @@ export default function PromptBar({
     if (!shader) return;
     sweepingRef.current = true;
     const sweep = playSweep(shader, {
-      palette: RAINBOW,
+      palette: paletteRef.current,
       direction: "ltr",
-      // slower than the registry default: easeOutExpo front-loads the travel,
-      // so 570ms read as a flash you could miss
-      sweepMs: 950,
-      outroMs: 160,
+      // a third of a second slower than the version that replaced the registry
+      // default: easeOutExpo front-loads the travel, so anything under ~1.4s
+      // read as a flash rather than a sweep
+      sweepMs: 1425,
+      outroMs: 240,
       peakAlpha: 1.3,
       bandTight: 10,
       brightness: 1.4,
@@ -466,6 +487,24 @@ export default function PromptBar({
     onPrefillConsumed?.();
   }, [prefill, onPrefillConsumed]);
 
+  /* host-driven append — the Plan pill and friends compose with what is
+     already typed instead of replacing it */
+  useEffect(() => {
+    if (!appendToken) return;
+    if (!appendToken.text && appendToken.mode !== "replace") return;
+    setDraft((current) => {
+      if (appendToken.mode === "replace") return appendToken.text;
+      const needsSpace = current.length > 0 && !/\s$/.test(current);
+      return `${current}${needsSpace ? " " : ""}${appendToken.text}`;
+    });
+    setDismissed(false);
+    inputRef.current?.focus();
+  }, [appendToken]);
+
+  useEffect(() => {
+    onDraftChange?.(draft);
+  }, [draft, onDraftChange]);
+
   const send = () => {
     if (!canSend) return;
     onSend?.(draft.trim());
@@ -540,7 +579,7 @@ export default function PromptBar({
                       connected ? "text-green" : "text-accent-ink hover:underline"
                     }`}
                   >
-                    {connected ? "Connected" : "Connect"}
+                    {connected ? tr("Connected") : tr("Connect")}
                   </span>
                 )}
               </button>
@@ -548,11 +587,11 @@ export default function PromptBar({
           })}
           {rows.length === 0 && (
             <div className="flex h-9 items-center px-2 text-[12px] text-ink-3">
-              No matches for “{query}”
+              {tf("No matches for “{query}”", { query })}
             </div>
           )}
           <div className="mt-1 border-t border-line px-2 pt-1.5 pb-1 text-[11px] text-ink-3">
-            {menu === "at" ? "Type to search sources & files" : "Type to search commands"}
+            {menu === "at" ? tr("Type to search sources & files") : tr("Type to search commands")}
           </div>
         </div>
       )}
@@ -646,7 +685,7 @@ export default function PromptBar({
                 <span className="max-w-36 truncate">{file}</span>
                 <button
                   type="button"
-                  aria-label={`Remove ${file}`}
+                  aria-label={tf("Remove {name}", { name: file })}
                   onClick={() => setAttachments((current) => current.filter((_, j) => j !== i))}
                   className={`-my-1 flex size-6 items-center justify-center text-ink-3 transition-colors duration-100 hover:bg-line/70 hover:text-ink ${
                     pill ? "rounded-full" : "rounded-[5px]"
@@ -661,23 +700,26 @@ export default function PromptBar({
 
         <div
           ref={controlsRef}
-          className="grid items-end gap-x-1 gap-y-1.5 grid-cols-[28px_minmax(0,1fr)_auto_28px_28px]"
+          className="grid items-end gap-x-1 gap-y-1.5 grid-cols-[auto_minmax(0,1fr)_auto_28px_28px]"
         >
-          <button
-            type="button"
-            aria-label="Add attachments and sources"
-            aria-expanded={plusOpen}
-            onClick={() => {
-              setModelOpen(false);
-              setPlusOpen((current) => !current);
-              inputRef.current?.focus();
-            }}
-            className={`flex size-7 shrink-0 items-center justify-center justify-self-start text-ink-3 transition-[background-color,color,transform] duration-150 hover:bg-hover hover:text-ink active:scale-[0.94] ${
-              pill ? "rounded-full" : "rounded-[8px]"
-            } ${plusOpen ? "bg-hover text-ink" : ""} ${wide ? "col-start-1 row-start-2" : "col-start-1 row-start-1"}`}
-          >
-            <Icon size={16} strokeWidth={2}><path d="M12 5v14M5 12h14" /></Icon>
-          </button>
+          <div className={`flex items-center ${pill ? "gap-0.5" : "gap-1"} ${wide ? "col-start-1 row-start-2" : "col-start-1 row-start-1"}`}>
+            <button
+              type="button"
+              aria-label="Add attachments and sources"
+              aria-expanded={plusOpen}
+              onClick={() => {
+                setModelOpen(false);
+                setPlusOpen((current) => !current);
+                inputRef.current?.focus();
+              }}
+              className={`flex size-7 shrink-0 items-center justify-center text-ink-3 transition-[background-color,color,transform] duration-150 hover:bg-hover hover:text-ink active:scale-[0.94] ${
+                pill ? "rounded-full" : "rounded-[8px]"
+              } ${plusOpen ? "bg-hover text-ink" : ""}`}
+            >
+              <Icon size={16} strokeWidth={2}><path d="M12 5v14M5 12h14" /></Icon>
+            </button>
+            {leadingAddon}
+          </div>
 
           <textarea
             ref={inputRef}
@@ -687,6 +729,12 @@ export default function PromptBar({
               setDraft(event.target.value);
               setDismissed(false);
               setPlusOpen(false);
+            }}
+            onPaste={(event) => {
+              if (!onPasteFiles) return;
+              const files = Array.from(event.clipboardData?.files ?? []);
+              if (!files.length) return;
+              if (onPasteFiles(files)) event.preventDefault();
             }}
             onKeyDown={(event) => {
               if (menu && rows.length > 0) {
@@ -717,8 +765,8 @@ export default function PromptBar({
                 send();
               }
             }}
-            placeholder={listening ? "Listening…" : placeholder ?? "Write a message…"}
-            aria-label="Prompt"
+            placeholder={listening ? tr("Listening…") : placeholder ?? tr("Write a message…")}
+            aria-label={tr("Prompt")}
             className={`${tall ? "min-h-[46px] px-2 py-1.5 text-[13.5px] leading-5" : "min-h-7 px-1 py-[5px] text-[13px] leading-[18px]"} min-w-0 w-full resize-none bg-transparent text-ink outline-none [overflow-wrap:anywhere] placeholder:text-ink-3 ${
               wide ? "col-span-full col-start-1 row-start-1" : "col-start-2 row-start-1"
             }`}
@@ -752,7 +800,7 @@ export default function PromptBar({
           {/* dictation */}
           <button
             type="button"
-            aria-label={listening ? "Stop dictation" : "Start dictation"}
+            aria-label={listening ? tr("Stop dictation") : tr("Start dictation")}
             aria-pressed={listening}
             onClick={() => setListening((current) => !current)}
             className={`flex size-7 shrink-0 items-center justify-center transition-[background-color,color,transform] duration-150 active:scale-[0.94] ${
@@ -778,7 +826,7 @@ export default function PromptBar({
               is running it becomes a stop control. */}
           <button
             type="button"
-            aria-label={streaming ? "Stop" : "Send"}
+            aria-label={streaming ? tr("Stop") : tr("Send")}
             disabled={streaming ? false : !canSend}
             onClick={streaming ? () => onAbort?.() : send}
             className={`flex size-7 shrink-0 items-center justify-center transition-[background-color,color,transform] duration-200 enabled:active:scale-[0.94] ${

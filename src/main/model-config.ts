@@ -95,11 +95,25 @@ export function writeModelEdit(edit: ModelEdit): { providers: string[] } {
   return { providers: [edit.provider] };
 }
 
+/**
+ * Drop a model from models.json.
+ *
+ * The provider entry has to stay composable: pi's `applyModelsJson` rejects an
+ * entry that names no `models`, no `baseUrl`, no `headers`, no `compat`, no
+ * `modelOverrides`, no key and no `oauth` — so removing the last model removes
+ * the `models` field itself, and an entry left with nothing else goes with it.
+ * Without this, deleting the only model of a hand-written channel would break
+ * the whole file on the next read.
+ */
 export function removeModelFromFile(providerId: string, modelId: string): void {
   const file = readModelsFile();
   const provider = file.providers?.[providerId];
   if (!provider?.models) return;
   provider.models = provider.models.filter((model) => model.id !== modelId);
+  if (!provider.models.length) {
+    delete provider.models;
+    if (!Object.keys(provider).length) delete file.providers?.[providerId];
+  }
   writeModelsFile(file);
 }
 

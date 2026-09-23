@@ -5,6 +5,7 @@ import { cn } from "../../lib/cn";
 import { GlideList, stagger } from "../motion";
 import { Popover } from "../motion";
 import {
+  ArchiveIcon,
   ChevronDownIcon,
   FolderIcon,
   FolderOpenIcon,
@@ -119,6 +120,54 @@ export function groupSessions(sessions: SessionListItem[], prefs: WorkspacePrefs
     .filter((workspace) => workspace.sessions.length > 0);
 }
 
+import type { AppOpener } from "@shared/workspace";
+
+/**
+ * "Open with" for a folder — the applications the OS has registered, exactly
+ * like the file viewer's menu: the file manager to reveal it, plus every IDE
+ * and editor the machine actually has. Nothing is hard-coded.
+ */
+/**
+ * Open a folder straight away — in whatever the user last picked (the
+ * titlebar's split button remembers), defaulting to the file manager. The
+ * opener *menu* lives on the titlebar control; rows here are one click.
+ */
+function openFolderDirect(path: string) {
+  let last: string | null = null;
+  try {
+    last = localStorage.getItem("pi-last-folder-opener") || null;
+  } catch {}
+  if (last && last !== "reveal") {
+    void window.pi.openWith(path, last).catch(() => void window.pi.revealFile(path));
+    return;
+  }
+  void window.pi.revealFile(path);
+}
+
+function FolderOpenButton({ path, className }: { path?: string; className?: string }) {
+  const wrapper = useRef<HTMLDivElement>(null);
+
+  if (!path) return null;
+
+  return (
+    <div ref={wrapper} className={cn("relative shrink-0", className)}>
+      <button
+        type="button"
+        aria-expanded={false}
+        aria-label={t("Open folder")}
+        title={t("Open folder")}
+        onClick={(event) => {
+          event.stopPropagation();
+          openFolderDirect(path);
+        }}
+        className="pressable flex size-5.5 items-center justify-center rounded-[5px] text-ink-3 hover:bg-hover hover:text-ink"
+      >
+        <FolderOpenIcon size={11} />
+      </button>
+    </div>
+  );
+}
+
 function StatusGlyph({ status }: { status: SessionListItem["status"] }) {
   if (status === "running") return <LoaderIcon size={12} className="spin-fast text-accent" />;
   if (status === "failed") return <span className="size-[7px] rounded-full bg-red" />;
@@ -176,8 +225,8 @@ export function WorkspaceList({
   onRename,
   onAddFolder,
   onNewInWorkspace,
-  /** the sidebar's collapse toggle, drawn inside this header row */
-  collapseControl,
+  /** the folder the session is currently bound to — the header's open-with target */
+  cwd,
 }: {
   sessions: SessionListItem[];
   prefs: WorkspacePrefs;
@@ -190,7 +239,7 @@ export function WorkspaceList({
   onRename: (key: string, label: string) => void;
   onAddFolder: () => void;
   onNewInWorkspace?: (cwd: string) => void;
-  collapseControl?: React.ReactNode;
+  cwd?: string;
 }) {
   // collapsed by default: an empty map means every workspace starts closed
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -218,6 +267,26 @@ export function WorkspaceList({
     }
   });
   const [showArchived, setShowArchived] = useState(false);
+
+  /* Archived sessions — hidden from every workspace list; the marker persists
+   * so a rescan does not resurrect them */
+  const [archivedSessions, setArchivedSessions] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem("pi-session-archived");
+      return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+    } catch {
+      return {};
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("pi-session-archived", JSON.stringify(archivedSessions));
+    } catch {}
+  }, [archivedSessions]);
+
+  const archiveSession = (path: string) => {
+    setArchivedSessions((current) => ({ ...current, [path]: true }));
+  };
 
   /* The conversation you just picked. The host takes a round trip to switch the
    * session, so the row answers the click itself: it highlights immediately and
@@ -314,7 +383,7 @@ export function WorkspaceList({
 
   const renderWorkspace = (workspace: Workspace, groupIndex: number, isArchived = false) => {
     const isOpen = Boolean(open[workspace.key]);
-    const sorted = workspace.sessions;
+    const sorted = workspace.sessions.filter((session) => !archivedSessions[session.path]);
     const limit = prefs.show === 0 ? sorted.length : prefs.show;
     const isExpanded = Boolean(expanded[workspace.key]);
     const visible = isExpanded ? sorted : sorted.slice(0, limit);
@@ -358,6 +427,12 @@ export function WorkspaceList({
             {running ? <StatusGlyph status="running" /> : null}
             <span className="shrink-0 text-[10.5px] text-ink-3 tabular-nums">{sorted.length}</span>
           </button>
+          {/* hover affordances on the workspace row: open the folder itself
+              (with an opener menu), then start a chat inside it */}
+          <FolderOpenButton
+            path={workspace.path || workspace.key}
+            className="opacity-0 group-hover/ws:opacity-100"
+          />
           <button
             type="button"
             title={t("New chat in this workspace")}
@@ -410,41 +485,58 @@ export function WorkspaceList({
                   const isUnread = Date.parse(session.modified) > (readAt[session.path] ?? 0);
                   const active = session.path === activePath || session.path === picked;
                   return (
-                    <button
-                      key={session.path}
-                      data-row
-                      data-picked={session.path === picked ? "true" : undefined}
-                      ref={(element) => {
-                        if (element) rowRefs.current.set(session.path, element);
-                        else rowRefs.current.delete(session.path);
-                      }}
-                      type="button"
-                      onClick={() => choose(session.path)}
-                      style={stagger(index)}
-                      className={cn(
-                        "glide-row pressable flex w-full items-center gap-2 rounded-[6px] py-1.5 pr-2 pl-[24px] text-left outline-none",
-                        "focus-visible:bg-surface focus-visible:shadow-hairline",
-                        active && "row-picked bg-surface shadow-hairline",
-                      )}
-                    >
-                      {/* the unread dot lives on the message it belongs to —
-                          and the slot is permanent, so the titles of read and
-                          unread rows stay on the same vertical line */}
-                      <span className="flex size-1.5 shrink-0 items-center justify-center">
-                        {isUnread ? <span className="size-1.5 rounded-full bg-accent" /> : null}
-                      </span>
-                      <span
+                    /* the archive affordance overlays the row's right edge, so
+                       the row and its hover action share one wrapper */
+                    <div key={session.path} className="group/srow relative">
+                      <button
+                        data-row
+                        data-picked={session.path === picked ? "true" : undefined}
+                        ref={(element) => {
+                          if (element) rowRefs.current.set(session.path, element);
+                          else rowRefs.current.delete(session.path);
+                        }}
+                        type="button"
+                        onClick={() => choose(session.path)}
+                        style={stagger(index)}
                         className={cn(
-                          "min-w-0 flex-1 truncate text-[13px]",
-                          active ? "font-medium text-ink" : isUnread ? "text-ink" : "text-ink-2",
+                          "glide-row pressable flex w-full items-center gap-2 rounded-[6px] py-1.5 pr-2 pl-[24px] text-left outline-none",
+                          "focus-visible:bg-surface focus-visible:shadow-hairline",
+                          active && "row-picked bg-surface shadow-hairline",
                         )}
                       >
-                        {session.name || session.firstMessage || "New session"}
-                      </span>
-                      <span className="shrink-0 font-mono text-[10px] text-ink-3 tabular-nums">
-                        {relativeTime(session.modified)}
-                      </span>
-                    </button>
+                        {/* the unread dot lives on the message it belongs to —
+                            and the slot is permanent, so the titles of read and
+                            unread rows stay on the same vertical line */}
+                        <span className="flex size-1.5 shrink-0 items-center justify-center">
+                          {isUnread ? <span className="size-1.5 rounded-full bg-accent" /> : null}
+                        </span>
+                        <span
+                          className={cn(
+                            "min-w-0 flex-1 truncate text-[13px]",
+                            active ? "font-medium text-ink" : isUnread ? "text-ink" : "text-ink-2",
+                          )}
+                        >
+                          {session.name || session.firstMessage || "New session"}
+                        </span>
+                        <span className="shrink-0 font-mono text-[10px] text-ink-3 tabular-nums group-hover/srow:opacity-0">
+                          {relativeTime(session.modified)}
+                        </span>
+                      </button>
+                      {/* hover archive: sits where the timestamp was, so the
+                          row never reflows */}
+                      <button
+                        type="button"
+                        title={t("Archive session")}
+                        aria-label={t("Archive session")}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          archiveSession(session.path);
+                        }}
+                        className="pressable absolute top-1/2 right-1 flex size-5.5 -translate-y-1/2 items-center justify-center rounded-[5px] text-ink-3 opacity-0 hover:bg-hover hover:text-ink group-hover/srow:opacity-100"
+                      >
+                        <ArchiveIcon size={12} />
+                      </button>
+                    </div>
                   );
                 })}
                 {hidden > 0 ? (
@@ -477,13 +569,12 @@ export function WorkspaceList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* header — the filter menu from the reference, and nothing else.
-          The chat search that used to grow out of the magnifier here was a
-          registry demo: the command palette (Ctrl K) is the real search. */}
+      {/* header — the workspace's own controls: the filter menu, then the
+          folder opener on its right. The pane's collapse toggle lives at the
+          very top of the sidebar, above New Agent, not here. */}
       <div className="flex items-center gap-1 px-2.5 pb-1">
         <span className="text-[11px] tracking-[0.3px] text-ink-3">{t("Workspaces")}</span>
         <span className="flex-1" />
-        {collapseControl}
         <div className="relative">
           <button
             type="button"
@@ -552,6 +643,9 @@ export function WorkspaceList({
             </GlideList>
           </Popover>
         </div>
+        {/* the session's own folder, opened with whatever the machine has —
+            the file manager, an IDE, the default handler */}
+        <FolderOpenButton path={cwd} />
       </div>
 
       <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 pb-1">
@@ -577,15 +671,6 @@ export function WorkspaceList({
             ) : null}
           </div>
         ) : null}
-
-        <button
-          type="button"
-          onClick={onAddFolder}
-          className="pressable mt-2 flex w-full items-center gap-1.5 rounded-[6px] px-2 py-1.5 text-[11.5px] text-ink-3 hover:bg-hover hover:text-ink-2"
-        >
-          <FolderOpenIcon size={11} />
-          {t("Open another folder")}
-        </button>
       </div>
 
       {contextMenu && typeof document !== "undefined"

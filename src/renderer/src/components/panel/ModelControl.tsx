@@ -2,8 +2,10 @@ import { useMemo } from "react";
 import type { HostState } from "@shared/types";
 import { cn } from "../../lib/cn";
 import { GlideList } from "../motion";
+import { ThinkingTrack, ThinkingTrackEnds } from "../ThinkingTrack";
 import { BrainIcon, GlobeIcon, LayersIcon } from "../icons";
 import { pressureFor } from "../../lib/context-pressure";
+import { t, tf } from "../../lib/i18n";
 
 /** A ring painted in the pressure band's colour, with the percentage inside. */
 function ContextRing({ percent, size = 34 }: { percent: number | null; size?: number }) {
@@ -17,7 +19,7 @@ function ContextRing({ percent, size = 34 }: { percent: number | null; size?: nu
     <span
       className="relative inline-flex shrink-0 items-center justify-center"
       style={{ width: size, height: size }}
-      title={percent === null ? "Context usage unknown" : `Context ${percent}% — ${label}`}
+      title={percent === null ? t("Context usage unknown") : tf("Context {percent}% — {pressure}", { percent, pressure: t(label) })}
     >
       <svg width={size} height={size} className="absolute inset-0 -rotate-90">
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--line)" strokeWidth={stroke} />
@@ -66,7 +68,6 @@ export function ModelControl({
   const current = state.snapshot?.model;
   const levels = state.snapshot?.thinkingLevels ?? ["off"];
   const level = state.snapshot?.thinkingLevel ?? "off";
-  const index = Math.max(0, levels.indexOf(level));
   const contextPercent = state.snapshot?.stats?.contextUsage?.percent ?? null;
 
   const grouped = useMemo(() => {
@@ -81,16 +82,16 @@ export function ModelControl({
 
   return (
     <div className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-1.5">
-      <div className="px-1 pb-1 text-[10.5px] tracking-[0.4px] text-ink-3">MODEL</div>
+      <div className="px-1 pb-1 text-[10.5px] tracking-[0.4px] text-ink-3">{t("MODEL")}</div>
 
       {/* context ring · medium gap · the model it belongs to */}
       <div className="mb-2 flex items-center gap-3 rounded-[7px] bg-surface px-2.5 py-2 shadow-hairline">
         <ContextRing percent={contextPercent} />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[12px] font-medium text-ink">{current?.name ?? "No model"}</span>
+          <span className="block truncate text-[12px] font-medium text-ink">{current?.name ?? t("No model")}</span>
           <span className="block truncate font-mono text-[10px] text-ink-3">
             {current
-              ? `${current.provider} · ${Math.round(current.contextWindow / 1000)}K ctx`
+              ? tf("{provider} · {size}K ctx", { provider: current.provider, size: Math.round(current.contextWindow / 1000) })
               : "—"}
           </span>
         </span>
@@ -98,58 +99,18 @@ export function ModelControl({
 
       <div className="mb-1 flex items-center gap-1.5 px-1">
         <BrainIcon size={11} className="text-ink-3" />
-        <span className="text-[10.5px] tracking-[0.4px] text-ink-3">THINKING</span>
+        <span className="text-[10.5px] tracking-[0.4px] text-ink-3">{t("THINKING")}</span>
         <span className="flex-1" />
-        <span className="font-mono text-[10.5px] text-ink-2">{level}</span>
+        <span className="font-mono text-[10.5px] text-ink-2">{t(level)}</span>
       </div>
 
       {levels.length > 1 ? (
-        <div className="mb-3 px-1.5 pt-1 pb-2">
-          <div className="relative h-1.5 rounded-full bg-field">
-            <div
-              className="absolute inset-y-0 left-0 rounded-full bg-accent"
-              style={{
-                width: `${(index / (levels.length - 1)) * 100}%`,
-                transition: "width 320ms cubic-bezier(0.23,1,0.32,1)",
-              }}
-            />
-            {levels.map((entry, position) => {
-              const reached = position <= index;
-              return (
-                <button
-                  key={entry}
-                  type="button"
-                  title={entry}
-                  aria-label={`Thinking depth ${entry}`}
-                  onClick={() => {
-                    onSetThinking(entry);
-                    // max is the one setting that changes the character of a run
-                    if (entry === "max") window.dispatchEvent(new CustomEvent("pi:celebrate"));
-                  }}
-                  className="group/step absolute top-1/2 flex size-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
-                  style={{ left: `${(position / (levels.length - 1)) * 100}%` }}
-                >
-                  <span
-                    className={cn(
-                      "rounded-full transition-[width,height,background-color] duration-200",
-                      position === index
-                        ? "size-3 bg-ink shadow-[0_0_0_2px_var(--surface)]"
-                        : reached
-                          ? "size-2 bg-accent group-hover/step:size-2.5"
-                          : "size-1.5 bg-line-strong group-hover/step:size-2.5 group-hover/step:bg-ink-3",
-                    )}
-                  />
-                </button>
-              );
-            })}
-          </div>
-          <div className="mt-2 flex justify-between">
-            <span className="font-mono text-[9.5px] text-ink-3">{levels[0]}</span>
-            <span className="font-mono text-[9.5px] text-ink-3">{levels.at(-1)}</span>
-          </div>
+        <div className="mb-3 px-2 pt-2 pb-2">
+          <ThinkingTrack levels={levels} value={level} onPick={onSetThinking} />
+          <ThinkingTrackEnds levels={levels} />
         </div>
       ) : (
-        <div className="mb-3 px-1.5 text-[11px] text-ink-3">This model does not expose thinking levels.</div>
+        <div className="mb-3 px-1.5 text-[11px] text-ink-3">{t("This model does not expose thinking levels.")}</div>
       )}
 
       {grouped.map(([provider, models]) => (

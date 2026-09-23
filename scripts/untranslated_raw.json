@@ -1,0 +1,779 @@
+[
+  {
+    "text": "The run finished.",
+    "files": [
+      "App.tsx"
+    ]
+  },
+  {
+    "text": "= 0.7 && val",
+    "files": [
+      "App.tsx"
+    ]
+  },
+  {
+    "text": "Customize",
+    "files": [
+      "components/agent/AgentSidebar.tsx",
+      "views/CustomizeView.tsx"
+    ]
+  },
+  {
+    "text": "Sessions",
+    "files": [
+      "components/agent/AgentSidebar.tsx"
+    ]
+  },
+  {
+    "text": "Thought for {duration}",
+    "files": [
+      "components/agent/AgentTrace.tsx"
+    ]
+  },
+  {
+    "text": "Thought briefly",
+    "files": [
+      "components/agent/AgentTrace.tsx"
+    ]
+  },
+  {
+    "text": "Thinking",
+    "files": [
+      "components/agent/AgentTrace.tsx",
+      "components/MessageThread.tsx"
+    ]
+  },
+  {
+    "text": "needs a decision",
+    "files": [
+      "components/agent/ApprovalPrompt.tsx"
+    ]
+  },
+  {
+    "text": "Dismiss",
+    "files": [
+      "components/agent/ApprovalPrompt.tsx"
+    ]
+  },
+  {
+    "text": "= band.from && rate",
+    "files": [
+      "components/agent/CacheRing.tsx"
+    ]
+  },
+  {
+    "text": "pinned · Esc",
+    "files": [
+      "components/agent/CacheRing.tsx",
+      "components/panel/ContextBadge.tsx"
+    ]
+  },
+  {
+    "text": "Command palette",
+    "files": [
+      "components/agent/CommandPalette.tsx"
+    ]
+  },
+  {
+    "text": "soon",
+    "files": [
+      "components/agent/FolderPicker.tsx"
+    ]
+  },
+  {
+    "text": "This model does not expose thinking levels.",
+    "files": [
+      "components/agent/ModelThinkingControl.tsx",
+      "components/panel/ModelControl.tsx",
+      "components/panel/ModelMenu.tsx"
+    ]
+  },
+  {
+    "text": "Waiting for the session…",
+    "files": [
+      "components/agent/ModelThinkingControl.tsx"
+    ]
+  },
+  {
+    "text": "next message will",
+    "files": [
+      "components/agent/QueueBar.tsx"
+    ]
+  },
+  {
+    "text": "Clear the queue and put the text back in the editor",
+    "files": [
+      "components/agent/QueueBar.tsx"
+    ]
+  },
+  {
+    "text": "Remove from queue",
+    "files": [
+      "components/agent/QueueBar.tsx"
+    ]
+  },
+  {
+    "text": "lower && age",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "text": "default",
+    "files": [
+      "components/agent/WorkspaceList.tsx",
+      "components/panel/FileViewer.tsx",
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "Back",
+    "files": [
+      "components/browser/BrowserPanel.tsx",
+      "views/CustomizeView.tsx",
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "Forward",
+    "files": [
+      "components/browser/BrowserPanel.tsx"
+    ]
+  },
+  {
+    "text": "Enter a URL, or ask Pi to open one",
+    "files": [
+      "components/browser/BrowserPanel.tsx"
+    ]
+  },
+  {
+    "text": "Clear selection",
+    "files": [
+      "components/browser/BrowserPanel.tsx"
+    ]
+  },
+  {
+    "text": "Design mode (Shift+Ctrl+D) — pick an element and hand it to the agent",
+    "files": [
+      "components/browser/BrowserPanel.tsx"
+    ]
+  },
+  {
+    "text": "Color",
+    "files": [
+      "components/panel/AppearanceSection.tsx"
+    ]
+  },
+  {
+    "text": "applies to the whole window",
+    "files": [
+      "components/panel/AppearanceSection.tsx"
+    ]
+  },
+  {
+    "text": "Nothing to draw yet.",
+    "files": [
+      "components/panel/CanvasPanel.tsx"
+    ]
+  },
+  {
+    "text": "A session becomes a graph here as the agent works.",
+    "files": [
+      "components/panel/CanvasPanel.tsx"
+    ]
+  },
+  {
+    "text": "jump →",
+    "files": [
+      "components/panel/CanvasPanel.tsx"
+    ]
+  },
+  {
+    "text": "Pick a card for its tools and files.",
+    "files": [
+      "components/panel/CanvasPanel.tsx"
+    ]
+  },
+  {
+    "text": "Files the agent writes with edit or write will be listed here.",
+    "files": [
+      "components/panel/ChangesPanel.tsx"
+    ]
+  },
+  {
+    "text": "No diff was recorded.",
+    "files": [
+      "components/panel/ChangesPanel.tsx"
+    ]
+  },
+  {
+    "text": "Looking up registered apps…",
+    "files": [
+      "components/panel/FileViewer.tsx"
+    ]
+  },
+  {
+    "text": "Close file",
+    "files": [
+      "components/panel/FileViewer.tsx"
+    ]
+  },
+  {
+    "text": "Context window",
+    "files": [
+      "components/panel/ModelMenu.tsx"
+    ]
+  },
+  {
+    "text": "Model, thinking depth and context",
+    "files": [
+      "components/panel/ModelMenu.tsx"
+    ]
+  },
+  {
+    "text": "Runs through the agent's own bash tool.",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ]
+  },
+  {
+    "text": "git status",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ]
+  },
+  {
+    "text": "or",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ]
+  },
+  {
+    "text": "ls -la",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ]
+  },
+  {
+    "text": "No terminal in this folder.",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ]
+  },
+  {
+    "text": "Run command",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ]
+  },
+  {
+    "text": "New terminal",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ]
+  },
+  {
+    "text": "New terminal in this folder",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ]
+  },
+  {
+    "text": "Terminal — a real shell in this folder",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ]
+  },
+  {
+    "text": "Agent shell",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ]
+  },
+  {
+    "text": "Agent shell — output is recorded in the conversation",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ]
+  },
+  {
+    "text": "todo_write",
+    "files": [
+      "components/panel/TodoPanel.tsx"
+    ]
+  },
+  {
+    "text": "This session",
+    "files": [
+      "components/panel/TodoPanel.tsx"
+    ]
+  },
+  {
+    "text": "No tasks yet",
+    "files": [
+      "components/panel/TodoPanel.tsx"
+    ]
+  },
+  {
+    "text": "Pi Agent",
+    "files": [
+      "components/TitleBar.tsx"
+    ]
+  },
+  {
+    "text": ".md",
+    "files": [
+      "views/CustomizeView.tsx"
+    ]
+  },
+  {
+    "text": "~/.pi/agent/prompts/",
+    "files": [
+      "views/CustomizeView.tsx"
+    ]
+  },
+  {
+    "text": "browser off",
+    "files": [
+      "views/ExtensionFlow.tsx"
+    ]
+  },
+  {
+    "text": "task list off",
+    "files": [
+      "views/ExtensionFlow.tsx"
+    ]
+  },
+  {
+    "text": "Channels",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "Provider",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "API",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "Models",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "Auth",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "Source",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "Reasoning model",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "enables thinking levels",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "Thinking level map",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "— unsupported",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "~/.pi/agent/models.json",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "Filter",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "Reload models.json",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "Add a model to models.json",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "No authenticated models",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "No models match",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "anthropic",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "claude-sonnet-4-5",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "text": "extensions.disabled/",
+    "files": [
+      "views/PluginsView.tsx"
+    ]
+  },
+  {
+    "text": "~/.pi/agent/trash/",
+    "files": [
+      "views/PluginsView.tsx"
+    ]
+  },
+  {
+    "text": "Filter by name, description or path",
+    "files": [
+      "views/PluginsView.tsx"
+    ]
+  },
+  {
+    "text": "Reveal in explorer",
+    "files": [
+      "views/PluginsView.tsx"
+    ]
+  },
+  {
+    "text": "Delete",
+    "files": [
+      "views/PluginsView.tsx"
+    ]
+  },
+  {
+    "text": "session.executeBash",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "persist:pi-browser",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "click to select · drag to draw",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "openDevTools(right)",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "browser_*",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "pi.appendEntry",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "Clear search",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "Shell",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "Shell path",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "D:/Git/bin/bash.exe",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "Command prefix",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "shopt -s expand_aliases",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "npm command",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "npm",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "Panel",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "Embedded browser",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "DevTools",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "Agent tools",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "Agent task list",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "Persistence",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "text": "Not enough data yet.",
+    "files": [
+      "views/usage-insights.tsx"
+    ]
+  },
+  {
+    "text": "No model usage in this slice.",
+    "files": [
+      "views/usage-insights.tsx"
+    ]
+  },
+  {
+    "text": ", max: 1, months: [] as Array",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "Selected slice",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "Activity",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "click a day or an hour to inspect that slice",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "Top models in slice",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "No calls in this slice.",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "Cache share by channel",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "Cache by channel",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "each provider/model pair is counted separately",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "Channel",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "Model",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "Calls",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "Cache read",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "Cache write",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "Fresh input",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "Hit rate",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "Usage",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "Rescan sessions",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "Reading local session logs",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "No usage data",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "text": "Set up Pi Agent Desktop",
+    "files": [
+      "views/WelcomeView.tsx"
+    ]
+  },
+  {
+    "text": "~/.pi/agent/skills/",
+    "files": [
+      "views/WelcomeView.tsx"
+    ]
+  },
+  {
+    "text": "Settings → Plugins to change this later",
+    "files": [
+      "views/WelcomeView.tsx"
+    ]
+  },
+  {
+    "text": "Installed",
+    "files": [
+      "views/WelcomeView.tsx"
+    ]
+  },
+  {
+    "text": "Built in",
+    "files": [
+      "views/WelcomeView.tsx"
+    ]
+  },
+  {
+    "text": "Capabilities",
+    "files": [
+      "views/WelcomeView.tsx"
+    ]
+  },
+  {
+    "text": "Skills",
+    "files": [
+      "views/WelcomeView.tsx"
+    ]
+  }
+]

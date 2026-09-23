@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
+import { cacheHitRate } from "@shared/cache-usage";
 import type { UsageBucket, UsageStats } from "@shared/types";
 import { formatContext } from "../lib/format";
 import { cn } from "../lib/cn";
+import { t, tf } from "../lib/i18n";
 import {
   BrainIcon,
   ChartBarIcon,
@@ -51,8 +53,7 @@ function aggregate(buckets: UsageBucket[]): Aggregate {
     out.total += bucket.total;
     out.cost += bucket.cost;
   }
-  const fresh = out.input + out.cacheRead;
-  out.hitRate = fresh > 0 ? out.cacheRead / fresh : 0;
+  out.hitRate = cacheHitRate(out);
   return out;
 }
 
@@ -172,10 +173,7 @@ export function UsageView({
       row.cost += bucket.cost;
       map.set(key, row);
     }
-    const rows = [...map.values()].map((row) => {
-      const fresh = row.input + row.cacheRead;
-      return { ...row, hitRate: fresh > 0 ? row.cacheRead / fresh : 0 };
-    });
+    const rows = [...map.values()].map((row) => ({ ...row, hitRate: cacheHitRate(row) }));
     return rows.sort((a, b) => b.total - a.total);
   }, [filtered]);
 
@@ -206,10 +204,7 @@ export function UsageView({
       map.set(bucket.provider, row);
     }
     return [...map.values()]
-      .map((row) => {
-        const fresh = row.input + row.cacheRead;
-        return { ...row, hitRate: fresh > 0 ? row.cacheRead / fresh : 0 };
-      })
+      .map((row) => ({ ...row, hitRate: cacheHitRate(row) }))
       .sort((a, b) => b.total - a.total);
   }, [filtered]);
 
@@ -281,7 +276,7 @@ export function UsageView({
         {actions}
       </div>
     ) : (
-      <ViewHeader title="Usage" subtitle={subtitle} actions={actions} />
+      <ViewHeader title={t("Usage")} subtitle={subtitle} actions={actions} />
     );
 
   const rangePicker = (
@@ -302,13 +297,13 @@ export function UsageView({
               range === value ? "text-ink" : "text-ink-2 hover:text-ink",
             )}
           >
-            {value === 0 ? "All" : `${value}d`}
+            {value === 0 ? t("All") : `${value}d`}
           </button>
         ))}
       </SlidingGroup>
-      <Chip onClick={onRefresh} title="Rescan sessions">
+      <Chip onClick={onRefresh} title={t("Rescan sessions")}>
         <RefreshIcon size={12} />
-        Rescan
+        {t("Rescan")}
       </Chip>
     </div>
   );
@@ -316,7 +311,7 @@ export function UsageView({
   if (loading && !stats) {
     return (
       <>
-        <Header subtitle="Reading local session logs" actions={rangePicker} />
+        <Header subtitle={t("Reading local session logs")} actions={rangePicker} />
         <div className="grid grid-cols-4 gap-3">
           {Array.from({ length: 8 }).map((_, index) => (
             <Skeleton key={index} className="h-[68px]" />
@@ -331,7 +326,10 @@ export function UsageView({
     return (
       <>
         <Header actions={rangePicker} />
-        <EmptyState title="No usage data" body="Start a conversation and token usage will show up here." />
+        <EmptyState
+          title={t("No usage data")}
+          body={t("Start a conversation and token usage will show up here.")}
+        />
       </>
     );
   }
@@ -342,7 +340,11 @@ export function UsageView({
   return (
     <>
       <Header
-        subtitle={`${stats.scannedFiles} session files · ${stats.sessionCount} sessions · ${stats.messageCount} assistant messages`}
+        subtitle={tf("{count} session files · {sessions} sessions · {messages} assistant messages", {
+          count: stats.scannedFiles,
+          sessions: stats.sessionCount,
+          messages: stats.messageCount,
+        })}
         actions={rangePicker}
       />
       <div className="flex flex-col gap-3">
@@ -366,7 +368,7 @@ export function UsageView({
                   tab === key ? "bg-field font-medium text-ink" : "text-ink-2 hover:text-ink",
                 )}
               >
-                {label}
+                {t(label)}
               </button>
             ))}
             <span className="flex-1" />
@@ -380,7 +382,7 @@ export function UsageView({
               >
                 <ClockIcon size={12} />
                 {drillDate ? dayLabel(drillDate) : ""}
-                {drillHour !== null ? ` ${hourLabel(drillHour)}` : ""} · clear
+                {drillHour !== null ? ` ${hourLabel(drillHour)}` : ""} · {t("clear")}
               </Chip>
             ) : null}
           </div>
@@ -390,13 +392,13 @@ export function UsageView({
               className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-card bg-accent-tint px-3 py-2 text-[12px] text-ink"
               style={{ animation: "pop-in 220ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "top left" }}
             >
-              <span className="font-medium">Selected slice</span>
-              <span className="tabular-nums">{selection.calls} calls</span>
-              <span className="tabular-nums">{compact(selection.total)} tokens</span>
-              <span className="tabular-nums">cache hit {percent(selection.hitRate)}</span>
-              <span className="tabular-nums">in {compact(selection.input)}</span>
-              <span className="tabular-nums">out {compact(selection.output)}</span>
-              <span className="tabular-nums">cache read {compact(selection.cacheRead)}</span>
+              <span className="font-medium">{t("Selected slice")}</span>
+              <span className="tabular-nums">{selection.calls} {t("calls")}</span>
+              <span className="tabular-nums">{compact(selection.total)} {t("tokens")}</span>
+              <span className="tabular-nums">{t("cache hit")} {percent(selection.hitRate)}</span>
+              <span className="tabular-nums">{t("in")} {compact(selection.input)}</span>
+              <span className="tabular-nums">{t("out")} {compact(selection.output)}</span>
+              <span className="tabular-nums">{t("cache read")} {compact(selection.cacheRead)}</span>
               {selection.cost > 0 ? <span className="tabular-nums">${selection.cost.toFixed(4)}</span> : null}
             </div>
           ) : null}
@@ -404,28 +406,28 @@ export function UsageView({
           {tab === "overview" ? (
             <div key="overview" className="view-enter flex flex-col gap-3">
               <div className="grid grid-cols-4 gap-3">
-                <StatCard index={0} label="Sessions" value={kpis.sessions} icon={<DatabaseIcon size={12} />} hint={`${stats.scannedFiles} files scanned`} />
-                <StatCard index={1} label="Messages" value={kpis.messages.toLocaleString()} icon={<MessageIcon size={12} />} hint={`${selection.calls} calls in slice`} />
+                <StatCard index={0} label={t("Sessions")} value={kpis.sessions} icon={<DatabaseIcon size={12} />} hint={`${stats.scannedFiles} ${t("files scanned")}`} />
+                <StatCard index={1} label={t("Messages")} value={kpis.messages.toLocaleString()} icon={<MessageIcon size={12} />} hint={`${selection.calls} ${t("calls in slice")}`} />
                 <StatCard
                   index={2}
-                  label="Total tokens"
+                  label={t("Total tokens")}
                   value={compact(stats.totals.total)}
                   icon={<ChartBarIcon size={12} />}
-                  hint={`${formatContext(stats.totals.input)} in · ${formatContext(stats.totals.output)} out`}
+                  hint={`${formatContext(stats.totals.input)} ${t("in")} · ${formatContext(stats.totals.output)} ${t("out")}`}
                 />
-                <StatCard index={3} label="Active days" value={kpis.activeDays} icon={<ClockIcon size={12} />} hint={`${kpis.currentStreak}d streak`} />
-                <StatCard index={4} label="Current streak" value={`${kpis.currentStreak}d`} icon={<FlameIcon size={12} />} hint={`longest ${kpis.longestStreak}d`} />
-                <StatCard index={5} label="Longest streak" value={`${kpis.longestStreak}d`} icon={<FlameIcon size={12} />} />
+                <StatCard index={3} label={t("Active days")} value={kpis.activeDays} icon={<ClockIcon size={12} />} hint={`${kpis.currentStreak}d ${t("streak")}`} />
+                <StatCard index={4} label={t("Current streak")} value={`${kpis.currentStreak}d`} icon={<FlameIcon size={12} />} hint={`${t("longest")} ${kpis.longestStreak}d`} />
+                <StatCard index={5} label={t("Longest streak")} value={`${kpis.longestStreak}d`} icon={<FlameIcon size={12} />} />
                 <StatCard
                   index={6}
-                  label="Peak hour"
+                  label={t("Peak hour")}
                   value={kpis.peakHour !== null ? hourLabel(kpis.peakHour) : "—"}
                   icon={<ClockIcon size={12} />}
-                  hint={kpis.peakHour !== null ? `${compact(stats.hours[kpis.peakHour])} tokens` : undefined}
+                  hint={kpis.peakHour !== null ? `${compact(stats.hours[kpis.peakHour])} ${t("tokens")}` : undefined}
                 />
                 <StatCard
                   index={7}
-                  label="Favorite model"
+                  label={t("Favorite model")}
                   value={kpis.favoriteModel ? kpis.favoriteModel.split("/").at(-1) : "—"}
                   icon={<BrainIcon size={12} />}
                   hint={kpis.favoriteModel?.split("/")[0]}
@@ -434,21 +436,21 @@ export function UsageView({
 
               <Card index={8} className="flex flex-col gap-3 p-3">
                 <div className="flex items-center gap-2">
-                  <div className="text-[12.5px] font-medium text-ink">Activity</div>
-                  <div className="text-[11.5px] text-ink-3">click a day or an hour to inspect that slice</div>
+                  <div className="text-[12.5px] font-medium text-ink">{t("Activity")}</div>
+                  <div className="text-[11.5px] text-ink-3">{t("click a day or an hour to inspect that slice")}</div>
                   <span className="flex-1" />
                   <div className="flex items-center gap-1 text-[10.5px] text-ink-3">
-                    less
+                    {t("less")}
                     {LEVEL_BG.map((bg, index) => (
                       <span key={index} className={cn("size-2.5 rounded-[2px]", bg)} />
                     ))}
-                    more
+                    {t("more")}
                   </div>
                 </div>
 
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   <div className="flex shrink-0 flex-col justify-between pt-4 text-[9.5px] leading-none text-ink-3">
-                    {["", "Mon", "", "Wed", "", "Fri", ""].map((label, index) => (
+                    {["", t("Mon"), "", t("Wed"), "", t("Fri"), ""].map((label, index) => (
                       <span key={index} className="h-2.5">
                         {label}
                       </span>
@@ -478,7 +480,7 @@ export function UsageView({
                               <button
                                 key={dayIndex}
                                 type="button"
-                                title={`${dayLabel(day.date)} · ${compact(day.tokens)} tokens · ${day.calls} calls`}
+                                title={`${dayLabel(day.date)} · ${compact(day.tokens)} ${t("tokens")} · ${day.calls} ${t("calls")}`}
                                 onClick={() => {
                                   setDrillHour(null);
                                   setDrillDate(active ? null : day.date);
@@ -506,7 +508,7 @@ export function UsageView({
                       <button
                         key={hour}
                         type="button"
-                        title={`${hourLabel(hour)} · ${compact(tokens)} tokens`}
+                        title={`${hourLabel(hour)} · ${compact(tokens)} ${t("tokens")}`}
                         onClick={() => setDrillHour(active ? null : hour)}
                         className="group flex flex-1 flex-col items-center justify-end gap-1"
                       >
@@ -539,16 +541,21 @@ export function UsageView({
                 </div>
 
                 <div className="text-[12px] text-ink-3">
-                  You&apos;ve used ~{Math.max(1, Math.round(stats.totals.total / MOBY_DICK_TOKENS)).toLocaleString()}× more tokens than
-                  Moby-Dick — with {percent(stats.cache.hitRate)} of prompt tokens served from cache.
+                  {tf(
+                    "You've used ~{count}× more tokens than Moby-Dick — with {percent} of prompt tokens served from cache.",
+                    {
+                      count: Math.max(1, Math.round(stats.totals.total / MOBY_DICK_TOKENS)).toLocaleString(),
+                      percent: percent(stats.cache.hitRate),
+                    },
+                  )}
                 </div>
               </Card>
 
                 <div className="grid grid-cols-2 gap-3">
                 <Card index={9} className="flex flex-col gap-2 p-3">
-                  <div className="text-[12.5px] font-medium text-ink">Top models in slice</div>
+                  <div className="text-[12.5px] font-medium text-ink">{t("Top models in slice")}</div>
                   {modelRows.length === 0 ? (
-                    <div className="text-[12px] text-ink-3">No calls in this slice.</div>
+                    <div className="text-[12px] text-ink-3">{t("No calls in this slice.")}</div>
                   ) : (
                     modelRows.slice(0, 6).map((row) => (
                       <div key={`${row.provider}/${row.model}`} className="flex items-center gap-2 text-[12px]">
@@ -561,9 +568,9 @@ export function UsageView({
                   )}
                 </Card>
                 <Card index={10} className="flex flex-col gap-2 p-3">
-                  <div className="text-[12.5px] font-medium text-ink">Cache share by channel</div>
+                  <div className="text-[12.5px] font-medium text-ink">{t("Cache share by channel")}</div>
                   {providerRows.length === 0 ? (
-                    <div className="text-[12px] text-ink-3">No calls in this slice.</div>
+                    <div className="text-[12px] text-ink-3">{t("No calls in this slice.")}</div>
                   ) : (
                     providerRows.slice(0, 6).map((row) => (
                       <div key={row.provider} className="flex flex-col gap-1">
@@ -604,27 +611,27 @@ export function UsageView({
           {tab === "cache" ? (
             <div key="cache" className="view-enter flex flex-col gap-3">
               <div className="grid grid-cols-4 gap-3">
-                <StatCard index={0} label="Cache hit rate" value={percent(selection.hitRate)} hint="cache read ÷ (fresh input + cache read)" />
-                <StatCard index={1} label="Cache read" value={compact(selection.cacheRead)} hint="tokens served from cache" />
-                <StatCard index={2} label="Cache write" value={compact(selection.cacheWrite)} hint="tokens written to cache" />
-                <StatCard index={3} label="Fresh input" value={compact(selection.input)} hint="uncached prompt tokens" />
+                <StatCard index={0} label={t("Cache hit rate")} value={percent(selection.hitRate)} hint={t("cache read ÷ (fresh input + cache read + cache write)")} />
+                <StatCard index={1} label={t("Cache read")} value={compact(selection.cacheRead)} hint={t("tokens served from cache")} />
+                <StatCard index={2} label={t("Cache write")} value={compact(selection.cacheWrite)} hint={t("tokens written to cache")} />
+                <StatCard index={3} label={t("Fresh input")} value={compact(selection.input)} hint={t("uncached prompt tokens")} />
               </div>
               <Card index={4} className="overflow-hidden">
                 <div className="flex items-center gap-2 border-b border-line px-3 py-2">
-                  <div className="text-[12.5px] font-medium text-ink">Cache by channel</div>
-                  <div className="text-[11.5px] text-ink-3">each provider/model pair is counted separately</div>
+                  <div className="text-[12.5px] font-medium text-ink">{t("Cache by channel")}</div>
+                  <div className="text-[11.5px] text-ink-3">{t("each provider/model pair is counted separately")}</div>
                 </div>
                 <GlideList rowSelector="tbody tr" highlightClassName="bg-hover" radius={0}>
                 <table className="w-full border-collapse text-[12px]">
                   <thead>
                     <tr className="border-b border-line text-left text-[11px] text-ink-3">
-                      <th className="px-3 py-2 font-medium">Channel</th>
-                      <th className="px-3 py-2 font-medium">Model</th>
-                      <th className="px-3 py-2 text-right font-medium">Calls</th>
-                      <th className="px-3 py-2 text-right font-medium">Cache read</th>
-                      <th className="px-3 py-2 text-right font-medium">Cache write</th>
-                      <th className="px-3 py-2 text-right font-medium">Fresh input</th>
-                      <th className="px-3 py-2 text-right font-medium">Hit rate</th>
+                      <th className="px-3 py-2 font-medium">{t("Channel")}</th>
+                      <th className="px-3 py-2 font-medium">{t("Model")}</th>
+                      <th className="px-3 py-2 text-right font-medium">{t("Calls")}</th>
+                      <th className="px-3 py-2 text-right font-medium">{t("Cache read")}</th>
+                      <th className="px-3 py-2 text-right font-medium">{t("Cache write")}</th>
+                      <th className="px-3 py-2 text-right font-medium">{t("Fresh input")}</th>
+                      <th className="px-3 py-2 text-right font-medium">{t("Hit rate")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -653,7 +660,7 @@ export function UsageView({
                     {modelRows.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="px-3 py-6 text-center text-ink-3">
-                          No cached usage in this slice.
+                          {t("No cached usage in this slice.")}
                         </td>
                       </tr>
                     ) : null}
@@ -665,7 +672,7 @@ export function UsageView({
           ) : null}
 
           {stats.errors.length ? (
-            <Card className="p-3 text-[11.5px] text-red" style={{ animation: "fade-up 320ms cubic-bezier(0.23,1,0.32,1) both" }}>Skipped {stats.errors.length} unreadable session file(s).</Card>
+            <Card className="p-3 text-[11.5px] text-red" style={{ animation: "fade-up 320ms cubic-bezier(0.23,1,0.32,1) both" }}>{tf("Skipped {count} unreadable session file(s).", { count: stats.errors.length })}</Card>
           ) : null}
           </div>
         </div>

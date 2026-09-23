@@ -8,6 +8,76 @@ const THEME_KEY = "pi-accent-theme";
 
 const QUERY = "(prefers-color-scheme: dark)";
 
+const FALLBACK_ULTRA = "oklch(0.606 0.25 292.717)";
+
+/** oklch → sRGB hex. The composer sweep is painted into a canvas gradient, so it
+ *  is handed plain hex rather than a colour syntax the 2D context may not parse. */
+function oklchToHex(l: number, c: number, hDeg: number): string {
+  const h = (hDeg * Math.PI) / 180;
+  const a = c * Math.cos(h);
+  const b = c * Math.sin(h);
+  const lt = l + 0.3963377774 * a + 0.2158037573 * b;
+  const mt = l - 0.1055613458 * a - 0.0638541728 * b;
+  const st = l - 0.0894841775 * a - 1.291485548 * b;
+  const [lc, mc, sc] = [lt ** 3, mt ** 3, st ** 3];
+  const linear = [
+    4.0767416621 * lc - 3.3077115913 * mc + 0.2309699292 * sc,
+    -1.2684380046 * lc + 2.6097574011 * mc - 0.3413193965 * sc,
+    -0.0041960863 * lc - 0.7034186147 * mc + 1.707614701 * sc,
+  ];
+  const channel = (v: number) => {
+    const g = v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(Math.max(0, v), 1 / 2.4) - 0.055;
+    return Math.round(Math.max(0, Math.min(1, g)) * 255)
+      .toString(16)
+      .padStart(2, "0");
+  };
+  return `#${channel(linear[0])}${channel(linear[1])}${channel(linear[2])}`;
+}
+
+/**
+ * The composer sweep's palette: the Ultra hue, run through itself.
+ *
+ * The sweep only ever fires at Max depth (picking the flagship model, or the
+ * depth slider reaching the top), and that is exactly where the track and the
+ * level label turn purple — so the band is the same violet rather than the
+ * accent blue the rest of the UI is painted in. It walks the hue from shade to
+ * tint instead of through hues, which keeps the travelling light visible rather
+ * than flattening into one flat block of purple.
+ */
+export function ultraSweep(): readonly string[] {
+  const raw =
+    (typeof document !== "undefined"
+      ? getComputedStyle(document.documentElement).getPropertyValue("--ultra").trim()
+      : "") || FALLBACK_ULTRA;
+  const parts = raw.replace(/^oklch\(/, "").replace(/\)$/, "").split(/[\s/]+/).filter(Boolean);
+  const [l, c, h] = parts.map(Number);
+  if (parts.length < 3 || [l, c, h].some((n) => Number.isNaN(n))) {
+    const hex = /^#|^rgb/.test(raw) ? raw : FALLBACK_ULTRA;
+    return [hex, hex, hex];
+  }
+  const at = (delta: number, drift: number) =>
+    oklchToHex(Math.max(0, Math.min(1, l + delta)), Math.max(0, c * 0.95), h + drift);
+  return [at(-0.16, -10), at(-0.02, -3), at(0.13, 6), at(0.26, 12)];
+}
+
+/** `ultraSweep()` re-read when the painted theme changes, not on every render. */
+export function useUltraSweep(): readonly string[] {
+  const [palette, setPalette] = useState<readonly string[]>(ultraSweep);
+  useEffect(() => {
+    const root = document.documentElement;
+    const read = () => setPalette(ultraSweep());
+    const theme = window.matchMedia(QUERY);
+    theme.addEventListener("change", read);
+    const observed = new MutationObserver(read);
+    observed.observe(root, { attributes: true, attributeFilter: ["class", "style", "data-theme"] });
+    return () => {
+      theme.removeEventListener("change", read);
+      observed.disconnect();
+    };
+  }, []);
+  return palette;
+}
+
 function readMode(): ColorMode {
   const stored = localStorage.getItem(MODE_KEY);
   if (stored === "light" || stored === "dark" || stored === "system") return stored;

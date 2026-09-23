@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import type { PluginInfo, PluginKind } from "@shared/types";
 import { cn } from "../lib/cn";
-import { FolderOpenIcon, PuzzleIcon, RefreshIcon, SearchIcon, TrashIcon } from "../components/icons";
-import { Card, Chip, EmptyState, Skeleton, ViewHeader } from "../components/ui";
+import { t, tf } from "../lib/i18n";
+import { FolderOpenIcon, PuzzleIcon, SearchIcon, TrashIcon } from "../components/icons";
+import { Card, Chip, EmptyState, Skeleton } from "../components/ui";
 
 const KIND_LABEL: Record<PluginKind, string> = {
   extension: "Extensions",
@@ -27,7 +28,7 @@ function Toggle({ on, onClick, disabled, label }: { on: boolean; onClick: () => 
       onClick={onClick}
       aria-pressed={on}
       aria-label={label}
-      title={disabled ? "Declared in settings.json — toggle it there" : on ? "Disable" : "Enable"}
+      title={disabled ? t("Declared in settings.json — toggle it there") : on ? t("Disable") : t("Enable")}
       className={cn(
         "pressable relative h-[18px] w-8 shrink-0 rounded-full",
         on ? "bg-green" : "bg-line-strong",
@@ -49,17 +50,12 @@ function Toggle({ on, onClick, disabled, label }: { on: boolean; onClick: () => 
 export function PluginsView({
   plugins,
   loading,
-  bare = false,
-  onRefresh,
   onToggle,
   onDelete,
   onOpen,
 }: {
   plugins: PluginInfo[];
   loading: boolean;
-  /** when embedded in another view, skip the header and let the host own it */
-  bare?: boolean;
-  onRefresh: () => void;
   onToggle: (plugin: PluginInfo, enabled: boolean) => void;
   onDelete: (plugin: PluginInfo) => void;
   onOpen: (plugin: PluginInfo) => void;
@@ -67,7 +63,6 @@ export function PluginsView({
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<PluginKind | "all">("all");
   const [confirming, setConfirming] = useState<string | null>(null);
-  const [error, setError] = useState<string | undefined>(undefined);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -90,214 +85,170 @@ export function PluginsView({
 
   const errored = plugins.filter((plugin) => plugin.error);
 
-  const counts = useMemo(
-    () => ({
-      total: plugins.length,
-      enabled: plugins.filter((plugin) => plugin.enabled).length,
-      disabled: plugins.filter((plugin) => !plugin.enabled).length,
-    }),
-    [plugins],
-  );
-
   return (
-    <>
-      {bare ? null : (
-      <ViewHeader
-        title="Plugins"
-        subtitle={`${counts.total} installed · ${counts.enabled} enabled · ${counts.disabled} disabled`}
-        actions={
-          <div className="flex items-center gap-1.5">
-            <div className="flex h-6 items-center gap-1.5 rounded-chip bg-field px-2">
-              <SearchIcon size={12} className="text-ink-3" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Filter plugins"
-                className="w-40 bg-transparent text-[11.5px] text-ink outline-none placeholder:text-ink-3"
-              />
-            </div>
-            <Chip
-              onClick={() => {
-                setError(undefined);
-                try {
-                  onRefresh();
-                } catch (cause) {
-                  setError(cause instanceof Error ? cause.message : String(cause));
-                }
-              }}
-              title="Rescan plugin folders"
-            >
-              <RefreshIcon size={12} />
-              Rescan
-            </Chip>
-          </div>
-        }
-      />
-      )}
-
-      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
-        <div className={bare ? "flex w-full flex-col gap-3 px-3 pb-3" : "mx-auto flex w-full max-w-[1180px] flex-col gap-3 p-4"}>
-          <div className="flex items-center gap-1">
-            <Chip active={kind === "all"} onClick={() => setKind("all")} index={0}>
-              All
-            </Chip>
-            {(Object.keys(KIND_LABEL) as PluginKind[]).map((key, index) => {
-              const total = plugins.filter((plugin) => plugin.kind === key).length;
-              if (!total) return null;
-              return (
-                <Chip key={key} active={kind === key} onClick={() => setKind(key)} index={index + 1}>
-                  {KIND_LABEL[key]}
-                  <span className="tabular-nums text-ink-3">{total}</span>
-                </Chip>
-              );
-            })}
-          </div>
-
-          {error ? (
-            <div
-              className="flex items-start gap-2 rounded-card bg-red-tint px-3 py-2 text-[12px] text-red"
-              style={{ animation: "fade-up 300ms cubic-bezier(0.23,1,0.32,1) both" }}
-            >
-              <span className="min-w-0 flex-1">Could not read the plugin folders: {error}</span>
-              <button
-                type="button"
-                onClick={() => setError(undefined)}
-                className="pressable shrink-0 rounded-chip px-1.5 py-0.5 hover:bg-red/10"
-              >
-                Dismiss
-              </button>
-            </div>
-          ) : null}
-
-          {!loading && errored.length ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-card bg-orange-tint px-3 py-2 text-[11.5px] text-orange">
-              <span>{errored.length} entr{errored.length === 1 ? "y" : "ies"} could not be loaded</span>
-              <span className="font-mono text-[10.5px]">{errored.map((plugin) => plugin.name).join(", ")}</span>
-            </div>
-          ) : null}
-
-          {loading && !plugins.length ? (
-            <div className="flex flex-col gap-2">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <Skeleton key={index} className="h-[62px]" index={index} />
-              ))}
-            </div>
-          ) : filtered.length === 0 ? (
-            <EmptyState
-              title={plugins.length ? "No plugins match the filter" : "No plugins installed"}
-              body={
-                plugins.length
-                  ? "Try a different keyword or switch the category filter."
-                  : "Drop an extension into ~/.pi/agent/extensions/ or .pi/extensions/ and it will appear here."
-              }
+    <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-[1040px] flex-col gap-5 px-8 pt-10 pb-10">
+        <div className="flex items-center gap-2">
+          <Chip active={kind === "all"} onClick={() => setKind("all")} index={0}>
+            {t("All")}
+          </Chip>
+          {(Object.keys(KIND_LABEL) as PluginKind[]).map((key, index) => {
+            const total = plugins.filter((plugin) => plugin.kind === key).length;
+            if (!total) return null;
+            return (
+              <Chip key={key} active={kind === key} onClick={() => setKind(key)} index={index + 1}>
+                {t(KIND_LABEL[key])}
+                <span className="tabular-nums text-ink-3">{total}</span>
+              </Chip>
+            );
+          })}
+          <div className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-chip bg-field px-2.5 shadow-hairline">
+            <SearchIcon size={12} className="shrink-0 text-ink-3" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t("Filter by name, description or path")}
+              className="min-w-0 flex-1 bg-transparent text-[12px] text-ink outline-none placeholder:text-ink-3"
             />
-          ) : (
-            groups.map(([groupKind, items], groupIndex) => (
-              <div key={groupKind} className="flex flex-col gap-2">
-                <div
-                  className="flex items-center gap-2 text-[11.5px] text-ink-3"
-                  style={{ animation: "fade-in 240ms ease-out both" }}
-                >
-                  <span className="font-medium tracking-[0.4px] text-ink-2">{KIND_LABEL[groupKind].toUpperCase()}</span>
-                  <span className="tabular-nums">{items.length}</span>
-                </div>
-                {items.map((plugin, index) => (
-                  <Card
-                    key={plugin.id}
-                    index={groupIndex * 3 + index}
-                    className={cn("flex items-center gap-3 p-3 transition-colors duration-150 hover:bg-hover", !plugin.enabled && "opacity-75")}
-                  >
-                    <div
-                      className={cn(
-                        "flex size-8 shrink-0 items-center justify-center rounded-control",
-                        plugin.enabled ? "bg-accent-tint text-accent-ink" : "bg-field text-ink-3",
-                      )}
-                    >
-                      <PuzzleIcon size={15} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-[12.5px] font-medium text-ink">{plugin.name}</span>
-                        <span className="inline-flex h-5 items-center rounded-chip bg-field px-1.5 font-mono text-[10px] text-ink-3">
-                          {plugin.scope}
-                        </span>
-                        {plugin.error ? (
-                          <span className="inline-flex h-5 items-center rounded-chip bg-red-tint px-1.5 text-[10.5px] text-red">
-                            {plugin.error}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="mt-0.5 truncate text-[11.5px] text-ink-3">{plugin.description ?? plugin.path}</div>
-                      <div className="mt-0.5 truncate font-mono text-[10px] text-ink-3">{plugin.path}</div>
-                    </div>
-                    <div className="shrink-0 text-right font-mono text-[10.5px] text-ink-3 tabular-nums">
-                      {formatBytes(plugin.sizeBytes)}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      <Toggle
-                        on={plugin.enabled}
-                        disabled={!plugin.toggleable}
-                        label={plugin.name}
-                        onClick={() => onToggle(plugin, !plugin.enabled)}
-                      />
-                      <button
-                        type="button"
-                        title="Reveal in explorer"
-                        onClick={() => onOpen(plugin)}
-                        className="pressable flex size-7 items-center justify-center rounded-control text-ink-3 hover:bg-hover hover:text-ink"
-                      >
-                        <FolderOpenIcon size={13} />
-                      </button>
-                      {confirming === plugin.id ? (
-                        <div
-                          className="flex items-center gap-1"
-                          style={{ animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "right center" }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onDelete(plugin);
-                              setConfirming(null);
-                            }}
-                            className="pressable inline-flex h-6 items-center rounded-chip bg-red px-2 text-[11px] text-white"
-                          >
-                            Move to trash
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirming(null)}
-                            className="pressable inline-flex h-6 items-center rounded-chip bg-field px-2 text-[11px] text-ink-2 hover:bg-hover-2"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          title="Delete"
-                          disabled={!plugin.toggleable}
-                          onClick={() => setConfirming(plugin.id)}
-                          className={cn(
-                            "pressable flex size-7 items-center justify-center rounded-control text-ink-3 hover:bg-red-tint hover:text-red",
-                            !plugin.toggleable && "opacity-40",
-                          )}
-                        >
-                          <TrashIcon size={13} />
-                        </button>
-                      )}
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            ))
-          )}
-
-          <div className="text-[11px] text-ink-3">
-            Disabling moves the file to <span className="font-mono">extensions.disabled/</span> next to its folder, so the Pi CLI
-            sees the same change. Deleting moves it to <span className="font-mono">~/.pi/agent/trash/</span>.
           </div>
         </div>
+
+        {!loading && errored.length ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-card bg-orange-tint px-4 py-2.5 text-[12px] text-orange">
+            <span>
+              {tf(errored.length === 1 ? "{count} entry could not be loaded" : "{count} entries could not be loaded", {
+                count: errored.length,
+              })}
+            </span>
+            <span className="font-mono text-[10.5px]">{errored.map((plugin) => plugin.name).join(", ")}</span>
+          </div>
+        ) : null}
+
+        {loading && !plugins.length ? (
+          <div className="flex flex-col gap-3">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <Skeleton key={index} className="h-[78px]" index={index} />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            title={plugins.length ? t("No plugins match the filter") : t("No plugins installed")}
+            body={
+              plugins.length
+                ? t("Try a different keyword or switch the category filter.")
+                : t("Drop an extension into ~/.pi/agent/extensions/ or .pi/extensions/ and it will appear here.")
+            }
+          />
+        ) : (
+          groups.map(([groupKind, items], groupIndex) => (
+            <div key={groupKind} className="flex flex-col gap-3">
+              <div
+                className="flex items-center gap-2 pt-1 text-[12px] text-ink-3"
+                style={{ animation: "fade-in 240ms ease-out both" }}
+              >
+                <span className="font-medium tracking-[0.5px] text-ink-2">{t(KIND_LABEL[groupKind]).toUpperCase()}</span>
+                <span className="tabular-nums">{items.length}</span>
+              </div>
+              {items.map((plugin, index) => (
+                <Card
+                  key={plugin.id}
+                  index={groupIndex * 3 + index}
+                  className={cn(
+                    "flex items-center gap-4 p-4 transition-colors duration-150 hover:bg-hover",
+                    !plugin.enabled && "opacity-75",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "flex size-9 shrink-0 items-center justify-center rounded-control",
+                      plugin.enabled ? "bg-accent-tint text-accent-ink" : "bg-field text-ink-3",
+                    )}
+                  >
+                    <PuzzleIcon size={16} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-[13px] font-medium text-ink">{plugin.name}</span>
+                      <span className="inline-flex h-5 items-center rounded-chip bg-field px-1.5 font-mono text-[10px] text-ink-3">
+                        {plugin.scope}
+                      </span>
+                      {plugin.error ? (
+                        <span className="inline-flex h-5 items-center rounded-chip bg-red-tint px-1.5 text-[10.5px] text-red">
+                          {plugin.error}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-1 truncate text-[12px] text-ink-3">{plugin.description ?? plugin.path}</div>
+                    <div className="mt-1 truncate font-mono text-[10.5px] text-ink-3">{plugin.path}</div>
+                  </div>
+                  <div className="shrink-0 text-right font-mono text-[10.5px] text-ink-3 tabular-nums">
+                    {formatBytes(plugin.sizeBytes)}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Toggle
+                      on={plugin.enabled}
+                      disabled={!plugin.toggleable}
+                      label={plugin.name}
+                      onClick={() => onToggle(plugin, !plugin.enabled)}
+                    />
+                    <button
+                      type="button"
+                      title={t("Reveal in explorer")}
+                      onClick={() => onOpen(plugin)}
+                      className="pressable flex size-7 items-center justify-center rounded-control text-ink-3 hover:bg-hover hover:text-ink"
+                    >
+                      <FolderOpenIcon size={14} />
+                    </button>
+                    {confirming === plugin.id ? (
+                      <div
+                        className="flex items-center gap-1.5"
+                        style={{ animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "right center" }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onDelete(plugin);
+                            setConfirming(null);
+                          }}
+                          className="pressable inline-flex h-7 items-center rounded-chip bg-red px-2.5 text-[11.5px] text-white"
+                        >
+                          {t("Move to trash")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirming(null)}
+                          className="pressable inline-flex h-7 items-center rounded-chip bg-field px-2.5 text-[11.5px] text-ink-2 hover:bg-hover-2"
+                        >
+                          {t("Cancel")}
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        title={t("Delete")}
+                        disabled={!plugin.toggleable}
+                        onClick={() => setConfirming(plugin.id)}
+                        className={cn(
+                          "pressable flex size-7 items-center justify-center rounded-control text-ink-3 hover:bg-red-tint hover:text-red",
+                          !plugin.toggleable && "opacity-40",
+                        )}
+                      >
+                        <TrashIcon size={14} />
+                      </button>
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ))
+        )}
+
+        <div className="pt-1 text-[11.5px] leading-relaxed text-ink-3">
+          {t("Disabling moves the file to")} <span className="font-mono">extensions.disabled/</span>{" "}
+          {t("next to its folder, so the Pi CLI sees the same change. Deleting moves it to")}{" "}
+          <span className="font-mono">~/.pi/agent/trash/</span>.
+        </div>
       </div>
-    </>
+    </div>
   );
 }

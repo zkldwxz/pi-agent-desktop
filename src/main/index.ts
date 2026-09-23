@@ -1,15 +1,19 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, shell } from "electron";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { PiHost } from "./pi-host";
 import { BrowserHost } from "./browser";
+import { PtyHost } from "./pty";
 import { listDir, readFileForView, searchFiles } from "./fs-browser";
 import { listOpeners, openWith } from "./openers";
+import { gitBranches, gitCheckout, gitCommit, gitCreateBranch, gitDeleteBranch, gitPush, gitStatus, noRepoBranches, noRepoState } from "./git";
 import { applyCatalog, catalog, markOnboardingDone, readConfig } from "./install";
+import { discoverTerminalShells, resolveTerminalShell } from "./shells";
+import { pluginRoots } from "./plugins";
 import type { UiAnswer } from "@shared/ui";
 import { collectUsage } from "./usage";
-import type { ModelEdit, PluginInfo, PromptPayload, RuntimeSettings } from "@shared/types";
+import type { ModelEdit, PlanAction, PluginInfo, PluginRoots, PromptPayload, RuntimeSettings } from "@shared/types";
 import type { BrowserBounds, DesignPick } from "@shared/browser";
 
 app.setName("Pi Agent Desktop");
@@ -27,6 +31,12 @@ let window: BrowserWindow | null = null;
 let browser: BrowserHost | null = null;
 /** picks collected in design mode, drained by the renderer */
 const designPicks: DesignPick[] = [];
+
+/** every project folder's shells; they outlive the panel showing them */
+const ptyHost = new PtyHost(
+  (id, data) => window?.webContents.send("pty:data", { id, data }),
+  (id, exitCode) => window?.webContents.send("pty:exit", { id, exitCode }),
+);
 
 function sendHostUpdate(): void {
   if (!window || !host) return;
@@ -51,6 +61,8 @@ function reportError(error: unknown): void {
         settings: null,
         snapshot: null,
         todos: [],
+        plan: { phase: "off", steps: [], updatedAt: 0 },
+        surfaces: [],
         tools: [],
         queue: { steering: [], followUp: [], steeringMode: "one-at-a-time", followUpMode: "one-at-a-time" },
       }),
@@ -193,8 +205,23 @@ function registerIpc(): void {
     await host?.setSessionName(name);
   });
 
+  /* Plan mode — the plugin's subcommands, plus the model the build runs on */
+  ipcMain.handle("pi:planAction", async (_event, payload: PlanAction) => {
+    try {
+      await host?.planAction(payload);
+    } catch (error) {
+      reportError(error);
+      throw error;
+    }
+  });
+
   ipcMain.handle("pi:reload", async () => {
     await host?.reload();
+  });
+
+  /* Fleet interrupts from the panel — one sub-agent by name, or all */
+  ipcMain.handle("pi:fleetInterrupt", (_event, name?: string) => {
+    host?.fleetInterrupt(name);
   });
 
   ipcMain.handle("pi:updateSettings", async (_event, patch: Partial<RuntimeSettings>) => {
@@ -216,7 +243,12 @@ function registerIpc(): void {
   });
 
   ipcMain.handle("pi:deleteModel", async (_event, provider: string, modelId: string) => {
-    await host?.deleteModel(provider, modelId);
+    try {
+      await host?.deleteModel(provider, modelId);
+    } catch (error) {
+      reportError(error);
+      throw error;
+    }
   });
 
   ipcMain.handle("pi:listAllSessions", async () => (await host?.allSessions()) ?? []);
@@ -269,6 +301,9 @@ function registerIpc(): void {
 
   ipcMain.handle("pi:getPlugins", (): PluginInfo[] => host?.plugins() ?? []);
 
+  /** the folders extensions are loaded from, for the 钩子 settings section */
+  ipcMain.handle("pi:pluginRoots", (): PluginRoots => pluginRoots(host?.getCwd() ?? defaultCwd()));
+
   ipcMain.handle("pi:setPluginEnabled", async (_event, path: string, kind: PluginInfo["kind"], enabled: boolean) => {
     try {
       return (await host?.setPluginEnabled(path, kind, enabled)) ?? [];
@@ -285,6 +320,20 @@ function registerIpc(): void {
       reportError(error);
       throw error;
     }
+  });
+
+  ipcMain.handle("pi:createRule", async (_event, scope: "global" | "project", name: string) => {
+    try {
+      return (await host?.createRule(scope, name)) ?? [];
+    } catch (error) {
+      reportError(error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle("pi:savePasteImage", async (_event, dataUrl: string, extension?: string) => {
+    if (!host) throw new Error("Agent not started.");
+    return host.savePasteImage(dataUrl, extension);
   });
 
   ipcMain.handle("pi:getUsage", async (_event, days: number) => {
@@ -330,7 +379,10 @@ function registerIpc(): void {
   });
 
   ipcMain.handle("fs:reveal", async (_event, filePath: string) => {
-    shell.showItemInFolder(filePath);
+    const root = host?.getCwd() ?? defaultCwd();
+    /* a diff opened from the changes list carries the path the tool call used,
+       which is relative; anything else here is already absolute */
+    shell.showItemInFolder(isAbsolute(filePath) ? filePath : resolve(root, filePath));
   });
 
   /* ── "Open with": the applications registered for this file type ── */
@@ -353,6 +405,34 @@ function registerIpc(): void {
     }
   });
 
+  /* ── git: the monitor panel's environment, argv in and out (no shell) ──
+   * The cwd is resolved here rather than sent by the renderer, so the renderer
+   * cannot ask for someone else's repository. */
+
+  const gitCwd = (): string => host?.getCwd() ?? defaultCwd();
+
+  ipcMain.handle("git:status", async () => {
+    try {
+      return await gitStatus(gitCwd());
+    } catch {
+      return noRepoState();
+    }
+  });
+
+  ipcMain.handle("git:branches", async () => {
+    try {
+      return await gitBranches(gitCwd());
+    } catch {
+      return noRepoBranches();
+    }
+  });
+
+  ipcMain.handle("git:checkout", (_event, name: string) => gitCheckout(gitCwd(), name));
+  ipcMain.handle("git:createBranch", (_event, name: string) => gitCreateBranch(gitCwd(), name));
+  ipcMain.handle("git:deleteBranch", (_event, name: string) => gitDeleteBranch(gitCwd(), name));
+  ipcMain.handle("git:commit", (_event, message: string) => gitCommit(gitCwd(), message));
+  ipcMain.handle("git:push", () => gitPush(gitCwd()));
+
   ipcMain.handle("term:run", async (_event, command: string) => {
     if (!host) throw new Error("Pi agent is not connected yet.");
     return host.runBash(command, (delta) => {
@@ -366,6 +446,44 @@ function registerIpc(): void {
 
   ipcMain.handle("term:state", () => host?.bashState() ?? { running: false });
 
+  /* ── real terminals: one PTY per tab, grouped by folder ── */
+
+  /* the shell menu: what this machine actually has, plus how the preference
+     resolves right now — probed on demand so a freshly installed WSL distro
+     shows up without a restart */
+  ipcMain.handle("shells:list", async () => {
+    const shells = await discoverTerminalShells();
+    const config = await readConfig();
+    const resolved = resolveTerminalShell(config.terminal.preferred, config.terminal.customPath, shells);
+    const custom = resolveTerminalShell("auto", config.terminal.customPath, []);
+    return { shells: custom ? [...shells, custom] : shells, resolvedId: resolved?.id ?? null };
+  });
+
+  /* a spawn names its shell: an explicit id from the menu, or nothing for the
+     preference chain (custom path → preferred entry → first available) */
+  ipcMain.handle("pty:spawn", async (_event, cwd: string, shellId?: string) => {
+    const shells = await discoverTerminalShells();
+    const config = await readConfig();
+    const shell = shellId
+      ? (shells.find((entry) => entry.id === shellId && entry.available) ??
+        (shellId === "custom" ? resolveTerminalShell("auto", config.terminal.customPath, []) : undefined))
+      : resolveTerminalShell(config.terminal.preferred, config.terminal.customPath, shells);
+    if (shellId && !shell) return { error: `The selected shell is no longer available: ${shellId}` };
+    return ptyHost.spawn(cwd, shell ? { path: shell.path, args: shell.args, name: shell.name } : undefined);
+  });
+
+  ipcMain.handle("pty:list", (_event, cwd: string) => ptyHost.list(cwd));
+
+  ipcMain.handle("pty:replay", (_event, id: string) => ptyHost.replay(id));
+
+  /* keystrokes and resizes are one-way: awaiting an acknowledgement for every
+     character typed is how a terminal starts to feel laggy */
+  ipcMain.on("pty:write", (_event, id: string, data: string) => ptyHost.write(id, data));
+
+  ipcMain.on("pty:resize", (_event, id: string, cols: number, rows: number) => ptyHost.resize(id, cols, rows));
+
+  ipcMain.handle("pty:kill", (_event, id: string) => ptyHost.kill(id));
+
   /* ── embedded browser ─────────────────────────────────── */
 
   ipcMain.handle("browser:setBounds", (_event, bounds: BrowserBounds) => {
@@ -374,6 +492,11 @@ function registerIpc(): void {
 
   ipcMain.handle("browser:setVisible", (_event, visible: boolean) => {
     browser?.setVisible(visible);
+  });
+
+  /** Each project folder gets its own browser instance and its own storage. */
+  ipcMain.handle("browser:workspace", (_event, cwd: string) => {
+    browser?.setWorkspace(cwd);
   });
 
   ipcMain.handle("browser:navigate", async (_event, url: string) => {
@@ -457,6 +580,7 @@ app.whenReady().then(async () => {
   try {
     await host.start();
     const snapshot = host.snapshot();
+    browser?.setWorkspace(snapshot.cwd);
     const toolNames = host.toolNames();
     const browserTools = toolNames.filter((name) => name.startsWith("browser_"));
     console.log(
@@ -481,5 +605,6 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   browser?.destroy();
+  ptyHost.dispose();
   void host?.dispose();
 });

@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { Button } from "../atoms/Button";
 import GlideMenu from "./GlideMenu";
+import { t as tr } from "../../../lib/i18n";
 
 /* ─────────────────────────────────────────────────────────
  * APPROVAL CARD (human-in-the-loop)
@@ -250,7 +251,7 @@ export default function ApprovalCard({
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="rounded-control bg-surface px-3 py-2 text-[12.5px] font-medium text-ink shadow-btn transition-colors duration-150 hover:bg-hover">
-        Open approval
+        {tr("Open approval")}
       </button>
     );
   }
@@ -262,11 +263,11 @@ export default function ApprovalCard({
           <span className="flex size-4.5 items-center justify-center rounded-full bg-green text-white">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
           </span>
-          {t.sentMessage}
+          {tr(t.sentMessage)}
         </span>
         {resettable && (
           <button type="button" onClick={reset} className="text-[12px] font-medium text-ink-3 transition-colors duration-150 hover:text-ink">
-            Start over
+            {tr("Start over")}
           </button>
         )}
       </div>
@@ -278,7 +279,7 @@ export default function ApprovalCard({
       <div className="relative overflow-hidden rounded-card bg-surface shadow-card" style={{ animation: "fade-up 380ms cubic-bezier(0.23,1,0.32,1) both" }}>
         <button
           type="button"
-          aria-label="Dismiss"
+          aria-label={tr("Dismiss")}
           onClick={() => setOpen(false)}
           className="primitive-icon-button absolute right-2.5 top-2.5 z-10 text-ink-3 transition-colors duration-100 hover:bg-hover hover:text-ink"
         >
@@ -365,8 +366,8 @@ export default function ApprovalCard({
                               advance();
                             }
                           }}
-                          placeholder={t.customPlaceholder}
-                          aria-label="Custom answer"
+                          placeholder={tr(t.customPlaceholder)}
+                          aria-label={tr("Custom answer")}
                           className="min-w-0 flex-1 bg-transparent pl-1.5 text-[13px] text-ink outline-none placeholder:text-ink-3"
                         />
                       </label>
@@ -383,7 +384,7 @@ export default function ApprovalCard({
           <div className="flex items-center gap-1 text-ink-3">
             <button
               type="button"
-              aria-label="Previous question"
+              aria-label={tr("Previous question")}
               disabled={qi <= 0}
               onClick={() => goTo(qi - 1)}
               className="flex size-[18px] items-center justify-center rounded-[5px] transition-colors duration-100 enabled:hover:text-ink disabled:opacity-30"
@@ -395,7 +396,7 @@ export default function ApprovalCard({
             </span>
             <button
               type="button"
-              aria-label="Next question"
+              aria-label={tr("Next question")}
               disabled={last}
               onClick={() => goTo(qi + 1)}
               className="flex size-[18px] items-center justify-center rounded-[5px] transition-colors duration-100 enabled:hover:text-ink disabled:opacity-30"
@@ -406,10 +407,10 @@ export default function ApprovalCard({
 
           <div className="-mr-0.5 flex items-center gap-1.5">
             <Button variant="ghost" size="sm" onClick={() => (last ? setOpen(false) : goTo(qi + 1))}>
-              {t.skip}
+              {tr(t.skip)}
             </Button>
             <Button variant="accent" size="sm" disabled={!hasAnswer} onClick={advance}>
-              {last ? t.send : t.continue}
+              {last ? tr(t.send) : tr(t.continue)}
             </Button>
           </div>
         </div>

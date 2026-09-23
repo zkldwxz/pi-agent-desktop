@@ -6,12 +6,12 @@
  * single pick per invocation, which keeps the host loop trivial: call it, get a
  * pick, decide whether to call it again.
  *
- * Hover is the primary interaction: moving the pointer highlights the element
- * under it *and* shows an inspector panel with its React component, tag, size,
- * classes, component ancestry and a few computed styles — the DevTools readout,
- * without a manual box. A plain click selects the hovered element; dragging
- * still draws a region as a secondary mode. The hit-test is rAF-throttled and
- * the per-element inspection is cached, so hovering a busy page stays smooth.
+ * Hover highlights the element under the pointer and a plain click selects it;
+ * dragging draws a region instead. Nothing is printed on screen about what you
+ * are hovering — the readout used to sit there, and it covered the very thing
+ * being picked. The element's component, selector, styles and ancestry are still
+ * collected, but they travel to the agent in the pick payload, not to the page.
+ * The hit-test is rAF-throttled so hovering a busy page stays smooth.
  */
 export const DESIGN_OVERLAY_SCRIPT = String.raw`
 (() => {
@@ -20,22 +20,10 @@ export const DESIGN_OVERLAY_SCRIPT = String.raw`
   window[NS] = { active: true };
 
   const MAX_TEXT = 240;
-  /* the few styles worth reading at a glance while hovering */
-  const STYLE_PREVIEW = ["font-size", "font-weight", "line-height", "color", "background-color", "border-radius"];
 
   const style = document.createElement("style");
   style.textContent = [
     ".pi-design-box{position:fixed;left:0;top:0;pointer-events:none;z-index:2147483646;border:1.5px solid #3b82f6;background:rgba(59,130,246,.10);border-radius:3px;box-shadow:0 0 0 1px rgba(59,130,246,.25);transition:left 60ms linear,top 60ms linear,width 60ms linear,height 60ms linear}",
-    ".pi-design-panel{position:fixed;left:0;top:0;pointer-events:none;z-index:2147483647;max-width:280px;background:#0f1117;color:#e6e8ee;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;border:1px solid rgba(255,255,255,.10);border-radius:9px;box-shadow:0 10px 30px rgba(0,0,0,.4);padding:8px 10px;box-sizing:border-box}",
-    ".pi-design-panel .t{font:600 12.5px/1.2 ui-sans-serif,system-ui,sans-serif;color:#fff;display:flex;align-items:center;gap:6px}",
-    ".pi-design-panel .tag{color:#8ab4ff;font-weight:500}",
-    ".pi-design-panel .sz{color:#9aa4b2;font-size:11px;margin-left:auto;font-variant-numeric:tabular-nums}",
-    ".pi-design-panel .chain{margin-top:5px;color:#a9b2c0;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-    ".pi-design-panel .cls{margin-top:4px;color:#7ee787;font-size:10.5px;word-break:break-all}",
-    ".pi-design-panel .css{margin-top:6px;border-top:1px solid rgba(255,255,255,.08);padding-top:5px;display:grid;grid-template-columns:auto 1fr;gap:1px 8px;font-size:10.5px}",
-    ".pi-design-panel .css i{color:#8b949e;font-style:normal}",
-    ".pi-design-panel .css span{color:#e6e8ee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-    ".pi-design-panel .hint{margin-top:6px;color:#6e7681;font-size:10px}",
     ".pi-design-region{position:fixed;pointer-events:none;z-index:2147483645;border:1px dashed #3b82f6;background:rgba(59,130,246,.08)}",
   ].join("");
   document.documentElement.appendChild(style);
@@ -44,11 +32,6 @@ export const DESIGN_OVERLAY_SCRIPT = String.raw`
   box.className = "pi-design-box";
   box.style.display = "none";
   document.documentElement.appendChild(box);
-
-  const panel = document.createElement("div");
-  panel.className = "pi-design-panel";
-  panel.style.display = "none";
-  document.documentElement.appendChild(panel);
 
   const region = document.createElement("div");
   region.className = "pi-design-region";
@@ -150,39 +133,6 @@ export const DESIGN_OVERLAY_SCRIPT = String.raw`
     return chain;
   };
 
-  const esc = (value) =>
-    String(value).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-
-  /* Lightweight hover inspection, cached per element — hovers re-enter the same
-   * node constantly, and re-walking the fiber tree + re-reading styles for it
-   * each frame is what made the old overlay stutter. */
-  const inspectCache = new WeakMap();
-  const inspect = (el) => {
-    const cached = inspectCache.get(el);
-    if (cached) return cached;
-    const rect = el.getBoundingClientRect();
-    const component = componentName(el);
-    const tag = el.tagName.toLowerCase();
-    const chain = ancestryFor(el).filter((node) => node.component);
-    const computed = getComputedStyle(el);
-    const css = {};
-    for (const key of STYLE_PREVIEW) {
-      const value = computed.getPropertyValue(key);
-      if (value && value !== "none" && value !== "auto" && value !== "normal" && value !== "0px") css[key] = value;
-    }
-    const info = {
-      component,
-      tag,
-      w: Math.round(rect.width),
-      h: Math.round(rect.height),
-      classes: classesOf(el),
-      chain,
-      css,
-    };
-    inspectCache.set(el, info);
-    return info;
-  };
-
   const paint = (el) => {
     const rect = el.getBoundingClientRect();
     box.style.display = "block";
@@ -190,34 +140,10 @@ export const DESIGN_OVERLAY_SCRIPT = String.raw`
     box.style.top = rect.top + "px";
     box.style.width = rect.width + "px";
     box.style.height = rect.height + "px";
-
-    const info = inspect(el);
-    let html =
-      "<div class='t'><span>" + esc(info.component || info.tag) + "</span>" +
-      "<span class='tag'>&lt;" + esc(info.tag) + "&gt;</span>" +
-      "<span class='sz'>" + info.w + "×" + info.h + "</span></div>";
-    if (info.chain.length) html += "<div class='chain'>" + info.chain.map((n) => esc(n.component)).join(" › ") + "</div>";
-    if (info.classes.length) html += "<div class='cls'>" + info.classes.map((c) => "." + esc(c)).join(" ") + "</div>";
-    const keys = Object.keys(info.css);
-    if (keys.length) html += "<div class='css'>" + keys.map((k) => "<i>" + esc(k) + "</i><span>" + esc(info.css[k]) + "</span>").join("") + "</div>";
-    html += "<div class='hint'>Click to select · drag for a region · Esc to cancel</div>";
-    panel.innerHTML = html;
-    panel.style.display = "block";
-
-    const pw = panel.offsetWidth;
-    const ph = panel.offsetHeight;
-    const above = rect.top > ph + 12;
-    const left = Math.max(6, Math.min(rect.left, window.innerWidth - pw - 6));
-    let top = above ? rect.top - ph - 8 : rect.bottom + 8;
-    if (top + ph > window.innerHeight - 6) top = window.innerHeight - ph - 6;
-    if (top < 6) top = 6;
-    panel.style.left = left + "px";
-    panel.style.top = top + "px";
   };
 
   const hide = () => {
     box.style.display = "none";
-    panel.style.display = "none";
   };
 
   const describe = (el) => {
@@ -255,7 +181,7 @@ export const DESIGN_OVERLAY_SCRIPT = String.raw`
       const { x, y } = lastMove;
       lastMove = null;
       const el = document.elementFromPoint(x, y);
-      if (!el || el === box || el === panel || el === region || el === style) return;
+      if (!el || el === box || el === region || el === style) return;
       if (el === hovered) return;
       hovered = el;
       paint(el);
@@ -269,7 +195,6 @@ export const DESIGN_OVERLAY_SCRIPT = String.raw`
       if (rafId !== null) cancelAnimationFrame(rafId);
       document.documentElement.style.cursor = prevCursor;
       box.remove();
-      panel.remove();
       region.remove();
       style.remove();
       window[NS].active = false;

@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
-import type { HostState, RuntimeSettings, UsageStats } from "@shared/types";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import type { HostState, ModelEdit, RuntimeSettings, UltraMode, UsageStats } from "@shared/types";
+import type { TerminalShell } from "@shared/terminal";
 import { cn } from "../lib/cn";
+import { getCodeTheme, setCodeTheme, type CodeTheme } from "../lib/code-theme";
 import {
   ArrowLeftIcon,
   BrainIcon,
@@ -9,6 +11,8 @@ import {
   FilePenIcon,
   GaugeIcon,
   GlobeIcon,
+  HookIcon,
+  KeyboardIcon,
   RefreshIcon,
   SearchIcon,
   SettingsIcon,
@@ -16,109 +20,24 @@ import {
   TerminalIcon,
   XIcon,
 } from "../components/icons";
-import { Card, Chip, ViewHeader } from "../components/ui";
+import { Chip, ViewHeader } from "../components/ui";
 import { GlideList } from "../components/motion";
 import { NavRow } from "../components/NavRow";
 import { TextRow } from "../components/beautiful/atoms/TextRow";
 import { AppearanceSection } from "../components/panel/AppearanceSection";
-import { getLocale, setLocale, t, type Locale } from "../lib/i18n";
+import { HooksSection } from "../components/panel/HooksSection";
+import { ModelManagerSection } from "../components/panel/ModelManager";
+import { ShortcutsSection } from "../components/panel/ShortcutsSection";
+import { Row, Section, Select, Switch } from "../components/panel/SettingsParts";
+import { getLocale, setLocale, t, tf, type Locale } from "../lib/i18n";
+import { formatChord, useShortcuts } from "../lib/keybindings";
 import type { ColorMode } from "../lib/theme";
-import FineTuneCard from "../components/beautiful/primitives/FineTuneCard";
+
 import { UsageView } from "./UsageView";
 
 const LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
-/** Card with a glide highlight that travels between its rows. */
-function Section({
-  title,
-  index,
-  children,
-}: {
-  title: string;
-  index?: number;
-  children: React.ReactNode;
-}) {
-  return (
-    <Card index={index} className="overflow-hidden">
-      <div className="border-b border-line px-4 py-3 text-[13px] font-medium text-ink">{title}</div>
-      <GlideList rowSelector="[data-row]" highlightClassName="bg-hover" radius={6}>
-        {children}
-      </GlideList>
-    </Card>
-  );
-}
-
-function Row({
-  title,
-  hint,
-  mono,
-  children,
-}: {
-  title: string;
-  hint?: string;
-  /** machine identifiers (model keys, paths) read better in mono */
-  mono?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      data-row
-      className="relative z-10 flex items-center gap-4 border-b border-line px-4 py-3.5 last:border-0"
-    >
-      <div className="min-w-0 flex-1">
-        <div className={cn("text-[12.5px] text-ink", mono && "font-mono text-[11.5px]")}>{title}</div>
-        {hint ? <div className="mt-0.5 truncate text-[11px] text-ink-3">{hint}</div> : null}
-      </div>
-      <div className="flex shrink-0 items-center gap-2">{children}</div>
-    </div>
-  );
-}
-
-function Switch({ on, onClick }: { on: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={on}
-      className={cn("pressable relative h-[18px] w-8 rounded-full", on ? "bg-green" : "bg-line-strong")}
-      style={{ transition: "background-color 200ms ease-out" }}
-    >
-      <span
-        className="absolute left-[2px] top-[2px] size-[14px] rounded-full bg-white shadow"
-        style={{
-          transform: on ? "translateX(14px)" : "translateX(0)",
-          transition: "transform 240ms cubic-bezier(0.23,1,0.32,1)",
-        }}
-      />
-    </button>
-  );
-}
-
-function Select({
-  value,
-  options,
-  onChange,
-}: {
-  value: string;
-  options: string[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      className="h-7 rounded-control bg-field px-2 text-[11.5px] text-ink outline-none transition-shadow duration-150 focus:shadow-[0_0_0_3px_var(--accent-tint)]"
-    >
-      {options.map((option) => (
-        <option key={option} value={option}>
-          {option}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-type SettingsCategory = "appearance" | "general" | "models" | "terminal" | "browser" | "tasks" | "data" | "usage";
+type SettingsCategory = "appearance" | "general" | "models" | "terminal" | "browser" | "tasks" | "hooks" | "keyboard" | "data" | "usage";
 
 type SettingsRow = { key: SettingsCategory; label: string; icon: React.ReactNode };
 
@@ -133,6 +52,7 @@ const GROUPS: Array<{ label?: string; items: SettingsRow[] }> = [
     items: [
       { key: "general", label: "General", icon: <SettingsIcon size={14} /> },
       { key: "appearance", label: "Appearance", icon: <SunIcon size={14} /> },
+      { key: "keyboard", label: "Keyboard shortcuts", icon: <KeyboardIcon size={14} /> },
     ],
   },
   {
@@ -141,6 +61,7 @@ const GROUPS: Array<{ label?: string; items: SettingsRow[] }> = [
       { key: "models", label: "Models & thinking", icon: <BrainIcon size={14} /> },
       { key: "tasks", label: "Tasks", icon: <CheckCircleIcon size={14} /> },
       { key: "terminal", label: "Terminal", icon: <TerminalIcon size={14} /> },
+      { key: "hooks", label: "Hooks", icon: <HookIcon size={14} /> },
     ],
   },
   {
@@ -164,6 +85,9 @@ export function SettingsView({
   onUpdate,
   onReload,
   onBack,
+  onSaveModel,
+  onDeleteModel,
+  onSetEnabledModels,
   dockToggle,
   usage,
   usageLoading,
@@ -180,6 +104,12 @@ export function SettingsView({
   onReload: () => void;
   /** leave settings and return to the conversation */
   onBack: () => void;
+  /* models.json, from the settings page: the writes report back through the
+     shell's notice stack, so the caller owns the error handling */
+  onSaveModel: (edit: ModelEdit) => Promise<void>;
+  onDeleteModel: (provider: string, modelId: string) => Promise<void>;
+  /** the whole enabled-model whitelist, replacing `enabledModels` */
+  onSetEnabledModels: (keys: string[]) => Promise<void>;
   /** the right panel's trigger, positioned by the shell */
   dockToggle?: React.ReactNode;
   /* the usage dashboards used to be their own view; they are a section here */
@@ -190,12 +120,60 @@ export function SettingsView({
   onUsageRefresh: () => void;
 }) {
   const settings = state.settings;
+  const chords = useShortcuts();
   const [budgetDraft, setBudgetDraft] = useState<Record<string, number>>({});
   const [category, setCategory] = useState<SettingsCategory>("general");
   const [locale, setLocaleState] = useState<Locale>(getLocale);
   const onLocale = (next: Locale) => {
     setLocale(next);
     setLocaleState(next);
+  };
+  /* a window-level preference, not a pi setting: it lives beside the colour
+     mode and never touches settings.json */
+  const [codeTheme, setCodeThemeState] = useState<CodeTheme>(getCodeTheme);
+  const onCodeTheme = (next: CodeTheme) => {
+    setCodeTheme(next);
+    setCodeThemeState(next);
+  };
+
+  /* the terminal pane's shell choices, probed once when this view mounts */
+  const [shellChoices, setShellChoices] = useState<TerminalShell[] | null>(null);
+  const [resolvedShellId, setResolvedShellId] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void window.pi
+      .listShells()
+      .then((result) => {
+        if (cancelled) return;
+        setShellChoices(result.shells);
+        setResolvedShellId(result.resolvedId);
+      })
+      .catch(() => setShellChoices([]));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const terminal = settings.terminal;
+  const pickShell = (preferred: string) => {
+    /* picking an entry means it is the one that runs — a custom path would
+     * outrank it, so the choice clears it rather than sitting behind it */
+    void window.pi
+      .updateSettings({ terminal: { preferred, customPath: undefined } })
+      .then(() => setResolvedShellId(preferred))
+      .catch(() => undefined);
+  };
+  const setCustomShellPath = (customPath: string) => {
+    const trimmed = customPath.trim();
+    void window.pi
+      .updateSettings({
+        terminal: {
+          preferred: trimmed ? "custom" : terminal?.preferred === "custom" ? "auto" : (terminal?.preferred ?? "auto"),
+          customPath: trimmed || undefined,
+        },
+      })
+      .then(() => setResolvedShellId(trimmed ? "custom" : null))
+      .catch(() => undefined);
   };
   const [query, setQuery] = useState("");
 
@@ -212,7 +190,15 @@ export function SettingsView({
     localStorage.setItem("pi-notify-done", next ? "on" : "off");
   };
 
-  const modelKeys = state.models.map((model) => `${model.provider}/${model.id}`);
+  const modelRows = state.models.map((model) => ({ key: `${model.provider}/${model.id}`, model }));
+
+  /** `off` deletes the entry: the step leaves the model's level list entirely */
+  const setUltraMode = (key: string, mode: string) => {
+    const next = { ...settings.ultra };
+    if (mode === "off") delete next[key];
+    else next[key] = { mode: mode as UltraMode, picked: Boolean(next[key]?.picked) };
+    onUpdate({ ultra: next });
+  };
 
   /* searching filters the rail; empty groups drop out entirely */
   const groups = useMemo(() => {
@@ -220,7 +206,9 @@ export function SettingsView({
     if (!q) return GROUPS;
     return GROUPS.map((group) => ({
       ...group,
-      items: group.items.filter((item) => item.label.toLowerCase().includes(q)),
+      /* the rail is Chinese but the search matches both languages, so "终端"
+         and "terminal" both find the same row */
+      items: group.items.filter((item) => `${item.label} ${t(item.label)}`.toLowerCase().includes(q)),
     })).filter((group) => group.items.length > 0);
   }, [query]);
 
@@ -265,7 +253,7 @@ export function SettingsView({
             {query ? (
               <button
                 type="button"
-                aria-label="Clear search"
+                aria-label={t("Clear search")}
                 onClick={() => setQuery("")}
                 className="pressable flex size-4 shrink-0 items-center justify-center rounded-[4px] text-ink-3 hover:text-ink"
               >
@@ -293,7 +281,7 @@ export function SettingsView({
                         raised
                         active={active}
                         icon={entry.icon}
-                        label={entry.label}
+                        label={t(entry.label)}
                         className="h-8.5"
                         onClick={() => setCategory(entry.key)}
                       />
@@ -305,7 +293,7 @@ export function SettingsView({
             ))}
             {!groups.length ? (
               <div className="px-2 py-3 text-[11.5px] text-ink-3">
-                Nothing matches “{query}”. The list has {ALL_ROWS.length} sections.
+                {tf("Nothing matches “{query}”. The list has {count} sections.", { query, count: ALL_ROWS.length })}
               </div>
             ) : null}
 
@@ -316,7 +304,7 @@ export function SettingsView({
               icon={<FilePenIcon size={13} />}
               label={t("Transcript")}
               disabled={!sessionFile}
-              title={sessionFile ?? "No session file yet"}
+              title={sessionFile ?? t("No session file yet")}
               className="h-8.5"
               onClick={() => sessionFile && void window.pi.showItem(sessionFile)}
               trailing={
@@ -355,7 +343,7 @@ export function SettingsView({
           <div key={category} className="view-enter scrollbar-thin min-h-0 flex-1 overflow-y-auto">
           {/* the usage dashboards own the full width — charts and tables do not
               read well squeezed into the settings column */}
-          <div className={cn("mx-auto flex w-full flex-col gap-6 p-6", category === "usage" ? "max-w-[1100px]" : "max-w-[760px]")}>
+          <div className={cn("mx-auto flex w-full flex-col gap-8 px-8 py-8", category === "usage" ? "max-w-[1100px]" : "max-w-[720px]")}>
           {category === "appearance" ? (
           <div className="flex flex-col gap-6">
             <AppearanceSection
@@ -365,23 +353,27 @@ export function SettingsView({
               onZoomFactor={onZoomFactor}
               locale={locale}
               onLocale={onLocale}
+              codeTheme={codeTheme}
+              onCodeTheme={onCodeTheme}
             />
-
-            {/* reserved: accent themes are not built yet */}
-            <section className="flex flex-col gap-2">
-              <div className="flex items-baseline gap-2 px-0.5">
-                <h2 className="text-[12.5px] font-medium text-ink">Theme</h2>
-                <span className="text-[11px] text-ink-3">accent palette — coming later</span>
-              </div>
-              <div className="rounded-card border border-dashed border-line-strong px-4 py-6 text-center text-[12px] text-ink-3">
-                No themes yet. The choice is stored, so whatever ships next will be picked up automatically.
-              </div>
-            </section>
           </div>
           ) : null}
 
           {category === "models" ? (
-          <Section title={t("Models & thinking")} index={0}>
+          <>
+          {/* The catalogue comes first: everything below it configures a model
+              that has to exist first — depth overrides, budgets, delegation. */}
+          <ModelManagerSection
+            models={state.allModels ?? state.models}
+            enabledKeys={state.models.map((model) => `${model.provider}/${model.id}`)}
+            currentKey={
+              state.snapshot?.model ? `${state.snapshot.model.provider}/${state.snapshot.model.id}` : null
+            }
+            onSave={onSaveModel}
+            onDelete={onDeleteModel}
+            onSetEnabled={onSetEnabledModels}
+          />
+          <Section title={t("Models & thinking")} index={1}>
             <Row title={t("Startup thinking level")} hint={t("used when a session starts without a saved level")}>
               <Select
                 value={settings.defaultThinkingLevel ?? "medium"}
@@ -395,20 +387,43 @@ export function SettingsView({
             <div className="border-b border-line bg-canvas/40 px-4 py-1.5 text-[10.5px] tracking-[0.4px] text-ink-3 uppercase">
               {t("Per-model overrides · inherit follows the startup level")}
             </div>
-            {modelKeys.map((key) => (
-              <Row key={key} title={key} mono>
-                <Select
-                  value={settings.modelThinkingLevels[key] ?? "inherit"}
-                  options={["inherit", ...LEVELS]}
-                  onChange={(value) => {
-                    const next = { ...settings.modelThinkingLevels };
-                    if (value === "inherit") delete next[key];
-                    else next[key] = value;
-                    onUpdate({ modelThinkingLevels: next });
-                  }}
-                />
-              </Row>
-            ))}
+            {modelRows.map(({ key, model }) => {
+              const ultra = settings.ultra?.[key];
+              return (
+                <Fragment key={key}>
+                  <Row title={key} mono>
+                    <Select
+                      mono
+                      value={settings.modelThinkingLevels[key] ?? "inherit"}
+                      options={["inherit", ...model.thinkingLevels.filter((level) => level !== "ultra"), ...(model.supportsUltra && !model.thinkingLevels.includes("max") ? ["max"] : [])]}
+                      onChange={(value) => {
+                        const next = { ...settings.modelThinkingLevels };
+                        if (value === "inherit") delete next[key];
+                        else next[key] = value;
+                        onUpdate({ modelThinkingLevels: next });
+                      }}
+                    />
+                    {/* the column is there even when the model cannot take it —
+                        a ragged right edge reads as a bug, a greyed control
+                        reads as a limit of the model */}
+                    <Select
+                      mono
+                      title={model.supportsUltra ? t("Ultra mode") : t("Ultra needs XHigh and Max")}
+                      disabled={!model.supportsUltra}
+                      value={ultra?.mode ?? "off"}
+                      options={["off", "replace", "coexist"]}
+                      onChange={(value) => setUltraMode(key, value)}
+                    />
+                  </Row>
+                  {ultra?.mode ? (
+                    <div className="flex items-start gap-2 border-b border-line bg-ultra-tint px-4 py-2 text-[11px] leading-snug text-ink-2">
+                      <span className="mt-[5px] size-1.5 shrink-0 rounded-full bg-ultra" />
+                      <span>{t("Ultra thinks at Max and hands work to other agents when it can. Long tasks finish sooner and read better; cache writes and cost go up.")}</span>
+                    </div>
+                  ) : null}
+                </Fragment>
+              );
+            })}
             <Row title={t("Thinking token budgets")} hint={t("applies to providers that accept explicit budgets")}>
               <div className="flex items-center gap-1.5">
                 {(["minimal", "low", "medium", "high"] as const).map((level) => (
@@ -428,25 +443,57 @@ export function SettingsView({
                   onClick={() => onUpdate({ thinkingBudgets: budgetDraft as Record<string, number> })}
                   className="pressable-soft pressable h-7 rounded-control bg-surface px-2 text-[11.5px] text-ink shadow-btn hover:bg-inset"
                 >
-                  Apply
+                  {t("Apply")}
                 </button>
               </div>
             </Row>
           </Section>
-          ) : null}
 
-          {category === "models" ? (
-          <FineTuneCard
-            labels={{ title: "Thinking budget", layout: "Budgets by level", type: "Default level", placeholder: "Select a level", adjust: "Apply", edited: "Pending" }}
-            fields={[
-              { key: "minimal", label: "Min", value: settings.thinkingBudgets?.minimal ?? 1024, min: 0, max: 65536, step: 256 },
-              { key: "low", label: "Low", value: settings.thinkingBudgets?.low ?? 4096, min: 0, max: 65536, step: 256 },
-              { key: "medium", label: "Med", value: settings.thinkingBudgets?.medium ?? 10240, min: 0, max: 131072, step: 512 },
-              { key: "high", label: "High", value: settings.thinkingBudgets?.high ?? 32768, min: 0, max: 131072, step: 512 },
-            ]}
-            options={LEVELS}
-            onChange={(next) => onUpdate({ thinkingBudgets: next.values as Record<string, number> })}
-          />
+          {/* Delegation lives under Models & thinking because it is what Ultra
+              spends: the grant is a thinking-level policy, and the slots are
+              the bill that comes with it */}
+          <Section title={t("Delegation")} index={2}>
+            {!state.tools.includes("spawn_agent") ? (
+              <div className="border-b border-line bg-orange-tint px-4 py-2 text-[11.5px] leading-relaxed text-ink-2">
+                {t("Agent team is not loaded. Ultra uses Max reasoning until the extension is installed and enabled.")}
+              </div>
+            ) : null}
+            <Row title={t("Sub-agent slots")} hint={t("how many sub-agents may run at once — used by Ultra's proactive mode")}>
+              <Select
+                mono
+                value={String(settings.agents?.maxConcurrent ?? 3)}
+                options={["1", "2", "3", "4", "5", "6", "7", "8"]}
+                onChange={(value) =>
+                  onUpdate({
+                    agents: {
+                      maxConcurrent: Number(value),
+                      wakeOnCompletion: settings.agents?.wakeOnCompletion ?? true,
+                    },
+                  })
+                }
+              />
+            </Row>
+            <Row title={t("Wake when agents finish")} hint={t("a finished sub-agent starts a new turn when the parent is idle")}>
+              <Switch
+                on={settings.agents?.wakeOnCompletion ?? true}
+                onClick={() =>
+                  onUpdate({
+                    agents: {
+                      maxConcurrent: settings.agents?.maxConcurrent ?? 3,
+                      wakeOnCompletion: !(settings.agents?.wakeOnCompletion ?? true),
+                    },
+                  })
+                }
+              />
+            </Row>
+            {(settings.agents?.maxConcurrent ?? 3) >= 8 ? (
+              <div className="flex items-start gap-2 border-b border-line bg-ultra-tint px-4 py-2 text-[11px] leading-snug text-ink-2">
+                <span className="mt-[5px] size-1.5 shrink-0 rounded-full bg-ultra" />
+                <span>{t("Eight or more concurrent sub-agents can increase usage quickly. Codex warns at this threshold too.")}</span>
+              </div>
+            ) : null}
+          </Section>
+          </>
           ) : null}
 
           {category === "general" ? (
@@ -479,10 +526,10 @@ export function SettingsView({
           </Section>
 
           <Section title={t("Context & retry")} index={2}>
-            <Row title="Auto compaction" hint={`keep ${settings.compaction.keepRecentTokens.toLocaleString()} recent tokens`}>
+            <Row title={t("Auto compaction")} hint={tf("keep {tokens} recent tokens", { tokens: settings.compaction.keepRecentTokens.toLocaleString() })}>
               <Switch on={settings.compaction.enabled} onClick={() => onUpdate({ compaction: { ...settings.compaction, enabled: !settings.compaction.enabled } })} />
             </Row>
-            <Row title="Auto retry" hint={`up to ${settings.retry.maxRetries} attempts, base ${settings.retry.baseDelayMs} ms`}>
+            <Row title={t("Auto retry")} hint={tf("up to {n} attempts, base {ms} ms", { n: settings.retry.maxRetries, ms: settings.retry.baseDelayMs })}>
               <Switch on={settings.retry.enabled} onClick={() => onUpdate({ retry: { ...settings.retry, enabled: !settings.retry.enabled } })} />
             </Row>
           </Section>
@@ -490,8 +537,84 @@ export function SettingsView({
           ) : null}
 
           {category === "terminal" ? (
-          <Section title="Shell" index={0}>
-            <Row title="Shell path" hint="empty uses the system default">
+          <>
+          <Section
+            title={t("Default shell")}
+            index={0}
+            actions={
+              resolvedShellId ? (
+                <span className="font-mono text-[10.5px] text-ink-3">
+                  {shellChoices?.find((shell) => shell.id === resolvedShellId)?.name ?? resolvedShellId}
+                </span>
+              ) : undefined
+            }
+          >
+            <div className="border-b border-line bg-canvas/40 px-4 py-1.5 text-[10.5px] tracking-[0.4px] text-ink-3 uppercase">
+              {t("Discovered on this machine — the + button opens the default")}
+            </div>
+            <div data-row className="relative z-10 flex items-center gap-3 border-b border-line px-4 py-3">
+              <ShellRadio active={!terminal?.customPath && (terminal?.preferred ?? "auto") === "auto"} />
+              <div className="min-w-0 flex-1">
+                <div className="text-[12.5px] leading-snug text-ink">{t("Auto")}</div>
+                <div className="mt-1 text-[11px] leading-snug text-ink-3">{t("the first shell this machine offers")}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => pickShell("auto")}
+                className="pressable h-7 rounded-control bg-field px-2.5 text-[11.5px] text-ink-2 hover:text-ink"
+              >
+                {t("Use")}
+              </button>
+            </div>
+            {(shellChoices ?? []).map((shell) => {
+              const active = !terminal?.customPath && terminal?.preferred === shell.id;
+              return (
+                <div key={shell.id} data-row className="relative z-10 flex items-center gap-3 border-b border-line px-4 py-3">
+                  <ShellRadio active={active} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-[12.5px] leading-snug text-ink">{shell.name}</span>
+                      {shell.id === resolvedShellId && !terminal?.customPath ? (
+                        <span className="text-[10px] tracking-wide text-accent uppercase">{t("current")}</span>
+                      ) : null}
+                    </div>
+                    <div className="mt-1 font-mono text-[11px] leading-snug break-all text-ink-3">
+                      {shell.args.length ? `${shell.path} ${shell.args.join(" ")}` : shell.path}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => pickShell(shell.id)}
+                    className="pressable h-7 rounded-control bg-field px-2.5 text-[11.5px] text-ink-2 hover:text-ink"
+                  >
+                    {t("Use")}
+                  </button>
+                </div>
+              );
+            })}
+            {shellChoices && !shellChoices.length ? (
+              <div className="border-b border-line px-4 py-3 text-[11.5px] text-ink-3">{t("No shell was found on PATH — set a custom path below.")}</div>
+            ) : null}
+            <div data-row className="relative z-10 flex items-center gap-3 border-b border-line px-4 py-3 last:border-0">
+              <ShellRadio active={Boolean(terminal?.customPath)} />
+              <div className="min-w-0 flex-1">
+                <div className="text-[12.5px] leading-snug text-ink">{t("Custom path")}</div>
+                <div className="mt-1 text-[11px] leading-snug text-ink-3">{t("an absolute path to any shell executable")}</div>
+              </div>
+              <input
+                defaultValue={terminal?.customPath ?? ""}
+                onBlur={(event) => setCustomShellPath(event.target.value)}
+                placeholder="D:/Git/bin/bash.exe"
+                className="h-7 w-56 rounded-control bg-field px-2 font-mono text-[11px] text-ink outline-none"
+              />
+            </div>
+          </Section>
+
+          <Section title={t("Agent shell")} index={1}>
+            <Row
+              title={t("Agent shell path")}
+              hint={t("the bash the agent's own commands run in — must be bash-compatible; the terminal pane's choice above is separate")}
+            >
               <input
                 defaultValue={settings.shellPath ?? ""}
                 onBlur={(event) => onUpdate({ shellPath: event.target.value.trim() })}
@@ -499,7 +622,7 @@ export function SettingsView({
                 className="h-7 w-56 rounded-control bg-field px-2 font-mono text-[11px] text-ink outline-none"
               />
             </Row>
-            <Row title="Command prefix" hint="prepended to every command the agent runs">
+            <Row title={t("Command prefix")} hint={t("prepended to every command the agent runs")}>
               <input
                 defaultValue={settings.shellCommandPrefix ?? ""}
                 onBlur={(event) => onUpdate({ shellCommandPrefix: event.target.value.trim() })}
@@ -507,7 +630,7 @@ export function SettingsView({
                 className="h-7 w-56 rounded-control bg-field px-2 font-mono text-[11px] text-ink outline-none"
               />
             </Row>
-            <Row title="npm command" hint="argv used for package lookups; comma separated">
+            <Row title={t("npm command")} hint={t("argv used for package lookups; comma separated")}>
               <input
                 defaultValue={(settings.npmCommand ?? []).join(", ")}
                 onBlur={(event) =>
@@ -522,39 +645,44 @@ export function SettingsView({
                 className="h-7 w-56 rounded-control bg-field px-2 font-mono text-[11px] text-ink outline-none"
               />
             </Row>
-            <Row title="Panel" hint="the Shell panel runs through the agent's bash tool, so output joins the conversation">
+            <Row title={t("Panel")} hint={t("the Shell panel runs through the agent's bash tool, so output joins the conversation")}>
               <span className="font-mono text-[11px] text-ink-3">session.executeBash</span>
             </Row>
           </Section>
+          </>
           ) : null}
 
           {category === "browser" ? (
-          <Section title="Browser" index={0}>
-            <Row title="Embedded browser" hint="an isolated Chromium session — site logins persist between runs">
+          <Section title={t("Browser")} index={0}>
+            <Row title={t("Embedded browser")} hint={t("an isolated Chromium session — site logins persist between runs")}>
               <span className="font-mono text-[11px] text-ink-3">persist:pi-browser</span>
             </Row>
-            <Row title="Design mode" hint="Shift+Ctrl+D in the browser panel, or the pencil in its top bar">
+            <Row title={t("Design mode")} hint={tf("Press {chord} in the browser panel, or the pencil in its top bar", { chord: chords.designMode ? formatChord(chords.designMode) : t("Unassigned") })}>
               <span className="font-mono text-[11px] text-ink-3">click to select · drag to draw</span>
             </Row>
-            <Row title="DevTools" hint="the terminal button in the browser bar docks them on the right">
+            <Row title={t("DevTools")} hint={t("the terminal button in the browser bar docks them on the right")}>
               <span className="font-mono text-[11px] text-ink-3">openDevTools(right)</span>
             </Row>
-            <Row title="Agent tools" hint="registered as a pi extension — seven tools, no MCP layer">
+            <Row title={t("Agent tools")} hint={t("registered as a pi extension — seven tools, no MCP layer")}>
               <span className="font-mono text-[11px] text-ink-3">browser_*</span>
             </Row>
           </Section>
           ) : null}
 
           {category === "tasks" ? (
-          <Section title="Tasks" index={0}>
-            <Row title="Agent task list" hint="the agent keeps it current through todo_write">
-              <span className="font-mono text-[11px] text-ink-3">{state.todos.length} item(s)</span>
+          <Section title={t("Tasks")} index={0}>
+            <Row title={t("Agent task list")} hint={t("the agent keeps it current through todo_write")}>
+              <span className="font-mono text-[11px] text-ink-3">{state.todos.length} {t("items")}</span>
             </Row>
-            <Row title="Persistence" hint="written into the session file, so it survives a restart and travels with the session">
+            <Row title={t("Persistence")} hint={t("written into the session file, so it survives a restart and travels with the session")}>
               <span className="font-mono text-[11px] text-ink-3">pi.appendEntry</span>
             </Row>
           </Section>
           ) : null}
+
+          {category === "keyboard" ? <ShortcutsSection /> : null}
+
+          {category === "hooks" ? <HooksSection /> : null}
 
           {category === "usage" ? (
             /* The usage dashboards, verbatim — they were a top-level view, and
@@ -571,27 +699,27 @@ export function SettingsView({
           ) : null}
 
           {category === "data" ? (
-          <Section title="Data" index={3}>
+          <Section title={t("Data")} index={3}>
             <div className="px-4 py-1">
               <div className="border-b border-line">
-                <TextRow label="Sessions" value={state.sessions.length} meta="this project" />
+                <TextRow label={t("Sessions")} value={state.sessions.length} meta={t("this project")} />
               </div>
               <div className="border-b border-line">
-                <TextRow label="Models" value={state.models.length} meta={`${state.providers.length} channels`} />
+                <TextRow label={t("Model count")} value={state.models.length} meta={tf("{count} channels", { count: state.providers.length })} />
               </div>
               <div className="border-b border-line">
-                <TextRow label="Task list" value={state.todos.length} meta="items" />
+                <TextRow label={t("Task list")} value={state.todos.length} meta={t("items")} />
               </div>
               <div className="border-b border-line">
                 <TextRow
-                  label="Active session"
+                  label={t("Active session")}
                   value={state.snapshot?.sessionId?.slice(0, 8) ?? "—"}
-                  meta={state.snapshot?.sessionFile ? "persisted" : "not persisted"}
+                  meta={state.snapshot?.sessionFile ? t("persisted") : t("not persisted")}
                 />
               </div>
               <div className="border-b border-line">
                 <TextRow
-                  label="Context window"
+                  label={t("Context window")}
                   value={
                     contextUsage
                       ? `${contextUsage.tokens != null ? contextUsage.tokens.toLocaleString() : "—"} / ${contextUsage.contextWindow.toLocaleString()}`
@@ -602,19 +730,19 @@ export function SettingsView({
               </div>
               <div className="border-b border-line">
                 <TextRow
-                  label="Session tokens"
+                  label={t("Session tokens")}
                   value={tokens ? tokens.total.toLocaleString() : "—"}
-                  meta={tokens ? `${tokens.cacheRead.toLocaleString()} cached` : undefined}
+                  meta={tokens ? tf("{cached} cached", { cached: tokens.cacheRead.toLocaleString() }) : undefined}
                 />
               </div>
               <div className="border-b border-line">
                 <TextRow
-                  label="Cost"
+                  label={t("Cost")}
                   value={state.snapshot?.stats ? `$${state.snapshot.stats.cost.toFixed(4)}` : "—"}
-                  meta="this session"
+                  meta={t("this session")}
                 />
               </div>
-              <TextRow label="Directory" value={<span className="font-mono text-[11px]">{state.cwd}</span>} meta="sessions" />
+              <TextRow label={t("Directory")} value={<span className="font-mono text-[11px]">{state.cwd}</span>} meta={t("sessions")} />
             </div>
           </Section>
           ) : null}
@@ -622,5 +750,20 @@ export function SettingsView({
           </div>
         </div>
     </div>
+  );
+}
+
+/** The settings' own radio mark — a ring with a dot, matching the Switch's weight. */
+function ShellRadio({ active }: { active: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "flex size-3.5 shrink-0 items-center justify-center rounded-full border",
+        active ? "border-accent" : "border-line-strong",
+      )}
+    >
+      {active ? <span className="size-1.5 rounded-full bg-accent" /> : null}
+    </span>
   );
 }

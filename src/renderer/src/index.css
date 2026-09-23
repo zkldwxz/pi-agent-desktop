@@ -20,7 +20,7 @@
 
 @import "./styles/foundation-body.css";
 @import "./styles/records-table.css";
-@import "./styles/hljs-github.css";
+@import "./styles/hljs-themes.css";
 
 /* ─────────────────────────────────────────────────────────
  * App shell
@@ -28,6 +28,31 @@
  * two font faces and its own page chrome. A desktop window owns its whole
  * surface, so the site's striped page background is dropped here.
  * ───────────────────────────────────────────────────────── */
+
+/* ── plan mode ────────────────────────────────────────────
+ * One warm hue, and the only one in the app. Everything else the user presses
+ * sends a message or opens a panel; Build approves a plan and spends real
+ * tokens executing it, and it is the single irreversible step on screen — so it
+ * is the single button that is not the cool accent. Yellow that has to carry
+ * dark text in both themes, which is why the ink is a deep brown rather than
+ * black: it keeps the button reading as a surface, not a hole. */
+:root {
+  --plan: oklch(0.845 0.145 88);
+  --plan-ink: oklch(0.36 0.06 74);
+  --plan-tint: oklch(0.97 0.045 92);
+}
+
+.dark {
+  --plan: oklch(0.815 0.145 86);
+  --plan-ink: oklch(0.29 0.055 74);
+  --plan-tint: oklch(0.815 0.145 86 / 0.16);
+}
+
+@theme inline {
+  --color-plan: var(--plan);
+  --color-plan-ink: var(--plan-ink);
+  --color-plan-tint: var(--plan-tint);
+}
 
 :root {
   --font-inter: "Geist Variable";

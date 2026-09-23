@@ -1,4 +1,4 @@
-import type { ChatBlock, ChatMessage, ModelInfo, SessionListItem, SessionStatus } from "@shared/types";
+import type { ChatBlock, ChatMessage, ModelInfo, SessionListItem, SessionStatus, UltraMode } from "@shared/types";
 
 /** Structural stand-in for pi's message type (kept local so the desktop build
  *  does not depend on pi's nested workspace packages). */
@@ -34,6 +34,15 @@ function asRecord(value: unknown): Record<string, unknown> {
   return {};
 }
 
+/**
+ * The message's own prose: text blocks joined, thinking excluded.
+ *
+ * Thinking content must NOT land here. `text` is the transcript's fallback
+ * prose for an assistant message whose blocks carry no text block, and it feeds
+ * every preview in the shell (canvas captions, outline rows, session lists);
+ * reasoning dumped into it renders a second time as the answer itself — the
+ * trace shows it, then the reply repeats it. Reasoning lives in `blocks`.
+ */
 function textFromContent(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
@@ -41,7 +50,6 @@ function textFromContent(content: unknown): string {
     .map((block) => {
       const item = asRecord(block);
       if (item.type === "text" && typeof item.text === "string") return item.text;
-      if (item.type === "thinking" && typeof item.thinking === "string") return item.thinking;
       return "";
     })
     .filter(Boolean)
@@ -112,6 +120,7 @@ export function serializeMessage(message: AgentMessageLike, index: number, strea
       output: Number(usage.output ?? 0),
       total: Number(usage.totalTokens ?? Number(usage.input ?? 0) + Number(usage.output ?? 0)),
       cacheRead: Number(usage.cacheRead ?? 0),
+      cacheWrite: Number(usage.cacheWrite ?? 0),
       model: typeof record.model === "string" ? record.model : undefined,
       provider: typeof record.provider === "string" ? record.provider : undefined,
     };
@@ -138,8 +147,26 @@ export function thinkingLevelsFor(model: ModelLike): string[] {
   return levels.length ? levels : ["off"];
 }
 
-export function serializeModel(model: ModelLike | null | undefined): ModelInfo | null {
+/**
+ * Ultra borrows Max's request — same wire level, longer run — so it is only
+ * offered to a model that already has both steps. A model that stops at
+ * `xhigh` cannot be promised a depth it has nowhere to send.
+ */
+export function supportsUltra(levels: readonly string[]): boolean {
+  return levels.includes("xhigh") && levels.includes("max");
+}
+
+/** Add the desktop's Ultra step to a model's own levels. */
+export function withUltra(levels: string[], mode: UltraMode | undefined): string[] {
+  if (!mode || !supportsUltra(levels)) return levels;
+  return mode === "replace"
+    ? levels.map((level) => (level === "max" ? "ultra" : level))
+    : levels.flatMap((level) => (level === "max" ? ["max", "ultra"] : [level]));
+}
+
+export function serializeModel(model: ModelLike | null | undefined, ultra?: UltraMode): ModelInfo | null {
   if (!model) return null;
+  const base = thinkingLevelsFor(model);
   return {
     id: model.id,
     name: model.name,
@@ -150,7 +177,8 @@ export function serializeModel(model: ModelLike | null | undefined): ModelInfo |
     reasoning: Boolean(model.reasoning),
     input: model.input ?? ["text"],
     supportsImages: (model.input ?? []).includes("image"),
-    thinkingLevels: thinkingLevelsFor(model),
+    thinkingLevels: withUltra(base, ultra),
+    supportsUltra: supportsUltra(base),
     thinkingLevelMap: model.thinkingLevelMap,
     cost: {
       input: model.cost?.input ?? 0,

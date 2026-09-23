@@ -1,4 +1,6 @@
-import { existsSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { app } from "electron";
 import { dirname } from "node:path";
 import {
   type ExtensionAPI,
@@ -17,23 +19,34 @@ import type {
   ChatMessage,
   ContextBreakdown,
   ContextPart,
+  FleetAgent,
   HostState,
   ModelEdit,
   ModelInfo,
+  PlanAction,
+  PlanState,
   PluginInfo,
   PromptPayload,
   RuntimeSettings,
   DesktopConfig,
   SlashCommand,
   ToolActivity,
+  UltraMode,
+  UltraSetting,
 } from "@shared/types";
 import type { TerminalResult } from "@shared/workspace";
 import { readModelsFile, removeModelFromFile, writeModelEdit } from "./model-config";
-import { deletePlugin, listPlugins, setPluginEnabled } from "./plugins";
-import { serializeMessage, serializeMessages, serializeModel, serializeSessionList, thinkingLevelsFor } from "./serialize";
+import { deletePlugin, listPlugins, setPluginEnabled, createRule } from "./plugins";
+import { serializeMessage, serializeMessages, serializeModel, serializeSessionList, thinkingLevelsFor, withUltra } from "./serialize";
 import { registerBrowserTools } from "./browser-extension";
+import { registerDesktopBridge } from "./desktop-bridge-extension";
+import { registerSubagentTools, type NamedExtensionFactory } from "./subagent-tools-extension";
+import { registerAgentTools } from "./agent-tools/extension";
+import { registerWebTools } from "./web/extension";
+import { EMPTY_PLAN } from "./plan-state";
 import { EMPTY_TODOS, registerTodoTools, type TodoState } from "./todo-extension";
-import { readConfig } from "./install";
+import { registerUltraPolicy } from "./ultra-extension";
+import { readConfig, writeConfig } from "./install";
 import { UiBridge } from "./ui-bridge";
 import type { UiAnswer, UiNotification, UiRequest } from "@shared/ui";
 import type { BrowserHost } from "./browser";
@@ -66,6 +79,21 @@ function availableThinkingLevels(model: { reasoning: boolean; thinkingLevelMap?:
   });
 }
 
+/**
+ * The tool factories every session runs.
+ *
+ * The main session loads them straight from the list in `boot()`; a sub-agent
+ * session gets the identical pair through the provisioning extension below,
+ * which answers agent-team's `agent-team:configure-tools` request. One
+ * definition, so a sub-agent's tool surface cannot drift away from its
+ * parent's — the only difference is the team tools, which a path plugin
+ * registers and a sub-agent's loader deliberately never reads from disk.
+ */
+const SESSION_TOOLS: NamedExtensionFactory[] = [
+  { name: "pi-desktop-web", factory: registerWebTools },
+  { name: "pi-desktop-agent-tools", factory: registerAgentTools },
+];
+
 export class PiHost {
   private runtime: AgentSessionRuntime | null = null;
   private unsubscribe: (() => void) | null = null;
@@ -74,6 +102,9 @@ export class PiHost {
   private agentDir = getAgentDir();
   private sessions: HostState["sessions"] = [];
   private models: ModelInfo[] = [];
+  /** every model the runtime knows, disabled ones included — the settings
+   *  list reads this; every picker reads the enabled `models` */
+  private allModels: ModelInfo[] = [];
   private commands: SlashCommand[] = [];
   private tools = new Map<string, ToolActivity>();
   private connected = false;
@@ -81,6 +112,14 @@ export class PiHost {
   private starting: Promise<void> | null = null;
   private settingsManager: SettingsManager;
   private todos: TodoState = EMPTY_TODOS;
+  /** what the plan-mode extension is doing, mirrored from its bus */
+  private plan: PlanState = EMPTY_PLAN;
+  /** the delegation fleet, mirrored from the agent-team extension's bus */
+  private fleet: FleetAgent[] = [];
+  /** the event bus the extensions share — how interrupts reach the team */
+  private teamBus: { emit(channel: string, data: unknown): void } | null = null;
+  /** names of commands that extensions registered — they dispatch, never queue */
+  private pluginCommands = new Set<string>();
   private desktop: DesktopConfig | null = null;
   readonly ui = new UiBridge((request, notifications) => this.listener?.({ state: this.buildState(), messages: this.messages(), tools: this.toolActivity(), uiRequest: request, notifications }));
 
@@ -97,6 +136,11 @@ export class PiHost {
     return this.cwd;
   }
 
+  /** Agent bash configuration is independent of interactive terminal shells. */
+  getShellPath(): string | undefined {
+    return this.settingsManager.getShellPath();
+  }
+
   async start(): Promise<void> {
     if (this.starting) return this.starting;
     this.starting = this.boot();
@@ -110,10 +154,12 @@ export class PiHost {
   async dispose(): Promise<void> {
     this.unsubscribe?.();
     this.unsubscribe = null;
+    this.interruptFleet();
     if (this.runtime) {
       await this.runtime.dispose();
       this.runtime = null;
     }
+    this.teamBus = null;
     this.connected = false;
   }
 
@@ -122,26 +168,66 @@ export class PiHost {
     this.cwd = cwd;
     await this.dispose();
     this.settingsManager = SettingsManager.create(cwd, this.agentDir);
-    await this.start();
+    try {
+      await this.start();
+    } catch (error) {
+      /* switching folders is the New Agent menu's job; a boot failure there
+       * must not die silently inside a void'd promise */
+      const message = error instanceof Error ? error.message : String(error);
+      this.ui.context("host").notify(`Could not open ${cwd}: ${message}`, "error");
+      throw error;
+    }
   }
 
   async prompt(payload: PromptPayload): Promise<void> {
     const session = this.requireSession();
     const text = payload.text.trim();
     if (!text) return;
-    const options = payload.images?.length ? { images: payload.images as never } : undefined;
-    if (session.isStreaming) {
+    const images = payload.images?.length ? (payload.images as never) : undefined;
+    /* Plugin commands — `/plan`, `/todos`, anything an extension registers —
+     * are dispatched by pi itself, immediately and even mid-stream, but only
+     * through `prompt()`. `steer`/`followUp` reject extension commands outright,
+     * so a command must never be routed into the queue. */
+    if (session.isStreaming && !this.isPluginCommand(text)) {
       const behavior = payload.streamingBehavior ?? "followUp";
-      if (behavior === "steer") await session.steer(text, options?.images);
-      else await session.followUp(text, options?.images);
+      if (behavior === "steer") await session.steer(text, images);
+      else await session.followUp(text, images);
       return;
     }
-    await session.prompt(text, options);
+    await session.prompt(text, images ? { images } : undefined);
+  }
+
+  private isPluginCommand(text: string): boolean {
+    const match = /^\/([a-z0-9:_-]+)/i.exec(text);
+    return match ? this.pluginCommands.has(match[1].toLowerCase()) : false;
   }
 
   async abort(): Promise<void> {
+    /* Suppress completion wakes before abort settles the parent's turn. */
+    this.interruptFleet();
     await this.requireSession().abort();
     this.emit();
+  }
+
+  /** Ask the agent-team extension to interrupt one sub-agent (by name) or all. */
+  fleetInterrupt(name?: string): void {
+    if (!name) {
+      this.interruptFleet();
+      return;
+    }
+    try {
+      this.teamBus?.emit("agent-team:interrupt", { name });
+    } catch {
+      /* the runtime is gone; the plugin's own shutdown handles cleanup */
+    }
+  }
+
+  private interruptFleet(): void {
+    try {
+      this.teamBus?.emit("agent-team:interrupt-all", null);
+    } catch {
+      /* ignore */
+    }
   }
 
   /**
@@ -182,13 +268,34 @@ export class PiHost {
   }
 
   async newSession(): Promise<void> {
-    await this.requireRuntime().newSession();
+    let swapped: { cancelled: boolean };
+    try {
+      swapped = await this.requireRuntime().newSession();
+    } catch (error) {
+      /* a silent failure here reads as "the New Agent button does nothing" —
+       * the click is real, the rejection is invisible. Surface it as a window
+       * notification and rethrow so the IPC caller also sees the failure. */
+      const message = error instanceof Error ? error.message : String(error);
+      this.ui.context("host").notify(`Could not start a new session: ${message}`, "error");
+      throw error;
+    }
+    // an extension vetoed the switch (and usually asked the user first): nothing changed
+    if (swapped.cancelled) return;
     this.todos = EMPTY_TODOS;
     this.tools.clear();
-    await this.bindSession();
-    // paint the new (empty) composer now; the sidebar list is a background refresh
+    /* Paint the new (empty) conversation *before* the extensions are re-attached.
+     * The session has already been swapped at this point, so a `bindSession`
+     * that throws used to leave the old transcript hanging on screen — which is
+     * indistinguishable from a dead button. The sidebar list is a background refresh. */
     this.emit();
     this.refreshSessionsInBackground();
+    try {
+      await this.bindSession();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.ui.context("host").notify(`The new session started, but its extensions failed: ${message}`, "error");
+      throw error;
+    }
   }
 
   async switchSession(sessionPath: string): Promise<void> {
@@ -280,13 +387,11 @@ export class PiHost {
   async removeQueued(kind: "steering" | "followUp", index: number): Promise<void> {
     const session = this.requireSession();
     const { steering, followUp } = session.clearQueue();
-    const keep = kind === "steering" ? steering : followUp;
-    const dropped = kind === "steering" ? followUp : steering;
-    for (const text of dropped) await session.followUp(text);
-    for (const [position, text] of keep.entries()) {
-      if (position === index) continue;
-      if (kind === "steering") await session.steer(text);
-      else await session.followUp(text);
+    for (const [position, text] of steering.entries()) {
+      if (kind !== "steering" || position !== index) await session.steer(text);
+    }
+    for (const [position, text] of followUp.entries()) {
+      if (kind !== "followUp" || position !== index) await session.followUp(text);
     }
     this.emit();
   }
@@ -302,15 +407,36 @@ export class PiHost {
     const session = this.requireSession();
     const model = session.modelRuntime.getModel(provider, modelId);
     if (!model) throw new Error(`Model not found: ${provider}/${modelId}`);
+    if (!this.modelEnabled({ provider, id: modelId })) {
+      throw new Error(
+        `${provider}/${modelId} is disabled. Turn it back on in Settings ▸ Models & thinking before switching to it.`,
+      );
+    }
     await session.setModel(model);
     this.emit();
   }
 
   async setThinkingLevel(level: string): Promise<void> {
     const session = this.requireSession();
-    session.setThinkingLevel(level as never);
+    /* pi clamps a level it does not know down to the model's lowest, so Ultra is
+       translated here rather than sent: the request is Max, and the delegation
+       policy the composer adds is what makes the two differ. */
+    const ultra = level === "ultra";
+    if (!withUltra(session.getAvailableThinkingLevels(), this.ultraMode(session)).includes(level)) {
+      throw new Error(`Thinking level is not available for this model: ${level}`);
+    }
+    const wire = (ultra ? "max" : level) as never;
+    session.setThinkingLevel(wire);
     const model = session.model;
-    if (model) this.settingsManager.setModelThinkingLevel(model.provider, model.id, level as never);
+    if (model) {
+      const key = `${model.provider}/${model.id}`;
+      const entry = this.desktop?.ultra[key];
+      if (entry && this.desktop) {
+        this.desktop = { ...this.desktop, ultra: { ...this.desktop.ultra, [key]: { ...entry, picked: ultra } } };
+        this.desktop = await writeConfig({ ultra: this.desktop.ultra });
+      }
+      this.settingsManager.setModelThinkingLevel(model.provider, model.id, wire);
+    }
     await this.settingsManager.flush();
     this.emit();
   }
@@ -324,7 +450,36 @@ export class PiHost {
   async reload(): Promise<void> {
     await this.requireSession().reload();
     await this.refreshModels();
-    await this.refreshCommands();
+    this.refreshCommands();
+    this.emit();
+  }
+
+  /**
+   * Drive plan mode.
+   *
+   * The feature is a plugin (`~/.pi/agent/extensions/plan-mode`, the same file
+   * the CLI loads), and these are its own subcommands — sent through `prompt()`
+   * so pi dispatches them exactly as if they had been typed. The window adds
+   * only what a command line cannot do for itself: pressing the button, and
+   * switching the model the build runs on.
+   */
+  async planAction(payload: PlanAction): Promise<void> {
+    const session = this.requireSession();
+    const note = payload.note?.trim();
+    if (!this.pluginCommands.has("plan")) throw new Error("The Plan mode extension is not enabled.");
+    if (payload.action === "build") {
+      if (this.plan.phase !== "review" || !this.plan.steps.length) throw new Error("No plan is awaiting approval.");
+      if (!session.isIdle) throw new Error("Wait for the agent to settle before building the plan.");
+      /* Build with what planned it, or with whatever the user picked — either
+       * way it is the model the next turn must run on, so it is set first and
+       * remembered for the next plan. */
+      if (payload.model) {
+        await this.setModel(payload.model.provider, payload.model.id);
+        this.desktop = await writeConfig({ buildModel: payload.model });
+      }
+    }
+    const text = payload.action === "refine" && note ? `/plan refine ${note}` : `/plan ${payload.action === "toggle" ? "" : payload.action}`;
+    await session.prompt(text.trim());
     this.emit();
   }
 
@@ -353,27 +508,93 @@ export class PiHost {
         this.settingsManager.setModelThinkingLevel(provider, rest.join("/"), level as never);
       }
     }
+    if (patch.ultra !== undefined) {
+      /* an entry survives only while it names a mode, and `picked` is dropped
+         with it — clearing Ultra for the running model is what takes the label
+         off the composer without a second round trip */
+      const ultra: Record<string, UltraSetting> = {};
+      for (const [key, entry] of Object.entries(patch.ultra)) {
+        if (entry?.mode) ultra[key] = { mode: entry.mode, picked: Boolean(entry.picked) };
+      }
+      this.desktop = await writeConfig({ ultra });
+    }
+    if (patch.agents !== undefined) {
+      /* the agent-team plugin reads this block from disk when its session
+       * binds — write it, then reload so the new limits take effect now */
+      this.desktop = await writeConfig({ agents: patch.agents });
+    }
+    if (patch.terminal !== undefined) {
+      /* the terminal pane resolves this on every spawn — no reload needed */
+      this.desktop = await writeConfig({ terminal: patch.terminal });
+    }
     if (patch.thinkingBudgets) {
       const current = this.settingsManager.getThinkingBudgets() ?? {};
       this.settingsManager.applyOverrides({ thinkingBudgets: { ...current, ...patch.thinkingBudgets } });
     }
-    if (patch.enabledModels) this.settingsManager.setEnabledModels(patch.enabledModels);
+    if (patch.enabledModels) {
+      /* Disabling the model the session is running on would leave the window
+         pointed at something it then refuses to select. The switch is refused
+         here, with the reason, instead of quietly unsetting the session model. */
+      const current = this.runtime?.session?.model;
+      if (current && !this.patternAllows(patch.enabledModels, current)) {
+        throw new Error(
+          `${current.provider}/${current.id} is the model this session is running on. Switch to another model before disabling it.`,
+        );
+      }
+      this.settingsManager.setEnabledModels(patch.enabledModels);
+    }
     await this.settingsManager.flush();
     const errors = this.settingsManager.drainErrors();
     if (errors.length) throw new Error(errors.map((entry) => entry.error.message).join("; "));
+    // Desktop-only preferences are read on demand. Reloading the session here
+    // would shut down a running fleet just because the user changed shells.
+    if (Object.keys(patch).every((key) => key === "terminal" || key === "ultra")) {
+      if (patch.ultra !== undefined) await this.refreshModels();
+      this.emit();
+      return;
+    }
     await this.reload();
   }
 
   async saveModelEdit(edit: ModelEdit): Promise<void> {
     writeModelEdit(edit);
-    await this.refreshModels();
+    await this.reloadModelsFromDisk();
     this.emit();
   }
 
   async deleteModel(provider: string, modelId: string): Promise<void> {
     removeModelFromFile(provider, modelId);
-    await this.refreshModels();
+    await this.reloadModelsFromDisk();
     this.emit();
+  }
+
+  /**
+   * Re-read models.json into the live session, then recompute the list.
+   *
+   * `refreshModels` alone only re-reads the runtime's in-memory catalogue,
+   * which changes when the runtime recomposes its providers — writing the file
+   * and stopping there is exactly why a saved model used to need a restart.
+   * `refresh({allowNetwork:false})` re-reads the file and recomposes without
+   * touching the network. pi reports an entry it cannot compose (a provider
+   * naming no models, no baseUrl and no key) as a per-provider error rather
+   * than a throw, so it is collected, the list is recomputed anyway, and the
+   * error is raised afterwards for the renderer to show — the write already
+   * happened, so silence would be the one wrong answer.
+   */
+  private async reloadModelsFromDisk(): Promise<void> {
+    const session = this.runtime?.session;
+    let failure: Error | undefined;
+    if (session) {
+      try {
+        const result = await session.modelRuntime.refresh({ allowNetwork: false });
+        const first = [...result.errors.values()][0];
+        if (first) failure = first instanceof Error ? first : new Error(String(first));
+      } catch (error) {
+        failure = error instanceof Error ? error : new Error(String(error));
+      }
+    }
+    await this.refreshModels();
+    if (failure) throw failure;
   }
 
   plugins(): PluginInfo[] {
@@ -390,6 +611,57 @@ export class PiHost {
     deletePlugin(path, kind);
     await this.reload();
     return this.plugins();
+  }
+
+  async createRule(scope: "global" | "project", name: string): Promise<PluginInfo[]> {
+    createRule(this.cwd, scope, name);
+    await this.reload();
+    return this.plugins();
+  }
+
+  /**
+   * Where pasted images live: the app's own directory under the OS temp root.
+   * Sources that are already temporary files are copied here so a system temp
+   * cleaner cannot yank the referenced path out from under the conversation.
+   */
+  private pasteImageDir(): string {
+    return join(app.getPath("temp"), "pi-agent-desktop", "paste-images");
+  }
+
+  /** drop everything in the paste dir older than 24 hours — called on save
+   *  and on boot, so the folder never grows without bound */
+  private purgeOldPasteImages(): void {
+    const dir = this.pasteImageDir();
+    if (!existsSync(dir)) return;
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    try {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        try {
+          if (statSync(full).mtimeMs < cutoff) rmSync(full, { force: true });
+        } catch {
+          /* a file that refuses to die is not worth the session */
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * Persist a pasted image (data URL) into the app's paste directory and
+   * return the path the conversation should reference.
+   */
+  async savePasteImage(dataUrl: string, extension = "png"): Promise<string> {
+    const match = /^data:image\/([a-z+]+);base64,(.+)$/i.exec(dataUrl);
+    const base64 = match?.[2] ?? dataUrl.replace(/^data:[^,]*,/, "");
+    const ext = (match?.[1] ?? extension).replace(/[^a-z0-9]/gi, "") || "png";
+    const dir = this.pasteImageDir();
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    this.purgeOldPasteImages();
+    const file = join(dir, `paste-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}.${ext}`);
+    writeFileSync(file, Buffer.from(base64, "base64"));
+    return file;
   }
 
   /** Re-read the task list the agent last wrote in this session. */
@@ -585,6 +857,7 @@ export class PiHost {
 
   private async boot(): Promise<void> {
     this.error = undefined;
+    this.purgeOldPasteImages();
     this.desktop = await readConfig();
     const agentDir = this.agentDir;
     const settingsManager = this.settingsManager;
@@ -597,8 +870,17 @@ export class PiHost {
         // The browser tools are a pi extension, not an MCP server: the agent runs
         // in this process, so the tools call the embedded view directly.
         resourceLoaderOptions: {
-          // capabilities the user enabled on the welcome screen
           extensionFactories: [
+            /* The window's tools, in every session. A sub-agent session loads
+               the same two factories — agent-team asks the provisioning
+               listener below for them, so the sub-agent's surface is this
+               list minus the team tools. */
+            ...SESSION_TOOLS,
+            {
+              name: "pi-desktop-subagent-tools",
+              factory: (pi: ExtensionAPI) => registerSubagentTools(pi, SESSION_TOOLS),
+            },
+            // capabilities the user enabled on the welcome screen
             ...(this.desktop?.capabilities.browser
               ? [
                   {
@@ -622,6 +904,44 @@ export class PiHost {
                   },
                 ]
               : []),
+            /* Not gated on a capability the way the two above are: the depth can
+               change without the session being rebuilt, so the handler has to be
+               installed and ask each turn. It costs nothing while it is off. */
+            {
+              name: "pi-desktop-ultra",
+              factory: (pi: ExtensionAPI) =>
+                registerUltraPolicy(pi, {
+                  isUltra: () => this.ultraActive(),
+                  maxAgents: () => this.desktop?.agents.maxConcurrent ?? 3,
+                }),
+            },
+            /* The window's own plumbing. Plan mode lives in `~/.pi/agent/extensions`
+               as a normal plugin, so the only way to see what it is doing is to
+               listen on the bus it publishes to; the same widget carries the real
+               slash-command list. Always installed: it is how the UI hears about
+               plugins it knows nothing about. */
+            {
+              name: "pi-desktop-bridge",
+              factory: (pi: ExtensionAPI) => {
+                /* the shared bus, kept for the interrupts the window sends down */
+                this.teamBus = { emit: (channel: string, data: unknown) => pi.events.emit(channel, data) };
+                return registerDesktopBridge(pi, {
+                  onPlanState: (state) => {
+                    this.plan = state;
+                    this.emit();
+                  },
+                  onFleetState: (agents) => {
+                    this.fleet = agents;
+                    this.emit();
+                  },
+                  onCommands: (commands) => {
+                    this.pluginCommands = new Set(commands.map((command) => command.name.toLowerCase()));
+                    this.commands = commands;
+                    this.emit();
+                  },
+                });
+              },
+            },
           ],
         },
       });
@@ -649,6 +969,13 @@ export class PiHost {
   private async bindSession(): Promise<void> {
     this.unsubscribe?.();
     const session = this.requireSession();
+    /* The previous session's list is not this one's. Both are repopulated by the
+     * desktop bridge, which reports commands and plan state during binding. */
+    this.commands = [];
+    this.pluginCommands = new Set();
+    this.plan = EMPTY_PLAN;
+    this.fleet = [];
+    // The factory already supplied this session's bus before binding.
     // route extension dialogs to the window; "rpc" marks them dialog-capable
     await session.bindExtensions({ mode: "rpc", uiContext: this.ui.context("extension") });
     this.unsubscribe = session.subscribe((event) => this.onEvent(event));
@@ -696,7 +1023,7 @@ export class PiHost {
         if (tool.status === "running") tool.status = "done";
       }
       // the sidebar reads this list — emit again once the scan lands
-      void this.refreshSessions().then(() => this.emit());
+      void this.refreshSessions().then(() => this.emit()).catch(() => undefined);
     }
     // any event is a hint the transcript (and maybe a brand-new session file)
     // changed; throttled so streaming does not rescan the session dir per token
@@ -710,11 +1037,13 @@ export class PiHost {
     const now = Date.now();
     if (now - this.lastSessionsRefresh < 2000) return;
     this.lastSessionsRefresh = now;
-    void this.refreshSessions().then(() => this.emit());
+    void this.refreshSessions().then(() => this.emit()).catch(() => undefined);
   }
 
   private async refreshSessions(): Promise<void> {
-    const listed = await SessionManager.list(this.cwd);
+    const cwd = this.cwd;
+    const listed = await SessionManager.list(cwd);
+    if (cwd !== this.cwd) return;
     const session = this.runtime?.session;
     this.sessions = serializeSessionList(listed, session?.sessionFile, session?.isStreaming);
   }
@@ -728,41 +1057,101 @@ export class PiHost {
    * synchronously — so it runs off the critical path and re-emits when it lands.
    */
   private refreshSessionsInBackground(): void {
-    void this.refreshSessions().then(() => this.emit());
+    void this.refreshSessions().then(() => this.emit()).catch(() => undefined);
+  }
+
+  /** Ultra borrows Max's request, so the flag that says which one the user
+   *  picked has to live on this side of the wire. */
+  private ultraMode(session: AgentSession | null | undefined): UltraMode | undefined {
+    const model = session?.model;
+    if (!model || !this.desktop) return undefined;
+    return this.desktop.ultra[`${model.provider}/${model.id}`]?.mode;
+  }
+
+  /** Whether the session is running at Ultra, not merely at Max. */
+  private ultraActive(): boolean {
+    const session = this.runtime?.session ?? null;
+    if (!session || session.thinkingLevel !== "max") return false;
+    const model = session.model;
+    if (!model || !this.desktop) return false;
+    const entry = this.desktop.ultra[`${model.provider}/${model.id}`];
+    return Boolean(entry?.mode && entry.picked);
   }
 
   private async refreshModels(): Promise<void> {
     const session = this.runtime?.session;
     if (!session) {
+      this.allModels = [];
       this.models = [];
       return;
     }
     const available = await session.modelRuntime.getAvailable();
     const file = readModelsFile();
-    this.models = available.map((model) => {
+    this.editableProviders = new Set(Object.keys(file.providers ?? {}));
+    const catalogue = available.map((model) => {
       const fromFile = Boolean(file.providers?.[model.provider]?.models?.some((entry) => entry.id === model.id));
       const info = serializeModel(model as never)!;
       return {
         ...info,
-        thinkingLevels: availableThinkingLevels(model as never),
+        thinkingLevels: withUltra(
+          availableThinkingLevels(model as never),
+          this.desktop?.ultra[`${model.provider}/${model.id}`]?.mode,
+        ),
         thinkingLevelMap: (model as { thinkingLevelMap?: Record<string, string | null> }).thinkingLevelMap,
         source: fromFile ? "models.json" : "builtin",
       } satisfies ModelInfo;
     });
+    this.allModels = catalogue;
+    /* Disabling is a desktop-level whitelist kept in pi's own `enabledModels`
+       field, where an empty list means "all of them" — the same reading the
+       CLI gives it. Every picker in the window draws from `models`, so a
+       disabled model leaves all of them at once, while the settings list still
+       reads `allModels` and can show the row greyed out. Read once, not per
+       row: the settings getter hands back a fresh clone every call. */
+    const enabledModels = this.settingsManager.getGlobalSettings().enabledModels;
+    this.models = catalogue.filter((model) => this.patternAllows(enabledModels, model));
   }
 
+  /** Does the enabled-model whitelist cover this model? A trailing `*` in a
+   *  pattern matches a prefix (`anthropic/*`), the shape the CLI accepts. */
+  private patternAllows(enabled: string[] | undefined, model: { provider: string; id: string }): boolean {
+    if (!enabled?.length) return true;
+    const key = `${model.provider}/${model.id}`.toLowerCase();
+    return enabled.some((pattern) => {
+      const needle = pattern.trim().toLowerCase();
+      if (!needle) return false;
+      if (needle.endsWith("*")) return key.startsWith(needle.slice(0, -1));
+      return needle === key;
+    });
+  }
+
+  private modelEnabled(model: { provider: string; id: string }): boolean {
+    return this.patternAllows(this.settingsManager.getGlobalSettings().enabledModels, model);
+  }
+
+  /**
+   * The slash-command menu.
+   *
+   * The authoritative list comes from inside the session (`pi.getCommands()` —
+   * extensions, prompt templates and skills at once), which only an extension
+   * can call; the desktop bridge reports it. Until it does, prompt templates are
+   * the part of that list the host can read for itself.
+   */
   private refreshCommands(): void {
     const session = this.runtime?.session;
     if (!session) {
       this.commands = [];
       return;
     }
+    if (this.commands.length) return;
     this.commands = session.promptTemplates.map((prompt) => ({
       name: prompt.name,
       description: prompt.description,
-      source: prompt.filePath ? "prompt" : "builtin",
+      source: "prompt",
     }));
   }
+
+  private editableProviders = new Set<string>();
 
   private providerRows() {
     const session = this.runtime?.session;
@@ -770,7 +1159,6 @@ export class PiHost {
     const providers = session.modelRuntime.getProviders() as unknown as ProviderLike[];
     const counts = new Map<string, number>();
     for (const model of this.models) counts.set(model.provider, (counts.get(model.provider) ?? 0) + 1);
-    const file = readModelsFile();
     return providers.map((provider) => ({
       id: provider.id,
       name: provider.name ?? provider.id,
@@ -778,7 +1166,7 @@ export class PiHost {
       baseUrl: provider.baseUrl,
       modelCount: counts.get(provider.id) ?? 0,
       hasAuth: session.modelRuntime.hasConfiguredAuth(provider.id),
-      editable: Boolean(file.providers?.[provider.id]),
+      editable: this.editableProviders.has(provider.id),
     }));
   }
 
@@ -791,6 +1179,7 @@ export class PiHost {
       defaultModel: settings.defaultModel,
       defaultThinkingLevel: settings.defaultThinkingLevel,
       modelThinkingLevels: this.settingsManager.getAllModelThinkingLevels() as Record<string, string>,
+      ultra: this.desktop?.ultra ?? {},
       thinkingBudgets: this.settingsManager.getThinkingBudgets() as Record<string, number> | undefined,
       enabledModels: settings.enabledModels,
       defaultTools: settings.defaultTools,
@@ -801,6 +1190,8 @@ export class PiHost {
       shellPath: this.settingsManager.getShellPath(),
       shellCommandPrefix: this.settingsManager.getShellCommandPrefix(),
       npmCommand: this.settingsManager.getNpmCommand(),
+      agents: this.desktop?.agents,
+      terminal: this.desktop?.terminal,
     };
   }
 
@@ -829,10 +1220,14 @@ export class PiHost {
       error: this.error ?? session?.state.errorMessage,
       sessions: this.sessions,
       models: this.models,
+      allModels: this.allModels,
       providers: this.providerRows(),
       commands: this.commands,
       settings: this.runtimeSettings(),
       todos: this.todos.items,
+      plan: this.plan,
+      fleet: this.fleet,
+      surfaces: this.ui.surfaces(),
       tools: this.toolNames(),
       queue: this.queueState(),
       snapshot: session
@@ -841,11 +1236,11 @@ export class PiHost {
             sessionFile: session.sessionFile,
             sessionName: session.sessionName,
             cwd: this.cwd,
-            model: this.models.find(
+            model: this.allModels.find(
               (model) => model.provider === session.model?.provider && model.id === session.model?.id,
-            ) ?? serializeModel(session.model),
-            thinkingLevel: session.thinkingLevel,
-            thinkingLevels: session.getAvailableThinkingLevels(),
+            ) ?? serializeModel(session.model, this.ultraMode(session)),
+            thinkingLevel: this.ultraActive() ? "ultra" : session.thinkingLevel,
+            thinkingLevels: withUltra(session.getAvailableThinkingLevels(), this.ultraMode(session)),
             isStreaming: session.isStreaming,
             isIdle: session.isIdle,
             isCompacting: session.isCompacting,

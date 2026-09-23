@@ -136,9 +136,14 @@ export function highlightCode(code: string, language: string): string | null {
   if (!code) return null;
   const lang = (language || "").toLowerCase();
   if (FALLBACK.has(lang)) return null;
+
+  /* Register first, then look up. `highlight.js/lib/core` starts with no
+     grammars at all — not even the aliases — so asking before this ran made
+     the check below fail for *every* language and the whole app rendered
+     monochrome, with the GitHub theme shipped but never applied. */
+  ensureRegistered();
   if (!hljs.getLanguage(lang)) return null;
 
-  ensureRegistered();
   const key = keyFor(code, lang);
   const hit = cache.get(key);
   if (hit !== undefined) return hit;

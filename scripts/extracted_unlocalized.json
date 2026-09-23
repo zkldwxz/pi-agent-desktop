@@ -1,0 +1,1602 @@
+[
+  {
+    "text": "The run finished.",
+    "files": [
+      "App.tsx"
+    ],
+    "contexts": [
+      "t() wrapper"
+    ]
+  },
+  {
+    "text": "= 0.7 && val",
+    "files": [
+      "App.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Customize",
+    "files": [
+      "components/agent/AgentSidebar.tsx",
+      "views/CustomizeView.tsx"
+    ],
+    "contexts": [
+      "t() wrapper",
+      "title"
+    ]
+  },
+  {
+    "text": "Sessions",
+    "files": [
+      "components/agent/AgentSidebar.tsx",
+      "views/SettingsView.tsx",
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "aria-label",
+      "label"
+    ]
+  },
+  {
+    "text": "Ctrl K",
+    "files": [
+      "components/agent/AgentSidebar.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "Thought for {duration}",
+    "files": [
+      "components/agent/AgentTrace.tsx"
+    ],
+    "contexts": [
+      "t() wrapper"
+    ]
+  },
+  {
+    "text": "Thought briefly",
+    "files": [
+      "components/agent/AgentTrace.tsx"
+    ],
+    "contexts": [
+      "t() wrapper"
+    ]
+  },
+  {
+    "text": "Thinking",
+    "files": [
+      "components/agent/AgentTrace.tsx",
+      "components/MessageThread.tsx"
+    ],
+    "contexts": [
+      "t() wrapper"
+    ]
+  },
+  {
+    "text": "needs a decision",
+    "files": [
+      "components/agent/ApprovalPrompt.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Dismiss",
+    "files": [
+      "components/agent/ApprovalPrompt.tsx"
+    ],
+    "contexts": [
+      "aria-label"
+    ]
+  },
+  {
+    "text": "= band.from && rate",
+    "files": [
+      "components/agent/CacheRing.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "pinned · Esc",
+    "files": [
+      "components/agent/CacheRing.tsx",
+      "components/panel/ContextBadge.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "From cache",
+    "files": [
+      "components/agent/CacheRing.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Billed fresh",
+    "files": [
+      "components/agent/CacheRing.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Total",
+    "files": [
+      "components/agent/CacheRing.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Command palette",
+    "files": [
+      "components/agent/CommandPalette.tsx"
+    ],
+    "contexts": [
+      "aria-label"
+    ]
+  },
+  {
+    "text": "soon",
+    "files": [
+      "components/agent/FolderPicker.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "This model does not expose thinking levels.",
+    "files": [
+      "components/agent/ModelThinkingControl.tsx",
+      "components/panel/ModelControl.tsx",
+      "components/panel/ModelMenu.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Waiting for the session…",
+    "files": [
+      "components/agent/ModelThinkingControl.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "next message will",
+    "files": [
+      "components/agent/QueueBar.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Clear the queue and put the text back in the editor",
+    "files": [
+      "components/agent/QueueBar.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "Interrupt",
+    "files": [
+      "components/agent/QueueBar.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "delivered at the next turn boundary",
+    "files": [
+      "components/agent/QueueBar.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "After the run",
+    "files": [
+      "components/agent/QueueBar.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "delivered once the agent stops",
+    "files": [
+      "components/agent/QueueBar.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "Remove from queue",
+    "files": [
+      "components/agent/QueueBar.tsx"
+    ],
+    "contexts": [
+      "aria-label"
+    ]
+  },
+  {
+    "text": "lower && age",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "default",
+    "files": [
+      "components/agent/WorkspaceList.tsx",
+      "components/panel/FileViewer.tsx",
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Environment",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Back",
+    "files": [
+      "components/browser/BrowserPanel.tsx",
+      "views/CustomizeView.tsx",
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "aria-label",
+      "title",
+      "t() wrapper"
+    ]
+  },
+  {
+    "text": "Forward",
+    "files": [
+      "components/browser/BrowserPanel.tsx"
+    ],
+    "contexts": [
+      "aria-label"
+    ]
+  },
+  {
+    "text": "Enter a URL, or ask Pi to open one",
+    "files": [
+      "components/browser/BrowserPanel.tsx"
+    ],
+    "contexts": [
+      "placeholder"
+    ]
+  },
+  {
+    "text": "Clear selection",
+    "files": [
+      "components/browser/BrowserPanel.tsx"
+    ],
+    "contexts": [
+      "aria-label"
+    ]
+  },
+  {
+    "text": "Design mode (Shift+Ctrl+D) — pick an element and hand it to the agent",
+    "files": [
+      "components/browser/BrowserPanel.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "Color",
+    "files": [
+      "components/panel/AppearanceSection.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "applies to the whole window",
+    "files": [
+      "components/panel/AppearanceSection.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Nothing to draw yet.",
+    "files": [
+      "components/panel/CanvasPanel.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "A session becomes a graph here as the agent works.",
+    "files": [
+      "components/panel/CanvasPanel.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "jump →",
+    "files": [
+      "components/panel/CanvasPanel.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Pick a card for its tools and files.",
+    "files": [
+      "components/panel/CanvasPanel.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Files the agent writes with edit or write will be listed here.",
+    "files": [
+      "components/panel/ChangesPanel.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "No diff was recorded.",
+    "files": [
+      "components/panel/ChangesPanel.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Used",
+    "files": [
+      "components/panel/ContextBadge.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Window",
+    "files": [
+      "components/panel/ContextBadge.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Session total",
+    "files": [
+      "components/panel/ContextBadge.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Looking up registered apps…",
+    "files": [
+      "components/panel/FileViewer.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Close file",
+    "files": [
+      "components/panel/FileViewer.tsx"
+    ],
+    "contexts": [
+      "aria-label"
+    ]
+  },
+  {
+    "text": "Context window",
+    "files": [
+      "components/panel/ModelMenu.tsx",
+      "views/ModelsView.tsx",
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "JSX text",
+      "label"
+    ]
+  },
+  {
+    "text": "Model, thinking depth and context",
+    "files": [
+      "components/panel/ModelMenu.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "Runs through the agent's own bash tool.",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "git status",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "or",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "ls -la",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "No terminal in this folder.",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Run command",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ],
+    "contexts": [
+      "aria-label"
+    ]
+  },
+  {
+    "text": "New terminal",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ],
+    "contexts": [
+      "aria-label"
+    ]
+  },
+  {
+    "text": "New terminal in this folder",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "Terminal — a real shell in this folder",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "Agent shell",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ],
+    "contexts": [
+      "aria-label"
+    ]
+  },
+  {
+    "text": "Agent shell — output is recorded in the conversation",
+    "files": [
+      "components/panel/TerminalPanel.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "todo_write",
+    "files": [
+      "components/panel/TodoPanel.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "This session",
+    "files": [
+      "components/panel/TodoPanel.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "No tasks yet",
+    "files": [
+      "components/panel/TodoPanel.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "Pi Agent",
+    "files": [
+      "components/TitleBar.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": ".md",
+    "files": [
+      "views/CustomizeView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "~/.pi/agent/prompts/",
+    "files": [
+      "views/CustomizeView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "browser off",
+    "files": [
+      "views/ExtensionFlow.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "task list off",
+    "files": [
+      "views/ExtensionFlow.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Channels",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Provider",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "JSX text",
+      "label"
+    ]
+  },
+  {
+    "text": "API",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Models",
+    "files": [
+      "views/ModelsView.tsx",
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "JSX text",
+      "title",
+      "label"
+    ]
+  },
+  {
+    "text": "Auth",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Source",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Reasoning model",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "enables thinking levels",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Thinking level map",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "— unsupported",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "~/.pi/agent/models.json",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Filter",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "placeholder"
+    ]
+  },
+  {
+    "text": "Reload models.json",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "Add a model to models.json",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "No authenticated models",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "No models match",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "an id from models.json",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "anthropic",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "placeholder"
+    ]
+  },
+  {
+    "text": "Model id",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "as the provider spells it",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "claude-sonnet-4-5",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "placeholder"
+    ]
+  },
+  {
+    "text": "Display name",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Image input",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "supports screenshots & photos — writes input: [",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "Max output",
+    "files": [
+      "views/ModelsView.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "extensions.disabled/",
+    "files": [
+      "views/PluginsView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "~/.pi/agent/trash/",
+    "files": [
+      "views/PluginsView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Filter by name, description or path",
+    "files": [
+      "views/PluginsView.tsx"
+    ],
+    "contexts": [
+      "placeholder"
+    ]
+  },
+  {
+    "text": "Reveal in explorer",
+    "files": [
+      "views/PluginsView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "Delete",
+    "files": [
+      "views/PluginsView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "session.executeBash",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "click to select · drag to draw",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "openDevTools(right)",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "browser_*",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "pi.appendEntry",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Clear search",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "aria-label"
+    ]
+  },
+  {
+    "text": "Shell",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "Shell path",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "empty uses the system default",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "D:/Git/bin/bash.exe",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "placeholder"
+    ]
+  },
+  {
+    "text": "Command prefix",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "prepended to every command the agent runs",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "shopt -s expand_aliases",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "placeholder"
+    ]
+  },
+  {
+    "text": "npm command",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "argv used for package lookups; comma separated",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "npm",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "placeholder"
+    ]
+  },
+  {
+    "text": "Panel",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "the Shell panel runs through the agent",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "Embedded browser",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "an isolated Chromium session — site logins persist between runs",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "Shift+Ctrl+D in the browser panel, or the pencil in its top bar",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "DevTools",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "the terminal button in the browser bar docks them on the right",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "Agent tools",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "registered as a pi extension — seven tools, no MCP layer",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "Agent task list",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "the agent keeps it current through todo_write",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "Persistence",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "written into the session file, so it survives a restart and travels with the session",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "Task list",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Active session",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Session tokens",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Cost",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Directory",
+    "files": [
+      "views/SettingsView.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Not enough data yet.",
+    "files": [
+      "views/usage-insights.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "No model usage in this slice.",
+    "files": [
+      "views/usage-insights.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": ", max: 1, months: [] as Array",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Selected slice",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Activity",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "click a day or an hour to inspect that slice",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Top models in slice",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "No calls in this slice.",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Cache share by channel",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Cache by channel",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "each provider/model pair is counted separately",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Channel",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Model",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Calls",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Cache read",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "JSX text",
+      "label"
+    ]
+  },
+  {
+    "text": "Cache write",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "JSX text",
+      "label"
+    ]
+  },
+  {
+    "text": "Fresh input",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "JSX text",
+      "label"
+    ]
+  },
+  {
+    "text": "Hit rate",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Usage",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "Rescan sessions",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "Reading local session logs",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "subtitle"
+    ]
+  },
+  {
+    "text": "No usage data",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "Messages",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Total tokens",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Active days",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Current streak",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Longest streak",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Peak hour",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Favorite model",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "Cache hit rate",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "label"
+    ]
+  },
+  {
+    "text": "cache read ÷ (fresh input + cache read)",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "tokens served from cache",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "tokens written to cache",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "uncached prompt tokens",
+    "files": [
+      "views/UsageView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "Set up Pi Agent Desktop",
+    "files": [
+      "views/WelcomeView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "~/.pi/agent/skills/",
+    "files": [
+      "views/WelcomeView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Settings → Plugins to change this later",
+    "files": [
+      "views/WelcomeView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Installed",
+    "files": [
+      "views/WelcomeView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Built in",
+    "files": [
+      "views/WelcomeView.tsx"
+    ],
+    "contexts": [
+      "JSX text"
+    ]
+  },
+  {
+    "text": "Capabilities",
+    "files": [
+      "views/WelcomeView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "built in — no files copied",
+    "files": [
+      "views/WelcomeView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  },
+  {
+    "text": "Skills",
+    "files": [
+      "views/WelcomeView.tsx"
+    ],
+    "contexts": [
+      "title"
+    ]
+  },
+  {
+    "text": "copied into ~/.pi/agent/skills/",
+    "files": [
+      "views/WelcomeView.tsx"
+    ],
+    "contexts": [
+      "hint"
+    ]
+  }
+]

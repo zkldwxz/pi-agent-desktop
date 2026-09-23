@@ -1,5 +1,6 @@
 import type { QueueState } from "@shared/types";
 import { cn } from "../../lib/cn";
+import { t, tf } from "../../lib/i18n";
 import { Collapse, GlideList, SlidingGroup } from "../motion";
 import { ArrowUpIcon, ClockIcon, XIcon } from "../icons";
 
@@ -54,10 +55,10 @@ export function QueueBar({
           <div className="flex items-center gap-2">
             <ClockIcon size={12} className="shrink-0 text-ink-3" />
             <span className="text-[11.5px] font-medium text-ink">
-              {total} message{total === 1 ? "" : "s"} queued
+              {tf(total === 1 ? "{count} message queued" : "{count} messages queued", { count: total })}
             </span>
             <span className="flex-1" />
-            <span className="hidden text-[10.5px] text-ink-3 sm:inline">next message will</span>
+            <span className="hidden text-[10.5px] text-ink-3 sm:inline">{t("next message will")}</span>
             <SlidingGroup
               activeIndex={behavior === "steer" ? 0 : 1}
               className="flex items-center gap-0.5 rounded-chip bg-field p-[3px]"
@@ -73,24 +74,24 @@ export function QueueBar({
                   key={entry.key}
                   data-slide-item
                   type="button"
-                  title={entry.title}
+                  title={t(entry.title)}
                   onClick={() => onBehavior(entry.key)}
                   className={cn(
                     "pressable relative z-10 h-5 rounded-[4px] px-2 text-[10.5px]",
                     behavior === entry.key ? "text-ink" : "text-ink-3 hover:text-ink-2",
                   )}
                 >
-                  {entry.label}
+                  {t(entry.label)}
                 </button>
               ))}
             </SlidingGroup>
             <button
               type="button"
               onClick={onClear}
-              title="Clear the queue and put the text back in the editor"
+              title={t("Clear the queue and put the text back in the editor")}
               className="pressable shrink-0 rounded-chip px-1.5 py-0.5 text-[10.5px] text-ink-3 hover:bg-hover hover:text-ink-2"
             >
-              Clear
+              {t("Clear")}
             </button>
           </div>
 
@@ -155,8 +156,8 @@ function Section({
             tone === "accent" ? "bg-accent" : "bg-line-strong",
           )}
         />
-        <span className="shrink-0 text-[11.5px] font-medium text-ink-2">{label}</span>
-        <span className="hidden min-w-0 truncate text-[10.5px] text-ink-3 md:inline">{hint}</span>
+        <span className="shrink-0 text-[11.5px] font-medium text-ink-2">{t(label)}</span>
+        <span className="hidden min-w-0 truncate text-[10.5px] text-ink-3 md:inline">{t(hint)}</span>
         <span className="flex-1" />
         <SlidingGroup
           activeIndex={mode === "all" ? 1 : 0}
@@ -168,14 +169,14 @@ function Section({
               key={entry.key}
               data-slide-item
               type="button"
-              title={entry.title}
+              title={t(entry.title)}
               onClick={() => onMode(kind, entry.key)}
               className={cn(
                 "pressable relative z-10 h-[18px] rounded-[4px] px-1.5 text-[10px]",
                 mode === entry.key ? "text-ink" : "text-ink-3 hover:text-ink-2",
               )}
             >
-              {entry.label}
+              {t(entry.label)}
             </button>
           ))}
         </SlidingGroup>
@@ -217,7 +218,7 @@ function Chip({
       <button
         type="button"
         onClick={onRemove}
-        aria-label="Remove from queue"
+        aria-label={t("Remove from queue")}
         className="pressable flex size-4 shrink-0 items-center justify-center rounded-[4px] text-ink-3 hover:bg-hover hover:text-ink"
       >
         <XIcon size={10} />

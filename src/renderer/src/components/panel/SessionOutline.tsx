@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { ChatMessage } from "@shared/types";
 import { buildTurns } from "../../lib/agent-view";
+import { t, tf } from "../../lib/i18n";
 import { cn } from "../../lib/cn";
 import { CheckIcon, ClockIcon, LoaderIcon, XIcon } from "../icons";
 
@@ -29,7 +30,7 @@ export function SessionOutline({
   if (!turns.length) {
     return (
       <div className="px-3 py-6 text-[11.5px] text-ink-3">
-        No turns yet. Each prompt and the work it produced will be listed here.
+        {t("No turns yet. Each prompt and the work it produced will be listed here.")}
       </div>
     );
   }
@@ -58,23 +59,23 @@ export function SessionOutline({
               </span>
               <span className="min-w-0 flex-1">
                 <span className={cn("block truncate text-[12px]", active ? "font-medium text-ink" : "text-ink-2")}>
-                  {turn.prompt || turn.lead.split("\n")[0] || "Session start"}
+                  {turn.prompt || turn.lead.split("\n")[0] || t("Session start")}
                 </span>
                 <span className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] text-ink-3">
                   {running ? (
                     <>
                       <LoaderIcon size={9} className="spin-fast text-accent" />
-                      running
+                      {t("running")}
                     </>
                   ) : failed ? (
                     <>
                       <XIcon size={9} className="text-red" />
-                      failed
+                      {t("failed")}
                     </>
                   ) : (
                     <>
                       <CheckIcon size={9} />
-                      {tools ? `${tools} tool${tools === 1 ? "" : "s"}` : "answer"}
+                      {tools ? tf(tools === 1 ? "{count} tool" : "{count} tools", { count: tools }) : t("answer")}
                     </>
                   )}
                   <ClockIcon size={9} />

@@ -1,6 +1,9 @@
 import type { ColorMode } from "../../lib/theme";
 import { cn } from "../../lib/cn";
-import { t, type Locale } from "../../lib/i18n";
+import { t, tf, type Locale } from "../../lib/i18n";
+import { formatChord, useShortcuts } from "../../lib/keybindings";
+import { CODE_THEMES, type CodeTheme } from "../../lib/code-theme";
+import { highlightCode } from "../../lib/highlight";
 import { SlidingGroup } from "../motion";
 import { MoonIcon, SunIcon } from "../icons";
 
@@ -43,7 +46,7 @@ export function ModeToggle({
             entry.key === mode ? "text-ink" : "text-ink-3 hover:text-ink-2",
           )}
         >
-          {entry.label}
+          {t(entry.label)}
         </button>
       ))}
     </SlidingGroup>
@@ -59,13 +62,118 @@ export function ModeToggle({
  */
 const SCALE_OPTIONS = [
   { value: 0.8, label: "80%", desc: "Ultra" },
-  { value: 0.85, label: "85%", desc: "Compact" },
+  { value: 0.85, label: "85%", desc: "Dense" },
   { value: 0.9, label: "90%", desc: "2K/4K pick" },
   { value: 0.95, label: "95%", desc: "Slightly tight" },
   { value: 1.0, label: "100%", desc: "Default" },
   { value: 1.1, label: "110%", desc: "Large" },
   { value: 1.25, label: "125%", desc: "XL" },
 ];
+
+/**
+ * The code style preview: the same renderer the transcript's code blocks use,
+ * pointed at a fixed snippet, so what you pick is what a real listing gets.
+ *
+ * Two panes side by side — code and diff — because they answer different
+ * questions (does this palette read as code; do the add/del accents still say
+ * added and removed in it). The theme applies through <html
+ * data-code-theme>, so both panes re-colour live while the window's own light
+ * or dark mode keeps doing its work.
+ */
+const SAMPLE_CODE = [
+  "// churn.ts — the flavour pipeline",
+  "export async function churnBatch() {",
+  '  const flavor = await getFlavor("pistachio");',
+  "  const base = await dairy.fetch({ flavor });",
+  '  await freezer.store(base, { temp: "-16C" });',
+  "  if (!base.approved) return null;",
+  "  return base.gallons;",
+  "}",
+].join("\n");
+
+const SAMPLE_DIFF = [
+  "- const base = await dairy.fetch(flavor);",
+  "+ const base = await dairy.fetch({ flavor });",
+  "+ // fetch takes an options object since 2.4",
+  "  await freezer.store(base, { temp: \"-16C\" });",
+].join("\n");
+
+/** One visual line of highlighted HTML — spans can cross a newline (block
+ *  comments, template literals), so a line re-opens whatever spans were
+ *  active when the previous one ended. The browser closing them at the div
+ *  boundary is the behaviour a line-per-row listing wants. */
+function splitHighlightedLines(html: string): string[] {
+  const out: string[] = [];
+  const stack: string[] = [];
+  for (const line of html.split("\n")) {
+    const openedAtStart = stack.join("");
+    for (const token of line.match(/<span\b[^>]*>|<\/span>|[^<]+/g) ?? []) {
+      if (token === "</span>") stack.pop();
+      else if (token.startsWith("<span")) stack.push(token);
+    }
+    out.push(openedAtStart + line);
+  }
+  return out;
+}
+
+function CodePreviewPane({ title, code, language }: { title: string; code: string; language: string }) {
+  const html = highlightCode(code, language);
+  const lines = html ? splitHighlightedLines(html) : code.split("\n");
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <span className="px-0.5 text-[11px] text-ink-3">{title}</span>
+      <div className="scrollbar-thin overflow-x-auto rounded-card bg-surface p-3 shadow-hairline">
+        <code className="hljs block font-mono text-[11px] leading-[1.7]">
+          {lines.map((line, index) => {
+            const kind = language === "diff" ? (line.startsWith("+") ? "add" : line.startsWith("-") ? "del" : "ctx") : "ctx";
+            return (
+              <div
+                key={index}
+                className={cn(
+                  "-mx-3 px-3",
+                  kind === "add" && "bg-green-tint",
+                  kind === "del" && "bg-red-tint",
+                )}
+                dangerouslySetInnerHTML={{ __html: line || " " }}
+              />
+            );
+          })}
+        </code>
+      </div>
+    </div>
+  );
+}
+
+function CodeStyleSection({ theme, onTheme }: { theme: CodeTheme; onTheme: (theme: CodeTheme) => void }) {
+  return (
+    <section className="flex flex-col gap-2.5">
+      <div className="flex items-baseline gap-2 px-0.5">
+        <h2 className="text-[12.5px] font-medium text-ink">{t("Code style")}</h2>
+        <span className="text-[11px] text-ink-3">{t("the palette of code blocks; follows light and dark")}</span>
+      </div>
+      <div className="flex w-fit items-center gap-0.5 rounded-chip bg-field p-0.5">
+        {CODE_THEMES.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => onTheme(option.id)}
+            aria-pressed={theme === option.id}
+            className={cn(
+              "pressable h-6 rounded-[6px] px-3 text-[12px] transition-colors duration-150",
+              theme === option.id ? "bg-surface font-medium text-ink shadow-hairline" : "text-ink-3 hover:text-ink",
+            )}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        <CodePreviewPane title={t("Code")} code={SAMPLE_CODE} language="typescript" />
+        <CodePreviewPane title={t("Diff")} code={SAMPLE_DIFF} language="diff" />
+      </div>
+    </section>
+  );
+}
 
 export function AppearanceSection({
   mode,
@@ -74,6 +182,8 @@ export function AppearanceSection({
   onZoomFactor,
   locale,
   onLocale,
+  codeTheme,
+  onCodeTheme,
 }: {
   mode: ColorMode;
   onMode: (mode: ColorMode) => void;
@@ -81,12 +191,15 @@ export function AppearanceSection({
   onZoomFactor?: (factor: number) => void;
   locale?: Locale;
   onLocale?: (locale: Locale) => void;
+  codeTheme?: CodeTheme;
+  onCodeTheme?: (theme: CodeTheme) => void;
 }) {
+  const chords = useShortcuts();
   return (
     <section className="flex flex-col gap-2">
       <div className="flex items-baseline gap-2 px-0.5">
-        <h2 className="text-[12.5px] font-medium text-ink">Color</h2>
-        <span className="text-[11px] text-ink-3">applies to the whole window</span>
+        <h2 className="text-[12.5px] font-medium text-ink">{t("Color")}</h2>
+        <span className="text-[11px] text-ink-3">{t("applies to the whole window")}</span>
       </div>
 
       <div className="grid grid-cols-3 gap-2.5">
@@ -122,13 +235,19 @@ export function AppearanceSection({
                 ) : (
                   <span className="text-[11px] text-ink-3">◐</span>
                 )}
-                <span className={cn("text-[12.5px]", active ? "font-medium text-ink" : "text-ink-2")}>{entry.label}</span>
+                <span className={cn("text-[12.5px]", active ? "font-medium text-ink" : "text-ink-2")}>{t(entry.label)}</span>
                 {active ? <span className="ml-auto size-1.5 rounded-full bg-accent" /> : null}
               </span>
             </button>
           );
         })}
       </div>
+
+      {codeTheme && onCodeTheme ? (
+        <div className="mt-4">
+          <CodeStyleSection theme={codeTheme} onTheme={onCodeTheme} />
+        </div>
+      ) : null}
 
       {onLocale ? (
         <div className="mt-4 flex flex-col gap-2">
@@ -163,8 +282,13 @@ export function AppearanceSection({
       {onZoomFactor ? (
         <div className="mt-4 flex flex-col gap-2">
           <div className="flex items-baseline justify-between px-0.5">
-            <h2 className="text-[12.5px] font-medium text-ink">Interface scale</h2>
-            <span className="text-[11px] text-ink-3">Ctrl + / Ctrl - to adjust, Ctrl 0 to reset</span>
+            <h2 className="text-[12.5px] font-medium text-ink">{t("Interface scale")}</h2>
+            <span className="text-[11px] text-ink-3">
+              {tf("{adjust} to adjust, {reset} to reset", {
+                adjust: `${formatChord(chords.zoomIn)} / ${formatChord(chords.zoomOut)}`,
+                reset: formatChord(chords.zoomReset),
+              })}
+            </span>
           </div>
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
             {SCALE_OPTIONS.map((opt) => {
@@ -180,7 +304,7 @@ export function AppearanceSection({
                   )}
                 >
                   <span className="text-[12.5px]">{opt.label}</span>
-                  <span className={cn("text-[9.5px]", active ? "text-canvas/75" : "text-ink-3")}>{opt.desc}</span>
+                  <span className={cn("text-[9.5px]", active ? "text-canvas/75" : "text-ink-3")}>{t(opt.desc)}</span>
                 </button>
               );
             })}

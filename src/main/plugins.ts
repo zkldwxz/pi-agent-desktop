@@ -1,17 +1,28 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
+import { homedir } from "node:os";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import type { PluginInfo, PluginKind, PluginScope } from "@shared/types";
+import type { PluginInfo, PluginKind, PluginRoots, PluginScope } from "@shared/types";
 
 const DISABLED_SUFFIX = ".disabled";
 
-export interface PluginRoots {
-  agentDir: string;
-  cwd: string;
+/** a path the user can recognise: the home folder comes back as ~ */
+function displayPath(path: string): string {
+  const home = homedir();
+  return path.startsWith(home) ? `~${path.slice(home.length)}` : path;
 }
 
 export function pluginRoots(cwd: string): PluginRoots {
-  return { agentDir: getAgentDir(), cwd };
+  const agentDir = getAgentDir();
+  const globalExtensions = join(agentDir, "extensions");
+  const projectExtensions = join(cwd, ".pi", "extensions");
+  return {
+    agentDir,
+    globalExtensions,
+    projectExtensions,
+    globalExtensionsLabel: displayPath(globalExtensions),
+    projectExtensionsLabel: displayPath(projectExtensions),
+  };
 }
 
 function readDirSafe(path: string): string[] {
@@ -161,11 +172,9 @@ function readSettings(cwd: string): Record<string, unknown> {
 }
 
 export function listPlugins(cwd: string): PluginInfo[] {
-  const { agentDir } = pluginRoots(cwd);
+  const { agentDir, globalExtensions, projectExtensions } = pluginRoots(cwd);
   const plugins: PluginInfo[] = [];
-  const globalExtensions = join(agentDir, "extensions");
   const globalDisabled = `${globalExtensions}${DISABLED_SUFFIX}`;
-  const projectExtensions = join(cwd, ".pi", "extensions");
   const projectDisabled = `${projectExtensions}${DISABLED_SUFFIX}`;
 
   plugins.push(...scanDir(globalExtensions, "global", "extension", true));
@@ -214,6 +223,7 @@ export function listPlugins(cwd: string): PluginInfo[] {
   plugins.push(...scanResourceDir(join(cwd, ".pi", "skills"), "project", "skill"));
   plugins.push(...scanResourceDir(join(cwd, ".agents", "skills"), "project", "skill"));
   plugins.push(...scanResourceDir(join(agentDir, "prompts"), "global", "prompt"));
+  plugins.push(...scanResourceDir(join(cwd, ".pi", "prompts"), "project", "prompt"));
   plugins.push(...scanResourceDir(join(agentDir, "themes"), "global", "theme"));
 
   return plugins.sort((a, b) => {
@@ -253,6 +263,25 @@ export function deletePlugin(path: string, kind: PluginKind): void {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const destination = join(trashRoot, `${stamp}-${basename(path)}`);
   renameSync(path, destination);
+}
+
+/**
+ * A new rule file: one markdown stub in the scope's prompts directory.
+ *
+ * Global rules live beside the agent's own prompts (~/.pi/agent/prompts/);
+ * project rules ride with the repository (.pi/prompts/), so they travel with
+ * the checkout. Both are picked up by `listPlugins` on the next scan.
+ */
+export function createRule(cwd: string, scope: "global" | "project", name: string): string {
+  const safe = name.replace(/[\\/:*?"<>|]/g, "-").trim();
+  if (!safe) throw new Error("Rule name is required.");
+  const fileName = safe.toLowerCase().endsWith(".md") ? safe : `${safe}.md`;
+  const root = scope === "global" ? join(getAgentDir(), "prompts") : join(cwd, ".pi", "prompts");
+  if (!existsSync(root)) mkdirSync(root, { recursive: true });
+  const target = join(root, fileName);
+  if (existsSync(target)) throw new Error(`Already exists: ${fileName}`);
+  writeFileSync(target, `# ${safe}\n\n`, "utf8");
+  return target;
 }
 
 export function pluginCounts(plugins: PluginInfo[]): { total: number; enabled: number; disabled: number } {

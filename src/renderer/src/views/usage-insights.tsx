@@ -1,5 +1,7 @@
 import { useMemo } from "react";
+import { promptTokens } from "@shared/cache-usage";
 import type { UsageBucket, UsageStats } from "@shared/types";
+import { t, tf } from "../lib/i18n";
 import InsightCards, { type InsightPage } from "../components/beautiful/primitives/InsightCards";
 import RecordsTable, { type RecordRow, type Strength } from "../components/beautiful/primitives/RecordsTable";
 
@@ -27,7 +29,7 @@ function Sparkline({ values, tone = "var(--accent)" }: { values: number[]; tone?
       .join(" ");
   }, [values]);
 
-  if (!path) return <div className="h-8 text-[11px] text-ink-3">Not enough data yet.</div>;
+  if (!path) return <div className="h-8 text-[11px] text-ink-3">{t("Not enough data yet.")}</div>;
 
   return (
     <div className="w-full">
@@ -77,27 +79,36 @@ export function UsageInsights({ stats, buckets }: { stats: UsageStats; buckets: 
     const out: InsightPage[] = [
       {
         key: "tokens",
-        pill: "Tokens",
+        pill: t("Tokens"),
         prose: (
           <>
-            Across {stats.sessionCount} session{stats.sessionCount === 1 ? "" : "s"} you have moved{" "}
-            <strong className="font-medium text-ink">{compact(stats.totals.total)}</strong> tokens. The busiest day was{" "}
-            <strong className="font-medium text-ink">{busiestDay?.date ?? "—"}</strong> at{" "}
-            {compact(busiestDay?.tokens ?? 0)}.
+            {tf(
+              stats.sessionCount === 1
+                ? "Across {count} session you have moved"
+                : "Across {count} sessions you have moved",
+              { count: stats.sessionCount },
+            )}{" "}
+            <strong className="font-medium text-ink">{compact(stats.totals.total)}</strong> {t("tokens")}.{" "}
+            {t("The busiest day was")} <strong className="font-medium text-ink">{busiestDay?.date ?? "—"}</strong>{" "}
+            {t("at")} {compact(busiestDay?.tokens ?? 0)}.
           </>
         ),
         Card: () => <Sparkline values={tokenSeries} />,
       },
       {
         key: "cache",
-        pill: "Cache",
+        pill: t("Cache"),
         prose: (
           <>
-            <strong className="font-medium text-ink">{percent(hitRate)}</strong> of prompt tokens came from cache
-            ({compact(stats.cache.cacheRead)} of {compact(stats.cache.cacheRead + stats.cache.freshInput)}).{" "}
+            <strong className="font-medium text-ink">{percent(hitRate)}</strong>{" "}
+            {t("of prompt tokens came from cache")} ({compact(stats.cache.cacheRead)} {t("of")}{" "}
+            {compact(promptTokens(stats.cache))}).{" "}
             {worstCache && worstCache.cacheRate < hitRate
-              ? `${worstCache.model} is the weakest at ${percent(worstCache.cacheRate)} — the usual cause is a changing prefix.`
-              : "No channel is dragging the average down."}
+              ? tf("{name} is the weakest at {percent} — the usual cause is a changing prefix.", {
+                  name: worstCache.model,
+                  percent: percent(worstCache.cacheRate),
+                })
+              : t("No channel is dragging the average down.")}
           </>
         ),
         Card: () => <Sparkline values={cacheSeries} tone="var(--green)" />,
@@ -107,11 +118,15 @@ export function UsageInsights({ stats, buckets }: { stats: UsageStats; buckets: 
     if (topModel) {
       out.push({
         key: "model",
-        pill: "Model",
+        pill: t("Model"),
         prose: (
           <>
-            <strong className="font-medium text-ink">{topModel.model}</strong> does most of the work —{" "}
-            {compact(topModel.total)} tokens over {topModel.calls} calls on {topModel.provider}.
+            <strong className="font-medium text-ink">{topModel.model}</strong> {t("does most of the work")} —{" "}
+            {tf("{tokens} tokens over {count} calls on {provider}.", {
+              tokens: compact(topModel.total),
+              count: topModel.calls,
+              provider: topModel.provider,
+            })}
           </>
         ),
         Card: () => <Sparkline values={series(buckets, (bucket) => (bucket.model === topModel.model ? bucket.total : 0))} />,
@@ -121,11 +136,11 @@ export function UsageInsights({ stats, buckets }: { stats: UsageStats; buckets: 
     if (stats.totals.cost > 0) {
       out.push({
         key: "cost",
-        pill: "Cost",
+        pill: t("Cost"),
         prose: (
           <>
-            Estimated spend <strong className="font-medium text-ink">${stats.totals.cost.toFixed(4)}</strong> across the
-            scanned range.
+            {t("Estimated spend")} <strong className="font-medium text-ink">${stats.totals.cost.toFixed(4)}</strong>{" "}
+            {t("across the scanned range.")}
           </>
         ),
         Card: () => <Sparkline values={costSeries} tone="var(--orange)" />,
@@ -173,17 +188,17 @@ export function UsageRecords({ stats, buckets }: { stats: UsageStats; buckets: U
         return {
           id: key,
           name: model,
-          tags: [provider, ...(info && info.cacheRate > 0.5 ? ["cache-friendly"] : [])],
+          tags: [provider, ...(info && info.cacheRate > 0.5 ? [t("cache-friendly")] : [])],
           last: entry.last ? new Date(entry.last).toLocaleDateString() : "—",
           strength: strengthFor(entry.tokens / total),
-          website: `${compact(entry.tokens)} tok · ${entry.calls} calls`,
+          website: `${compact(entry.tokens)} tok · ${entry.calls} ${t("calls")}`,
         } satisfies RecordRow;
       })
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [stats, buckets]);
 
   if (!rows.length) {
-    return <div className="px-3 py-6 text-center text-[12px] text-ink-3">No model usage in this slice.</div>;
+    return <div className="px-3 py-6 text-center text-[12px] text-ink-3">{t("No model usage in this slice.")}</div>;
   }
 
   return <RecordsTable rows={rows} />;

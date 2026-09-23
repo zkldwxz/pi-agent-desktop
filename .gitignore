@@ -10,3 +10,7 @@ release
 
 # playwright-cli scratch output
 .playwright-cli/
+
+# editor-local MCP wiring and one-off i18n review output
+.cursor/mcp.json
+i18n-review.json

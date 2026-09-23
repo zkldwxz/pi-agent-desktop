@@ -12,7 +12,10 @@ export interface ModelInfo {
   reasoning: boolean;
   supportsImages: boolean;
   input: string[];
+  /** the depths this model can take, Ultra included when it is configured */
   thinkingLevels: string[];
+  /** the model tops out at Max over XHigh, which is the one shape Ultra fits */
+  supportsUltra: boolean;
   thinkingLevelMap?: Record<string, string | null>;
   cost: {
     input: number;
@@ -22,6 +25,49 @@ export interface ModelInfo {
   };
   source: "builtin" | "models.json" | "extension";
 }
+
+/**
+ * How a model gets the Ultra step. pi has no `ultra` thinking level, so the
+ * desktop owns it: the wire level stays `max` and the difference is a per-turn
+ * delegation policy added to the system prompt.
+ *
+ * `replace` takes Max's slot; `coexist` puts Ultra after it.
+ */
+export type UltraMode = "replace" | "coexist";
+
+export interface UltraSetting {
+  mode: UltraMode;
+  /** Ultra is the depth currently picked for this model. Only `picked` models
+   *  send the delegation policy — Max alone does not. */
+  picked: boolean;
+}
+
+/** The agent-team plugin's sub-agents, as the desktop mirrors them. */
+export interface FleetAgent {
+  name: string;
+  status: "running" | "completed" | "interrupted" | "errored";
+  /** one line of the spawn message — what this agent is doing */
+  task: string;
+  model?: string;
+  thinkingLevel?: string;
+  spawnedAt: number;
+  endedAt?: number;
+  tokens?: { input: number; output: number; total: number };
+  cost?: number;
+  /** the sub-agent's final answer, truncated for display */
+  summary?: string;
+}
+
+/** Settings for the delegation fleet; shared with the agent-team plugin via
+ *  desktop.json so the CLI and the window run one configuration. */
+export interface AgentsConfig {
+  /** how many sub-agents may run at once */
+  maxConcurrent: number;
+  /** when the parent agent is idle and a sub-agent finishes, wake it with
+   *  the result (starts a new turn) instead of waiting for wait_agent */
+  wakeOnCompletion: boolean;
+}
+
 
 /** Editable slice of a model — safe to send to the renderer (no API keys). */
 export interface ModelEdit {
@@ -116,6 +162,43 @@ export interface ContextPart {
   detail?: string;
 }
 
+/** One step of a plan the agent wrote with `create_plan`. */
+export interface PlanStep {
+  id: string;
+  label: string;
+  status: "pending" | "running" | "done" | "failed";
+  /** the files or commands the step touches, shown when the row is expanded */
+  detail?: string;
+}
+
+/**
+ * What the plan-mode extension is doing right now.
+ *
+ * Eight bits of mirrored state: every transition is published by the extension
+ * over pi's event bus and lands here. `phase` is the whole state machine —
+ * `off` is normal work, `planning` is read-only research, `review` waits for a
+ * decision on a written plan, `executing` is the approved plan being worked.
+ */
+export interface PlanState {
+  phase: "off" | "planning" | "review" | "executing";
+  /** the plan file on disk, once one exists */
+  path?: string;
+  title?: string;
+  notes?: string;
+  steps: PlanStep[];
+  /** the model that wrote the plan — what Build falls back to */
+  parentModel?: { provider: string; id: string };
+  updatedAt: number;
+}
+
+/** A status line or widget an extension pushed up, with the ANSI stripped. */
+export interface ExtensionSurface {
+  key: string;
+  kind: "status" | "widget";
+  text: string;
+  lines?: string[];
+}
+
 export interface SlashCommand {
   name: string;
   description?: string;
@@ -129,6 +212,8 @@ export interface RuntimeSettings {
   defaultModel?: string;
   defaultThinkingLevel?: string;
   modelThinkingLevels: Record<string, string>;
+  /** per-model Ultra setup, keyed `provider/modelId` — lives in desktop.json */
+  ultra?: Record<string, UltraSetting>;
   thinkingBudgets?: Record<string, number>;
   enabledModels?: string[];
   defaultTools?: string[];
@@ -140,6 +225,10 @@ export interface RuntimeSettings {
   shellPath?: string;
   shellCommandPrefix?: string;
   npmCommand?: string[];
+  /** delegation fleet settings — stored in desktop.json, shared with the plugin */
+  agents?: AgentsConfig;
+  /** the terminal pane's shell choice — desktop.json, mirrored here for the settings UI */
+  terminal?: { preferred: string; customPath?: string };
 }
 
 export interface TodoItemView {
@@ -165,7 +254,11 @@ export interface HostState {
   error?: string;
   snapshot: SessionSnapshot | null;
   sessions: SessionListItem[];
+  /** the models a picker may offer — disabled ones are already filtered out */
   models: ModelInfo[];
+  /** every model the runtime knows, disabled ones included; the settings list
+   *  shows them greyed rather than hiding them */
+  allModels?: ModelInfo[];
   providers: ProviderInfo[];
   commands: SlashCommand[];
   settings: RuntimeSettings;
@@ -174,12 +267,28 @@ export interface HostState {
   /** every tool the session exposes, including extension-registered ones */
   tools: string[];
   queue: QueueState;
+  /** plan mode, as the plan-mode extension reports it */
+  plan: PlanState;
+  /** the delegation fleet, as the agent-team extension reports it */
+  fleet: FleetAgent[];
+  /** status lines and widgets other extensions pushed up */
+  surfaces: ExtensionSurface[];
 }
 
 /* ── plugins ─────────────────────────────────────────────── */
 
 export type PluginKind = "extension" | "package" | "skill" | "prompt" | "theme";
 export type PluginScope = "global" | "project" | "configured";
+
+/** Where the agent looks for plugins, so the UI can name and open the folders. */
+export interface PluginRoots {
+  agentDir: string;
+  globalExtensions: string;
+  projectExtensions: string;
+  /** the same path with ~ in front of it, for display */
+  globalExtensionsLabel: string;
+  projectExtensionsLabel: string;
+}
 
 export interface PluginInfo {
   id: string;
@@ -279,6 +388,7 @@ export interface UsageDay {
   input: number;
   output: number;
   cacheRead: number;
+  cacheWrite: number;
   cost: number;
 }
 
@@ -335,6 +445,7 @@ export interface ChatMessage {
     output: number;
     total: number;
     cacheRead?: number;
+    cacheWrite?: number;
     model?: string;
     provider?: string;
   };
@@ -373,6 +484,27 @@ export interface HostUpdate {
 export interface DesktopConfig {
   capabilities: { browser: boolean; todos: boolean };
   onboardingDone: boolean;
+  /** per-model Ultra setup, keyed `provider/modelId` */
+  ultra: Record<string, UltraSetting>;
+  /** the model Build last ran with; written when the user picks one */
+  buildModel?: { provider: string; id: string };
+  /** delegation fleet settings — the agent-team plugin reads the same block */
+  agents: AgentsConfig;
+  /** the terminal pane's shell choice, as shells.ts defines it */
+  terminal: { preferred: string; customPath?: string };
+}
+
+/**
+ * The plan-mode buttons, as one message.
+ *
+ * Plan mode is a plugin, so the window does not implement it — it presses the
+ * plugin's subcommands. `model` is the one piece of state that has to be
+ * carried alongside: the build runs on the model the user chose in the picker.
+ */
+export interface PlanAction {
+  action: "toggle" | "build" | "cancel" | "refine";
+  note?: string;
+  model?: { provider: string; id: string };
 }
 
 export type CatalogItem =
@@ -385,4 +517,7 @@ export type CatalogItem =
       installed: boolean;
       /** a capability cannot be applied without rebuilding the agent session */
       needsReload: boolean;
-    };
+    }
+  /** an extension file copied out of the app and into the agent's plugin folder,
+   *  where the CLI picks up the very same copy */
+  | { id: string; kind: "extension"; name: string; description: string; installed: boolean };

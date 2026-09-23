@@ -31,3 +31,22 @@ export function folderName(cwd: string): string {
   const parts = cwd.replace(/[\\/]+$/, "").split(/[\\/]/);
   return parts.at(-1) || cwd;
 }
+
+/**
+ * An answer as prose, for the places that summarise rather than publish.
+ *
+ * The transcript renders the same text as markdown; a three-line preview wants
+ * what it *says*, so the structural marks come off — a code fence or a table is
+ * not readable at that size anyway.
+ */
+export function asProse(text: string): string {
+  return text
+    .replace(/```[\s\S]*?(?:```|$)/g, " ")
+    .replace(/^\s*\|.*$/gm, "")
+    .replace(/^>\s?/gm, "")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "· ")
+    .replace(/[*_`]/g, "")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+}

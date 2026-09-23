@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { ChatMessage } from "@shared/types";
 import type { DesignPick } from "@shared/browser";
 import ContextCards, { type ContextChunk } from "../beautiful/primitives/ContextCards";
+import { t, useLocale } from "../../lib/i18n";
 import ChatComposer, { type ChatMessage as ComposerMessage } from "../beautiful/primitives/ChatComposer";
 import SelectionActions, { type SelectionActionSet } from "../beautiful/primitives/SelectionActions";
 import { PencilIcon } from "../icons";
@@ -40,7 +41,7 @@ function chunkFor(pick: DesignPick): ContextChunk[] {
     .join("\n");
   if (styles) {
     chunks.push({
-      title: "Computed styles",
+      title: t("Computed styles"),
       chars: `${Object.keys(pick.styles).length} properties`,
       body: styles,
       source: "getComputedStyle",
@@ -51,7 +52,7 @@ function chunkFor(pick: DesignPick): ContextChunk[] {
 
   if (pick.text) {
     chunks.push({
-      title: "Visible text",
+      title: t("Visible text"),
       chars: `${pick.text.length} characters`,
       body: pick.text,
       source: `${pick.tag} innerText`,
@@ -65,7 +66,7 @@ function chunkFor(pick: DesignPick): ContextChunk[] {
     .join("  ›  ");
   if (chain) {
     chunks.push({
-      title: "Ancestry",
+      title: t("Ancestry"),
       chars: `${pick.ancestry.length} levels`,
       body: chain,
       source: "React fiber walk",
@@ -105,31 +106,32 @@ export function DesignPickBar({
   onSend: (text: string) => void;
   onDismiss: () => void;
 }) {
-  const chunks = useMemo(() => chunkFor(pick), [pick]);
+  const locale = useLocale();
+  const chunks = useMemo(() => chunkFor(pick), [pick, locale]);
   const messages = useMemo<ComposerMessage[]>(
     () =>
       recent.slice(-2).map((message) => ({
-        label: message.usage?.model ?? "agent",
-        sub: message.role === "user" ? "you" : "replied",
+        label: message.usage?.model ?? t("agent"),
+        sub: message.role === "user" ? t("you") : t("replied"),
         time: "",
         body: message.text.slice(0, 200),
       })),
-    [recent],
+    [recent, locale],
   );
 
   const actions = useMemo<SelectionActionSet>(
     () => ({
       primary: [
-        { id: "Add to chat", icon: <PencilIcon size={13} />, action: "Add to chat" },
-        { id: "Explain", icon: <PencilIcon size={13} />, action: "Explain this component" },
+        { id: t("Add to chat"), icon: <PencilIcon size={13} />, action: "Add to chat" },
+        { id: t("Explain"), icon: <PencilIcon size={13} />, action: "Explain this component" },
       ],
       more: [
-        { id: "Improve", icon: <PencilIcon size={13} />, action: "Improve the layout and spacing", busyLabel: "Improving" },
-        { id: "Shorten", icon: <PencilIcon size={13} />, action: "Simpler markup", busyLabel: "Simplifying" },
-        { id: "Tone", icon: <PencilIcon size={13} />, action: "Match the surrounding style", busyLabel: "Matching" },
+        { id: t("Improve"), icon: <PencilIcon size={13} />, action: "Improve the layout and spacing", busyLabel: t("Improving") },
+        { id: t("Shorten"), icon: <PencilIcon size={13} />, action: "Simpler markup", busyLabel: t("Simplifying") },
+        { id: t("Tone"), icon: <PencilIcon size={13} />, action: "Match the surrounding style", busyLabel: t("Matching") },
       ],
     }),
-    [],
+    [locale],
   );
 
   return (
@@ -162,24 +164,24 @@ export function DesignPickBar({
             onClick={onDismiss}
             className="pressable shrink-0 rounded-chip px-2 py-1 text-[11px] text-ink-3 hover:bg-hover hover:text-ink-2"
           >
-            Dismiss
+            {t("Dismiss")}
           </button>
         </div>
 
         {/* what the agent receives */}
         <div className="scrollbar-thin max-h-[190px] overflow-y-auto">
-          <ContextCards chunks={chunks} labels={{ header: "Sent to the agent", count: String(chunks.length) }} />
+          <ContextCards chunks={chunks} labels={{ header: t("Sent to the agent"), count: String(chunks.length) }} />
         </div>
 
         {/* one-click instructions */}
         <SelectionActions
           text={{
-            lead: "Selected ",
+            lead: t("Selected") + " ",
             original: `${pick.component ?? pick.tag}`,
             rewrite: pick.selector,
           }}
           actions={actions}
-          labels={{ keep: "Send", discard: "Cancel", placeholder: "Describe the change" }}
+          labels={{ keep: t("Send"), discard: t("Cancel"), placeholder: t("Describe the change") }}
           onAction={(action) => {
             if (action === "Add to chat") onAction(action);
             else onAction(action);
@@ -190,8 +192,8 @@ export function DesignPickBar({
         {messages.length ? (
           <ChatComposer
             messages={messages}
-            suggestions={["Ask"]}
-            labels={{ initialPrompt: "Ask about this component", placeholder: "Ask about this component…" }}
+            suggestions={[t("Ask")]}
+            labels={{ initialPrompt: t("Ask about this component"), placeholder: t("Ask about this component…") }}
             onSend={onSend}
           />
         ) : null}

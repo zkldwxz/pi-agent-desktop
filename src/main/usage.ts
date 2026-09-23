@@ -2,6 +2,7 @@ import { createReadStream, existsSync, readdirSync, statSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { join } from "node:path";
 import { getAgentDir, SessionManager } from "@earendil-works/pi-coding-agent";
+import { cacheHitRate } from "@shared/cache-usage";
 import type {
   UsageBucket,
   UsageCacheStats,
@@ -256,6 +257,7 @@ export async function collectUsage(options?: { days?: number; sessionDir?: strin
       input: 0,
       output: 0,
       cacheRead: 0,
+      cacheWrite: 0,
       cost: 0,
     };
     day.calls += 1;
@@ -263,6 +265,7 @@ export async function collectUsage(options?: { days?: number; sessionDir?: strin
     day.input += usage.input;
     day.output += usage.output;
     day.cacheRead += usage.cacheRead;
+    day.cacheWrite += usage.cacheWrite;
     day.cost += usage.cost;
     dayMap.set(key, day);
 
@@ -307,8 +310,7 @@ export async function collectUsage(options?: { days?: number; sessionDir?: strin
   }
 
   const models = [...modelMap.values()].map(({ row, samples: values }) => {
-    const fresh = row.input + row.cacheRead;
-    row.cacheRate = fresh > 0 ? row.cacheRead / fresh : 0;
+    row.cacheRate = cacheHitRate(row);
     row.medianTokensPerCall = median(values);
     return row;
   });
@@ -321,48 +323,40 @@ export async function collectUsage(options?: { days?: number; sessionDir?: strin
     providerModelCount.set(model.provider, set);
   }
   const providers = [...providerMap.values()].map((provider) => {
-    const fresh = provider.input + provider.cacheRead;
-    provider.cacheRate = fresh > 0 ? provider.cacheRead / fresh : 0;
+    provider.cacheRate = cacheHitRate(provider);
     provider.models = providerModelCount.get(provider.provider)?.size ?? 0;
     return provider;
   });
   providers.sort((a, b) => b.total - a.total);
 
-  const cacheByChannel: UsagePerModel[] = models.map((model) => {
-    const fresh = model.input + model.cacheRead;
-    return {
-      provider: model.provider,
-      providerName: model.providerName,
-      model: model.model,
-      calls: model.calls,
-      cacheHitRate: fresh > 0 ? model.cacheRead / fresh : 0,
-      tokens: model.total,
-      cacheRead: model.cacheRead,
-      cacheWrite: model.cacheWrite,
-    };
-  });
+  const cacheByChannel: UsagePerModel[] = models.map((model) => ({
+    provider: model.provider,
+    providerName: model.providerName,
+    model: model.model,
+    calls: model.calls,
+    cacheHitRate: cacheHitRate(model),
+    tokens: model.total,
+    cacheRead: model.cacheRead,
+    cacheWrite: model.cacheWrite,
+  }));
 
   const cache: UsageCacheStats = {
     cacheRead: totals.cacheRead,
     cacheWrite: totals.cacheWrite,
     freshInput: totals.input,
-    hitRate: totals.input + totals.cacheRead > 0 ? totals.cacheRead / (totals.input + totals.cacheRead) : 0,
+    hitRate: cacheHitRate(totals),
     savedTokens: totals.cacheRead,
     byModel: cacheByChannel,
   };
 
   const dayList = [...dayMap.values()].sort((a, b) => a.date.localeCompare(b.date));
-  const deviations: UsageDeviation[] = dayList.map((day) => {
-    const daily = scoped.filter((sample) => dayKey(new Date(sample.timestamp)) === day.date);
-    const fresh = day.input + day.cacheRead;
-    return {
-      date: day.date,
-      tokens: day.tokens,
-      calls: day.calls,
-      cacheRate: fresh > 0 ? day.cacheRead / fresh : 0,
-      cost: day.cost,
-    };
-  });
+  const deviations: UsageDeviation[] = dayList.map((day) => ({
+    date: day.date,
+    tokens: day.tokens,
+    calls: day.calls,
+    cacheRate: cacheHitRate(day),
+    cost: day.cost,
+  }));
 
   const peakHour = hourBuckets.some((value) => value > 0)
     ? hourBuckets.indexOf(Math.max(...hourBuckets))

@@ -3,7 +3,8 @@ import type { BrowserState, DesignPick } from "@shared/browser";
 import type { ChatMessage } from "@shared/types";
 import { DesignPickBar } from "../agent/DesignPickBar";
 import { cn } from "../../lib/cn";
-import { t, useLocale } from "../../lib/i18n";
+import { t, tf, useLocale } from "../../lib/i18n";
+import { formatChord, useShortcuts } from "../../lib/keybindings";
 import {
   ArrowUpIcon,
   ChevronDownIcon,
@@ -69,6 +70,7 @@ export function BrowserPanel({
 }) {
   const [draft, setDraft] = useState(displayUrl(state.url));
   useLocale();
+  const chords = useShortcuts();
   const [editing, setEditing] = useState(false);
   const [instruction, setInstruction] = useState("");
   const placeholderRef = useRef<HTMLDivElement>(null);
@@ -218,7 +220,9 @@ export function BrowserPanel({
         <button
           type="button"
           aria-label={t("Design mode")}
-          title="Design mode (Shift+Ctrl+D) — pick an element and hand it to the agent"
+          title={tf("Design mode ({chord}) — pick an element and hand it to the agent", {
+            chord: chords.designMode ? formatChord(chords.designMode) : "",
+          })}
           onClick={() => void window.pi.setDesignMode(!state.designMode)}
           className={cn(
             "pressable flex size-7 items-center justify-center rounded-[6px]",
@@ -300,7 +304,9 @@ export function BrowserPanel({
       {!state.url ? (
         <div className="flex shrink-0 items-center gap-2 border-t border-line px-3 py-2 text-[11px] text-ink-3">
           <ChevronDownIcon size={11} className="-rotate-90" />
-          Shift+Ctrl+D for design mode · the `&gt;_` button docks DevTools on the right
+          {tf("{chord} for design mode · the >_ button docks DevTools on the right", {
+            chord: chords.designMode ? formatChord(chords.designMode) : t("Unassigned"),
+          })}
         </div>
       ) : null}
     </div>

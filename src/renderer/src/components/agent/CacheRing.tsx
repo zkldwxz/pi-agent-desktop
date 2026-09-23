@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { cacheHitRate, freshPromptTokens, promptTokens } from "@shared/cache-usage";
 import { cn } from "../../lib/cn";
+import { t, tf } from "../../lib/i18n";
 
 /**
  * Cache hit rate.
@@ -26,12 +28,18 @@ function compact(value: number): string {
 }
 
 export interface CacheStats {
-  total: number;
+  input: number;
   cacheRead: number;
+  cacheWrite: number;
 }
 
 /**
  * One prompt's token accounting as a ring.
+ *
+ * The rate is the prompt's own: cache reads over fresh input, cache reads and
+ * cache writes — the same definition the usage page uses, so the ring and the
+ * ledger never disagree. Output tokens are deliberately not in it; nothing
+ * about an answer comes from the prompt cache.
  *
  * Hover reveals the breakdown, and clicking pins it — the numbers are worth
  * reading without holding the pointer still, so the popover has to survive the
@@ -59,8 +67,9 @@ export function CacheRing({ stats }: { stats: CacheStats }) {
     };
   }, [pinned]);
 
-  const fresh = Math.max(0, stats.total - stats.cacheRead);
-  const rate = stats.total > 0 ? (stats.cacheRead / stats.total) * 100 : 0;
+  const fresh = freshPromptTokens(stats);
+  const prompt = promptTokens(stats);
+  const rate = cacheHitRate(stats) * 100;
   const band = bandFor(rate);
   // 16px matches the context ring directly opposite it
   const size = 16;
@@ -73,7 +82,7 @@ export function CacheRing({ stats }: { stats: CacheStats }) {
       <button
         type="button"
         aria-expanded={open}
-        aria-label={`Cache hit rate ${rate.toFixed(0)}%`}
+        aria-label={tf("Cache hit rate {rate}%", { rate: rate.toFixed(0) })}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         onFocus={() => setHovered(true)}
@@ -108,14 +117,14 @@ export function CacheRing({ stats }: { stats: CacheStats }) {
         >
           <span className="flex items-center gap-2 border-b border-line px-3 py-2">
             <span className="size-2 shrink-0 rounded-full" style={{ background: band.tone }} />
-            <span className="min-w-0 flex-1 text-[12px] font-medium text-ink">Cache {Math.round(rate)}%</span>
-            {pinned ? <span className="font-mono text-[9.5px] text-ink-3">pinned · Esc</span> : null}
+            <span className="min-w-0 flex-1 text-[12px] font-medium text-ink">{tf("Cache {rate}%", { rate: Math.round(rate) })}</span>
+            {pinned ? <span className="font-mono text-[9.5px] text-ink-3">{t("pinned · Esc")}</span> : null}
           </span>
           <span className="flex flex-col gap-1.5 px-3 py-2">
             <Row label="From cache" value={stats.cacheRead.toLocaleString()} tone={band.tone} />
             <Row label="Billed fresh" value={fresh.toLocaleString()} tone="var(--ink-2)" />
-            <Row label="Total" value={stats.total.toLocaleString()} tone="var(--ink)" />
-            <span className="mt-1 border-t border-line pt-1.5 text-[11px] leading-snug text-ink-3">{band.label}</span>
+            <Row label="Prompt total" value={prompt.toLocaleString()} tone="var(--ink)" />
+            <span className="mt-1 border-t border-line pt-1.5 text-[11px] leading-snug text-ink-3">{t(band.label)}</span>
           </span>
         </span>
       ) : null}
@@ -126,7 +135,7 @@ export function CacheRing({ stats }: { stats: CacheStats }) {
 function Row({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
     <span className="flex items-baseline justify-between gap-3">
-      <span className="text-[11.5px] text-ink-3">{label}</span>
+      <span className="text-[11.5px] text-ink-3">{t(label)}</span>
       <span className={cn("font-mono text-[11.5px] tabular-nums")} style={{ color: tone }}>
         {value}
       </span>

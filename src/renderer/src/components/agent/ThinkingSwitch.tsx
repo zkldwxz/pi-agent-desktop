@@ -1,5 +1,6 @@
 import { SlidingGroup } from "../motion";
 import { cn } from "../../lib/cn";
+import { t, tf } from "../../lib/i18n";
 
 const LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
@@ -34,14 +35,14 @@ export function ThinkingSwitch({
           key={level}
           data-slide-item
           type="button"
-          title={`Thinking depth: ${level}`}
+          title={tf("Thinking depth: {level}", { level: t(level) })}
           onClick={() => onChange(level)}
           className={cn(
             "pressable relative z-10 h-5 rounded-[4px] px-1.5 font-mono text-[10.5px]",
             level === value ? "text-ink" : "text-ink-3 hover:text-ink-2",
           )}
         >
-          {level === "medium" ? "med" : level === "minimal" ? "min" : level}
+          {t(level === "medium" ? "med" : level === "minimal" ? "min" : level)}
         </button>
       ))}
     </SlidingGroup>

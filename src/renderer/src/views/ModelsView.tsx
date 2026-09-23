@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { HostState, ModelEdit, ModelInfo } from "@shared/types";
 import { formatContext } from "../lib/format";
 import { cn } from "../lib/cn";
+import { t, tf } from "../lib/i18n";
 import { BrainIcon, CheckIcon, ImageIcon, PlusIcon, RefreshIcon, SearchIcon, TrashIcon } from "../components/icons";
 import { Card, Chip, EmptyState, Skeleton, ViewHeader } from "../components/ui";
 import { stagger } from "../components/motion";
@@ -191,8 +192,11 @@ export function ModelsView({
   return (
     <>
       <ViewHeader
-        title="Models"
-        subtitle={`${models.length} authenticated models across ${state.providers.length} channels`}
+        title={t("Models")}
+        subtitle={tf("{count} authenticated models across {channels} channels", {
+          count: models.length,
+          channels: state.providers.length,
+        })}
         actions={
           <div className="flex items-center gap-1.5">
             <div className="flex h-6 items-center gap-1.5 rounded-chip bg-field px-2">
@@ -200,17 +204,17 @@ export function ModelsView({
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Filter"
+                placeholder={t("Filter")}
                 className="w-24 bg-transparent text-[11.5px] text-ink outline-none placeholder:text-ink-3"
               />
             </div>
-            <Chip onClick={onRefresh} title="Reload models.json">
+            <Chip onClick={onRefresh} title={t("Reload models.json")}>
               <RefreshIcon size={12} />
-              Reload
+              {t("Reload")}
             </Chip>
-            <Chip onClick={startNewModel} title="Add a model to models.json">
+            <Chip onClick={startNewModel} title={t("Add a model to models.json")}>
               <PlusIcon size={12} />
-              Add
+              {t("Add")}
             </Chip>
           </div>
         }
@@ -220,7 +224,7 @@ export function ModelsView({
         <div className="scrollbar-thin flex min-w-0 flex-1 flex-col overflow-y-auto">
           <div className="flex flex-wrap items-center gap-1 border-b border-line px-4 py-2">
             <Chip active={provider === "all"} onClick={() => setProvider("all")} index={0}>
-              All channels
+              {t("All channels")}
             </Chip>
             {providerIds.map((id, index) => (
               <Chip key={id} active={provider === id} onClick={() => setProvider(id)} index={index + 1}>
@@ -232,8 +236,8 @@ export function ModelsView({
           {models.length === 0 ? (
             <div className="p-4">
               <EmptyState
-                title="No authenticated models"
-                body="Run `pi login` (or add a provider to ~/.pi/agent/models.json) and reload."
+                title={t("No authenticated models")}
+                body={t("Run `pi login` (or add a provider to ~/.pi/agent/models.json) and reload.")}
               />
             </div>
           ) : (
@@ -258,7 +262,7 @@ export function ModelsView({
                       {inUse ? (
                         <span className="inline-flex h-5 items-center gap-1 rounded-chip bg-green-tint px-1.5 text-[10.5px] text-green">
                           <CheckIcon size={10} />
-                          in use
+                          {t("in use")}
                         </span>
                       ) : null}
                     </div>
@@ -269,32 +273,37 @@ export function ModelsView({
                       {model.reasoning ? (
                         <span className="inline-flex h-5 items-center gap-1 rounded-chip bg-field px-1.5 text-[10px] text-ink-2">
                           <BrainIcon size={10} />
-                          reasoning
+                          {t("reasoning")}
                         </span>
                       ) : null}
                       {model.supportsImages ? (
                         <span className="inline-flex h-5 items-center gap-1 rounded-chip bg-field px-1.5 text-[10px] text-ink-2">
                           <ImageIcon size={10} />
-                          vision
+                          {t("vision")}
                         </span>
                       ) : null}
                       {model.source === "models.json" ? (
                         <span className="inline-flex h-5 items-center rounded-chip bg-orange-tint px-1.5 text-[10px] text-orange">
-                          overridden
+                          {t("overridden")}
                         </span>
                       ) : null}
                     </div>
                     <div className="flex items-center gap-3 font-mono text-[10.5px] text-ink-3 tabular-nums">
                       <span>ctx {formatContext(model.contextWindow)}</span>
                       <span>max {formatContext(model.maxTokens)}</span>
-                      <span>{model.thinkingLevels.filter((level) => level !== "off").length} levels</span>
+                      <span>
+                        {/* Ultra is the desktop's overlay on Max, not a depth the
+                            channel serves, so it is not counted here */}
+                        {model.thinkingLevels.filter((level) => level !== "off" && level !== "ultra").length}{" "}
+                        {t("levels")}
+                      </span>
                     </div>
                   </button>
                 );
               })}
               {filtered.length === 0 ? (
                 <div className="col-span-2">
-                  <EmptyState title="No models match" body="Clear the search or switch channel." />
+                  <EmptyState title={t("No models match")} body={t("Clear the search or switch channel.")} />
                 </div>
               ) : null}
             </div>
@@ -303,15 +312,15 @@ export function ModelsView({
           {state.providers.length ? (
             <div className="px-4 pb-4">
               <Card index={2} className="overflow-hidden">
-                <div className="border-b border-line px-3 py-2 text-[12.5px] font-medium text-ink">Channels</div>
+                <div className="border-b border-line px-3 py-2 text-[12.5px] font-medium text-ink">{t("Channels")}</div>
                 <table className="w-full border-collapse text-[12px]">
                   <thead>
                     <tr className="border-b border-line text-left text-[11px] text-ink-3">
-                      <th className="px-3 py-2 font-medium">Provider</th>
-                      <th className="px-3 py-2 font-medium">API</th>
-                      <th className="px-3 py-2 text-right font-medium">Models</th>
-                      <th className="px-3 py-2 font-medium">Auth</th>
-                      <th className="px-3 py-2 font-medium">Source</th>
+                      <th className="px-3 py-2 font-medium">{t("Provider")}</th>
+                      <th className="px-3 py-2 font-medium">{t("API")}</th>
+                      <th className="px-3 py-2 text-right font-medium">{t("Models")}</th>
+                      <th className="px-3 py-2 font-medium">{t("Auth")}</th>
+                      <th className="px-3 py-2 font-medium">{t("Source")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -330,10 +339,12 @@ export function ModelsView({
                               row.hasAuth ? "bg-green-tint text-green" : "bg-red-tint text-red",
                             )}
                           >
-                            {row.hasAuth ? "configured" : "missing"}
+                            {row.hasAuth ? t("configured") : t("missing")}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-[11px] text-ink-3">{row.editable ? "models.json" : "built-in"}</td>
+                        <td className="px-3 py-2 text-[11px] text-ink-3">
+                          {row.editable ? "models.json" : t("built-in")}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -351,10 +362,10 @@ export function ModelsView({
             <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[12.5px] font-medium text-ink">
-                  {isNew ? "New model" : draft.id}
+                  {isNew ? t("New model") : draft.id}
                 </div>
                 <div className="font-mono text-[10.5px] text-ink-3">
-                  {isNew ? "written to models.json" : draft.provider}
+                  {isNew ? t("written to models.json") : draft.provider}
                 </div>
               </div>
               <button
@@ -362,14 +373,14 @@ export function ModelsView({
                 onClick={() => setSelectedKey(null)}
                 className="pressable rounded-[5px] px-1.5 py-0.5 text-[11.5px] text-ink-3 hover:bg-hover hover:text-ink"
               >
-                Close
+                {t("Close")}
               </button>
             </div>
 
             <div className="mt-3 flex flex-col gap-3">
               {isNew ? (
                 <div className="grid grid-cols-2 gap-2">
-                  <Field label="Provider" hint="an id from models.json">
+                  <Field label={t("Provider")} hint={t("an id from models.json")}>
                     <input
                       list="pi-provider-ids"
                       value={draft.provider}
@@ -378,7 +389,7 @@ export function ModelsView({
                       className="h-7 w-full rounded-control bg-field px-2 font-mono text-[12px] text-ink outline-none"
                     />
                   </Field>
-                  <Field label="Model id" hint="as the provider spells it">
+                  <Field label={t("Model id")} hint={t("as the provider spells it")}>
                     <input
                       value={draft.id}
                       onChange={(event) => setDraft({ ...draft, id: event.target.value })}
@@ -394,7 +405,7 @@ export function ModelsView({
                 </div>
               ) : null}
 
-              <Field label="Display name">
+              <Field label={t("Display name")}>
                 <input
                   value={draft.name}
                   onChange={(event) => setDraft({ ...draft, name: event.target.value })}
@@ -404,8 +415,8 @@ export function ModelsView({
 
               <div className="flex items-center justify-between rounded-control bg-surface px-2.5 py-2 shadow-hairline">
                 <div>
-                  <div className="text-[12px] text-ink">Reasoning model</div>
-                  <div className="text-[10.5px] text-ink-3">enables thinking levels</div>
+                  <div className="text-[12px] text-ink">{t("Reasoning model")}</div>
+                  <div className="text-[10.5px] text-ink-3">{t("enables thinking levels")}</div>
                 </div>
                 <button
                   type="button"
@@ -428,12 +439,12 @@ export function ModelsView({
               <Check
                 checked={draft.input.includes("image")}
                 onChange={(next) => setDraft({ ...draft, input: next ? ["text", "image"] : ["text"] })}
-                label="Image input"
-                hint='supports screenshots & photos — writes input: ["text", "image"]'
+                label={t("Image input")}
+                hint={t('supports screenshots & photos — writes input: ["text", "image"]')}
               />
 
               <div className="grid grid-cols-2 gap-2">
-                <Field label="Context window" hint={formatContext(draft.contextWindow)}>
+                <Field label={t("Context window")} hint={formatContext(draft.contextWindow)}>
                   <div className="flex items-center gap-1.5">
                     <NumberInput
                       value={draft.contextWindow}
@@ -446,19 +457,19 @@ export function ModelsView({
                         setDraft({ ...draft, contextWindow: next ? ONE_MILLION : draft.contextWindow })
                       }
                       label="1M"
-                      hint={`tick for ${ONE_MILLION.toLocaleString()} tokens`}
+                      hint={tf("tick for {count} tokens", { count: ONE_MILLION.toLocaleString() })}
                     />
                   </div>
                 </Field>
-                <Field label="Max output" hint={formatContext(draft.maxTokens)}>
+                <Field label={t("Max output")} hint={formatContext(draft.maxTokens)}>
                   <NumberInput value={draft.maxTokens} onChange={(value) => setDraft({ ...draft, maxTokens: value })} />
                 </Field>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <span className="text-[11.5px] font-medium text-ink-2">Thinking level map</span>
+                <span className="text-[11.5px] font-medium text-ink-2">{t("Thinking level map")}</span>
                 <span className="text-[10.5px] text-ink-3">
-                  Map each Pi level to a provider value. Set to “— unsupported” to hide it.
+                  {t("Map each Pi level to a provider value. Set to “— unsupported” to hide it.")}
                 </span>
                 {LEVELS.map((level) => {
                   const value = draft.thinkingLevelMap?.[level] ?? "";
@@ -485,13 +496,13 @@ export function ModelsView({
                           !draft.reasoning && "opacity-50",
                         )}
                       >
-                        <option value="">default</option>
+                        <option value="">{t("default")}</option>
                         {LEVELS.filter((candidate) => candidate !== "off").map((candidate) => (
                           <option key={candidate} value={candidate}>
                             {candidate}
                           </option>
                         ))}
-                        <option value="__unsupported">— unsupported</option>
+                        <option value="__unsupported">{t("— unsupported")}</option>
                       </select>
                     </div>
                   );
@@ -507,7 +518,7 @@ export function ModelsView({
                   }}
                   className="pressable-soft pressable h-7 rounded-control bg-ink text-[12px] font-medium text-canvas disabled:opacity-40"
                 >
-                  Use in this session
+                  {t("Use in this session")}
                 </button>
                 <button
                   type="button"
@@ -515,7 +526,7 @@ export function ModelsView({
                   onClick={() => onSetDefault(draft.provider, draft.id)}
                   className="pressable-soft pressable h-7 rounded-control bg-surface text-[12px] text-ink shadow-btn hover:bg-inset disabled:opacity-40"
                 >
-                  Set as startup default
+                  {t("Set as startup default")}
                 </button>
                 <button
                   type="button"
@@ -526,7 +537,7 @@ export function ModelsView({
                   }}
                   className="pressable-soft pressable h-7 rounded-control bg-surface text-[12px] text-ink shadow-btn hover:bg-inset disabled:opacity-40"
                 >
-                  {isNew ? "Add to models.json" : "Save to models.json"}
+                  {isNew ? t("Add to models.json") : t("Save to models.json")}
                 </button>
                 <button
                   type="button"
@@ -535,22 +546,25 @@ export function ModelsView({
                   className="pressable-soft pressable flex h-7 items-center justify-center gap-1.5 rounded-control bg-surface text-[12px] text-red shadow-btn hover:bg-red-tint disabled:opacity-40"
                 >
                   <TrashIcon size={12} />
-                  Remove override
+                  {t("Remove override")}
                 </button>
               </div>
 
               <div className="rounded-control bg-inset px-2.5 py-2 font-mono text-[10.5px] leading-relaxed text-ink-3">
                 {draft.provider}/{draft.id}
                 <br />
-                thinking: {draft.thinkingLevelMap ? `${Object.keys(draft.thinkingLevelMap).length} mapped` : "provider default"}
+                {t("thinking:")}{" "}
+                {draft.thinkingLevelMap
+                  ? `${Object.keys(draft.thinkingLevelMap).length} ${t("mapped")}`
+                  : t("provider default")}
               </div>
             </div>
           </aside>
         ) : (
           <aside className="w-[320px] shrink-0 border-l border-line bg-canvas p-4">
             <Skeleton className="h-[120px]" />            <div className="mt-3 text-[11.5px] text-ink-3">
-              Pick a model to configure thinking depth, image input, context window, and output limits. Changes are written to{" "}
-              <span className="font-mono">~/.pi/agent/models.json</span> and picked up by the Pi CLI too.
+              {t("Pick a model to configure thinking depth, image input, context window, and output limits. Changes are written to")}{" "}
+              <span className="font-mono">~/.pi/agent/models.json</span> {t("and picked up by the Pi CLI too.")}
             </div>
           </aside>
         )}

@@ -1,0 +1,1489 @@
+[
+  {
+    "english": "In {name} What should Pi do next?",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "App.tsx"
+    ]
+  },
+  {
+    "english": "The run finished.",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "App.tsx"
+    ]
+  },
+  {
+    "english": "Only Coding，First Windows.",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "App.tsx"
+    ]
+  },
+  {
+    "english": "Follow the stream",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "App.tsx"
+    ]
+  },
+  {
+    "english": "Jump to latest",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "App.tsx"
+    ]
+  },
+  {
+    "english": "Send follow-up…",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/AgentComposer.tsx"
+    ]
+  },
+  {
+    "english": "Ask Pi to build, analyze or explain anything…",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/AgentComposer.tsx"
+    ]
+  },
+  {
+    "english": "Expand sidebar",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/AgentSidebar.tsx"
+    ]
+  },
+  {
+    "english": "Collapse sidebar",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/AgentSidebar.tsx"
+    ]
+  },
+  {
+    "english": "New Agent",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/AgentSidebar.tsx"
+    ]
+  },
+  {
+    "english": "Search",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/AgentSidebar.tsx"
+    ]
+  },
+  {
+    "english": "Customize",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/AgentSidebar.tsx"
+    ]
+  },
+  {
+    "english": "Settings",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/AgentSidebar.tsx",
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Drag to resize, double-click to reset",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/AgentSidebar.tsx"
+    ]
+  },
+  {
+    "english": "Thought for {duration}",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/AgentTrace.tsx"
+    ]
+  },
+  {
+    "english": "Thought briefly",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/AgentTrace.tsx"
+    ]
+  },
+  {
+    "english": "Thinking",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/AgentTrace.tsx",
+      "components/MessageThread.tsx"
+    ]
+  },
+  {
+    "english": "From cache",
+    "category": "form_label",
+    "description": "Form field label",
+    "files": [
+      "components/agent/CacheRing.tsx"
+    ]
+  },
+  {
+    "english": "Billed fresh",
+    "category": "form_label",
+    "description": "Form field label",
+    "files": [
+      "components/agent/CacheRing.tsx"
+    ]
+  },
+  {
+    "english": "Total",
+    "category": "form_label",
+    "description": "Form field label",
+    "files": [
+      "components/agent/CacheRing.tsx"
+    ]
+  },
+  {
+    "english": "No workspace",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/FolderPicker.tsx"
+    ]
+  },
+  {
+    "english": "Change folder",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/FolderPicker.tsx"
+    ]
+  },
+  {
+    "english": "Search folders…",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/FolderPicker.tsx"
+    ]
+  },
+  {
+    "english": "Search folders",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/FolderPicker.tsx"
+    ]
+  },
+  {
+    "english": "No folders found",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/FolderPicker.tsx"
+    ]
+  },
+  {
+    "english": "New workspace",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/FolderPicker.tsx"
+    ]
+  },
+  {
+    "english": "SSH connections are coming soon",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/FolderPicker.tsx"
+    ]
+  },
+  {
+    "english": "New SSH connection",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/FolderPicker.tsx"
+    ]
+  },
+  {
+    "english": "Open folder",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Looking up apps…",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "No sessions yet.",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Add a folder",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "New chat in this workspace",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Workspace name",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Save",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Show {count} more",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Show less",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx",
+      "components/MessageThread.tsx"
+    ]
+  },
+  {
+    "english": "Workspaces",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Workspace options",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Grouping",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Workspace",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Date",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Status",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Ordering",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Recent",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Name",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Show",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "All",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "chats",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "FILTERS",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Any",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Running",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Failed",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Expand All",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Collapse All",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Mark All as Read",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Archived ({count})",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "New chat",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Rename",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Open in IDE",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Unarchive",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Archive workspace",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Click again to delete",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Delete workspace",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/agent/WorkspaceList.tsx"
+    ]
+  },
+  {
+    "english": "Stop",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/browser/BrowserPanel.tsx"
+    ]
+  },
+  {
+    "english": "Reload",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/browser/BrowserPanel.tsx"
+    ]
+  },
+  {
+    "english": "Design mode",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/browser/BrowserPanel.tsx",
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Toggle DevTools",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/browser/BrowserPanel.tsx"
+    ]
+  },
+  {
+    "english": "Return to the dock",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/browser/BrowserPanel.tsx"
+    ]
+  },
+  {
+    "english": "Open fullscreen",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/browser/BrowserPanel.tsx"
+    ]
+  },
+  {
+    "english": "Close browser",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/browser/BrowserPanel.tsx"
+    ]
+  },
+  {
+    "english": "Nothing loaded",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/browser/BrowserPanel.tsx"
+    ]
+  },
+  {
+    "english": "What should Pi do next?",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/MessageThread.tsx"
+    ]
+  },
+  {
+    "english": "This window talks to the Pi agent already installed on this machine. Sessions, models, and credentials stay in ~/.pi/agent.",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/MessageThread.tsx"
+    ]
+  },
+  {
+    "english": "Edit this prompt",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/MessageThread.tsx"
+    ]
+  },
+  {
+    "english": "compacted",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/MessageThread.tsx"
+    ]
+  },
+  {
+    "english": "branch",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/MessageThread.tsx"
+    ]
+  },
+  {
+    "english": "Context compacted",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/MessageThread.tsx"
+    ]
+  },
+  {
+    "english": "Show the full message ({count} lines)",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/MessageThread.tsx"
+    ]
+  },
+  {
+    "english": "Stopped",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/MessageThread.tsx"
+    ]
+  },
+  {
+    "english": "Worked for {duration}",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/MessageThread.tsx"
+    ]
+  },
+  {
+    "english": "cached",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/MessageThread.tsx"
+    ]
+  },
+  {
+    "english": "Copied",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/MessageThread.tsx"
+    ]
+  },
+  {
+    "english": "Copy answer",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/MessageThread.tsx"
+    ]
+  },
+  {
+    "english": "Retry from here",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/MessageThread.tsx"
+    ]
+  },
+  {
+    "english": "Language",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/panel/AppearanceSection.tsx"
+    ]
+  },
+  {
+    "english": "Interface language for the app chrome; agent output is never translated",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/panel/AppearanceSection.tsx"
+    ]
+  },
+  {
+    "english": "Used",
+    "category": "form_label",
+    "description": "Form field label",
+    "files": [
+      "components/panel/ContextBadge.tsx"
+    ]
+  },
+  {
+    "english": "Window",
+    "category": "form_label",
+    "description": "Form field label",
+    "files": [
+      "components/panel/ContextBadge.tsx"
+    ]
+  },
+  {
+    "english": "Session total",
+    "category": "form_label",
+    "description": "Form field label",
+    "files": [
+      "components/panel/ContextBadge.tsx"
+    ]
+  },
+  {
+    "english": "Hide the tool panel",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/panel/DockToggle.tsx"
+    ]
+  },
+  {
+    "english": "Show the tool panel",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/panel/DockToggle.tsx"
+    ]
+  },
+  {
+    "english": "Hide ignored folders",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/panel/FileBrowser.tsx"
+    ]
+  },
+  {
+    "english": "Show ignored folders",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/panel/FileBrowser.tsx"
+    ]
+  },
+  {
+    "english": "Refresh",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/panel/FileBrowser.tsx"
+    ]
+  },
+  {
+    "english": "Empty folder.",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/panel/FileBrowser.tsx"
+    ]
+  },
+  {
+    "english": "Show the sidebar",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/panel/SidebarToggle.tsx"
+    ]
+  },
+  {
+    "english": "Hide the sidebar",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/panel/SidebarToggle.tsx"
+    ]
+  },
+  {
+    "english": "No tasks yet",
+    "category": "empty_state",
+    "description": "Empty state heading",
+    "files": [
+      "components/panel/TodoPanel.tsx"
+    ]
+  },
+  {
+    "english": "Ask Pi to plan multi-step work and it will keep this list updated as it goes.",
+    "category": "empty_state",
+    "description": "Empty state description",
+    "files": [
+      "components/panel/TodoPanel.tsx"
+    ]
+  },
+  {
+    "english": "Light mode",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/TitleBar.tsx"
+    ]
+  },
+  {
+    "english": "Dark mode",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/TitleBar.tsx"
+    ]
+  },
+  {
+    "english": "Minimize",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/TitleBar.tsx"
+    ]
+  },
+  {
+    "english": "Maximize",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/TitleBar.tsx"
+    ]
+  },
+  {
+    "english": "Close",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "components/TitleBar.tsx"
+    ]
+  },
+  {
+    "english": "Back",
+    "category": "view_header",
+    "description": "Page / View Title",
+    "files": [
+      "views/CustomizeView.tsx",
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Models",
+    "category": "view_header",
+    "description": "Page / View Title",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "english": "Provider",
+    "category": "form_label",
+    "description": "Form field label",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "english": "an id from models.json",
+    "category": "form_hint",
+    "description": "Form field hint",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "english": "Model id",
+    "category": "form_label",
+    "description": "Form field label",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "english": "as the provider spells it",
+    "category": "form_hint",
+    "description": "Form field hint",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "english": "Display name",
+    "category": "form_label",
+    "description": "Form field label",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "english": "Context window",
+    "category": "form_label",
+    "description": "Form field label",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "english": "Max output",
+    "category": "form_label",
+    "description": "Form field label",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "english": "No authenticated models",
+    "category": "empty_state",
+    "description": "Empty state heading",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "english": "Run `pi login` (or add a provider to ~/.pi/agent/models.json) and reload.",
+    "category": "empty_state",
+    "description": "Empty state description",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "english": "No models match",
+    "category": "empty_state",
+    "description": "Empty state heading",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "english": "Clear the search or switch channel.",
+    "category": "empty_state",
+    "description": "Empty state description",
+    "files": [
+      "views/ModelsView.tsx"
+    ]
+  },
+  {
+    "english": "Search settings",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Transcript",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Written to ~/.pi/agent/settings.json — the Pi CLI reads the same file",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Reload session",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Models & thinking",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Startup thinking level",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "used when a session starts without a saved level",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Per-model overrides · inherit follows the startup level",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Thinking token budgets",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "applies to providers that accept explicit budgets",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Desktop",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Completion sound",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "a short chime when a run finishes",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Windows notification",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "a toast when the run finishes while the window is in the background",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Images & output",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Block image input",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "stops attachments and screenshots from reaching the model",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Auto-resize images",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "downscale to 2000×2000 before sending",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Hide thinking blocks",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "only affects rendering inside the Pi TUI",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Show cache-miss notices",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "flag significant prompt-cache misses in the transcript",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Context & retry",
+    "category": "i18n_t",
+    "description": "Existing t() translation key",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Auto compaction",
+    "category": "setting_row",
+    "description": "Settings row title",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Auto retry",
+    "category": "setting_row",
+    "description": "Settings row title",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Shell path",
+    "category": "setting_row",
+    "description": "Settings row title",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "empty uses the system default",
+    "category": "setting_hint",
+    "description": "Settings row hint",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Command prefix",
+    "category": "setting_row",
+    "description": "Settings row title",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "prepended to every command the agent runs",
+    "category": "setting_hint",
+    "description": "Settings row hint",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "npm command",
+    "category": "setting_row",
+    "description": "Settings row title",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "argv used for package lookups; comma separated",
+    "category": "setting_hint",
+    "description": "Settings row hint",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Panel",
+    "category": "setting_row",
+    "description": "Settings row title",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "the Shell panel runs through the agent's bash tool, so output joins the conversation",
+    "category": "setting_hint",
+    "description": "Settings row hint",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Embedded browser",
+    "category": "setting_row",
+    "description": "Settings row title",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "an isolated Chromium session — site logins persist between runs",
+    "category": "setting_hint",
+    "description": "Settings row hint",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Shift+Ctrl+D in the browser panel, or the pencil in its top bar",
+    "category": "setting_hint",
+    "description": "Settings row hint",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "DevTools",
+    "category": "setting_row",
+    "description": "Settings row title",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "the terminal button in the browser bar docks them on the right",
+    "category": "setting_hint",
+    "description": "Settings row hint",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Agent tools",
+    "category": "setting_row",
+    "description": "Settings row title",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "registered as a pi extension — seven tools, no MCP layer",
+    "category": "setting_hint",
+    "description": "Settings row hint",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Agent task list",
+    "category": "setting_row",
+    "description": "Settings row title",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "the agent keeps it current through todo_write",
+    "category": "setting_hint",
+    "description": "Settings row hint",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Persistence",
+    "category": "setting_row",
+    "description": "Settings row title",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "written into the session file, so it survives a restart and travels with the session",
+    "category": "setting_hint",
+    "description": "Settings row hint",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Shell",
+    "category": "section_title",
+    "description": "Section group title",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Browser",
+    "category": "section_title",
+    "description": "Section group title",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Tasks",
+    "category": "section_title",
+    "description": "Section group title",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Data",
+    "category": "section_title",
+    "description": "Section group title",
+    "files": [
+      "views/SettingsView.tsx"
+    ]
+  },
+  {
+    "english": "Usage",
+    "category": "view_header",
+    "description": "Page / View Title",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "english": "No usage data",
+    "category": "empty_state",
+    "description": "Empty state heading",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "english": "Start a conversation and token usage will show up here.",
+    "category": "empty_state",
+    "description": "Empty state description",
+    "files": [
+      "views/UsageView.tsx"
+    ]
+  },
+  {
+    "english": "off",
+    "category": "thinking_level",
+    "description": "思考强度关闭",
+    "files": []
+  },
+  {
+    "english": "minimal",
+    "category": "thinking_level",
+    "description": "极低/微量思考",
+    "files": []
+  },
+  {
+    "english": "low",
+    "category": "thinking_level",
+    "description": "低思考强度",
+    "files": []
+  },
+  {
+    "english": "medium",
+    "category": "thinking_level",
+    "description": "中等思考强度",
+    "files": []
+  },
+  {
+    "english": "high",
+    "category": "thinking_level",
+    "description": "高思考强度",
+    "files": []
+  },
+  {
+    "english": "xhigh",
+    "category": "thinking_level",
+    "description": "极高思考强度",
+    "files": []
+  },
+  {
+    "english": "max",
+    "category": "thinking_level",
+    "description": "最高思考强度",
+    "files": []
+  },
+  {
+    "english": "THINKING",
+    "category": "composer_control",
+    "description": "思考强度标签",
+    "files": []
+  },
+  {
+    "english": "MODEL",
+    "category": "composer_control",
+    "description": "模型选择标签",
+    "files": []
+  },
+  {
+    "english": "CONTEXT",
+    "category": "composer_control",
+    "description": "上下文指示标签",
+    "files": []
+  },
+  {
+    "english": "context window",
+    "category": "model_attribute",
+    "description": "上下文窗口",
+    "files": []
+  },
+  {
+    "english": "max output",
+    "category": "model_attribute",
+    "description": "最大输出 tokens",
+    "files": []
+  },
+  {
+    "english": "reasoning",
+    "category": "model_attribute",
+    "description": "推理能力",
+    "files": []
+  },
+  {
+    "english": "vision",
+    "category": "model_attribute",
+    "description": "视觉识别能力",
+    "files": []
+  },
+  {
+    "english": "override",
+    "category": "model_attribute",
+    "description": "覆盖/自定义配置",
+    "files": []
+  },
+  {
+    "english": "inherit",
+    "category": "thinking_option",
+    "description": "继承默认设置",
+    "files": []
+  },
+  {
+    "english": "Waiting for the session…",
+    "category": "composer_control",
+    "description": "等待会话就绪…",
+    "files": []
+  },
+  {
+    "english": "Estimates from the session's own prompt, tool schemas and skill files.",
+    "category": "composer_control",
+    "description": "基于会话提示词、工具定义与技能文件的估算值",
+    "files": []
+  },
+  {
+    "english": "This model does not expose thinking levels.",
+    "category": "composer_control",
+    "description": "该模型不提供思考深度调节",
+    "files": []
+  }
+]

@@ -341,11 +341,7 @@ export default function ToolChips({
               <div
                 key={index}
                 className={`flex gap-2 px-2.5 whitespace-pre ${
-                  line.tone === "add"
-                    ? "bg-green-tint text-green"
-                    : line.tone === "del"
-                      ? "bg-red-tint text-red"
-                      : "text-ink-2"
+                  line.tone === "add" ? "bg-green-tint" : line.tone === "del" ? "bg-red-tint" : "text-ink-2"
                 }`}
               >
                 <span className="w-3 shrink-0 select-none">{line.tone === "add" ? "+" : line.tone === "del" ? "−" : " "}</span>

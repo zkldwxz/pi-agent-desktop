@@ -1,17 +1,17 @@
 import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import type { ChatMessage, HostState, PluginInfo, ToolActivity, UsageStats } from "@shared/types";
+import type { ChatMessage, HostState, PlanAction, PluginInfo, ToolActivity, UsageStats } from "@shared/types";
 import { MessageThread } from "./components/MessageThread";
 import { TitleBar } from "./components/TitleBar";
 import { AgentComposer } from "./components/agent/AgentComposer";
 import { AgentSidebar, type SidebarView } from "./components/agent/AgentSidebar";
-import { FileBrowser } from "./components/panel/FileBrowser";
-import { FileViewer } from "./components/panel/FileViewer";
-import { SessionOutline } from "./components/panel/SessionOutline";
+import { FolderPicker } from "./components/agent/FolderPicker";
 import { TerminalPanel } from "./components/panel/TerminalPanel";
 import type { FileEntry } from "@shared/workspace";
 import { cn } from "./lib/cn";
+import { ListChecksIcon, TerminalIcon } from "./components/icons";
 import { playDoneChime } from "./lib/sound";
 import { t, useLocale } from "./lib/i18n";
+import { chordOf, matches, resolveEvent } from "./lib/keybindings";
 import type { BrowserState, DesignPick } from "@shared/browser";
 import type { UiAnswer, UiNotification, UiRequest } from "@shared/ui";
 import { ApprovalPrompt, NoticeStack } from "./components/agent/ApprovalPrompt";
@@ -25,15 +25,19 @@ const BrowserPanel = lazy(() => import("./components/browser/BrowserPanel").then
 
 const BROWSER_WIDTH_KEY = "pi-browser-dock-width";
 const clampBrowserWidth = (value: number) => Math.round(Math.min(1100, Math.max(320, value)));
+/* below this the monitor stops claiming a column of its own: at that width the
+   thread needs the room more than the panel does */
+const MONITOR_FLOAT_WIDTH = 1280;
 const NextStepCard = lazy(() => import("./components/agent/NextStepCard").then((m) => ({ default: m.NextStepCard })));
+const MonitorPanel = lazy(() => import("./components/panel/MonitorPanel").then((m) => ({ default: m.MonitorPanel })));
 const CommandPalette = lazy(() =>
   import("./components/agent/CommandPalette").then((m) => ({ default: m.CommandPalette })),
 );
-import { collectChanges, type ChangeEntry } from "./components/panel/ChangesPanel";
-import { buildTurns } from "./lib/agent-view";
+import type { ChangeEntry } from "./components/panel/ChangesPanel";
 import { ToolDock, type DockTool } from "./components/panel/ToolDock";
+import { SessionStrip } from "./components/panel/SessionStrip";
 import { DockToggle } from "./components/panel/DockToggle";
-import { SidebarToggle } from "./components/panel/SidebarToggle";
+import { FolderOpener } from "./components/panel/FolderOpener";
 import { formatDesignPick, toImageAttachment } from "./lib/design-pick";
 import { ViewSkeleton } from "./components/ViewSkeleton";
 import { useTheme } from "./lib/theme";
@@ -66,6 +70,9 @@ const emptyState: HostState = {
   },
   snapshot: null,
   todos: [],
+  plan: { phase: "off", steps: [], updatedAt: 0 },
+  fleet: [],
+  surfaces: [],
   tools: [],
   queue: { steering: [], followUp: [], steeringMode: "one-at-a-time", followUpMode: "one-at-a-time" },
 };
@@ -99,6 +106,12 @@ export function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [dockOpen, setDockOpen] = useState(false);
   const [dockTool, setDockTool] = useState<DockTool | null>(null);
+  /* the monitor is the conversation area's own right-hand column: a glance at
+     where the work stands, not a place you work */
+  const [monitorOpen, setMonitorOpen] = useState(false);
+  /* only the window drives the float decision — a measurement taken inside the
+     row would move with the monitor's own width and flap */
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
   const [activeChange, setActiveChange] = useState<ChangeEntry | null>(null);
   const [openFile, setOpenFile] = useState<string | undefined>(undefined);
   /** the session being switched to — its transcript is still the previous one */
@@ -122,6 +135,45 @@ export function App() {
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [uiRequest, setUiRequest] = useState<UiRequest | null>(null);
   const [notices, setNotices] = useState<UiNotification[]>([]);
+
+  /* A shell-level notice, for actions that are not extension callbacks: a model
+     write that failed has to say so, or the settings page reads as if it had
+     simply ignored the click. Extension notices arrive on their own channel. */
+  const pushNotice = useCallback((message: string, type: UiNotification["type"] = "info") => {
+    setNotices((current) => [
+      ...current,
+      { id: `local-${Date.now()}-${current.length}`, message, type, at: Date.now() },
+    ]);
+  }, []);
+
+  /** Run a write against models.json and report both outcomes. The failure is
+   *  re-thrown so the dialog that raised it can stay open with the work in it. */
+  const runModelWrite = useCallback(
+    async (job: () => Promise<void>, done: string) => {
+      try {
+        await job();
+        pushNotice(done, "info");
+      } catch (error) {
+        pushNotice(error instanceof Error ? error.message : String(error), "error");
+        throw error;
+      }
+    },
+    [pushNotice],
+  );
+
+  /** Report only the failure — for actions whose success is already on screen,
+   *  like a model switch repainting the composer. Refusing to switch to a model
+   *  that is switched off in settings arrives through here. */
+  const reportFailure = useCallback(
+    async (job: () => Promise<void>) => {
+      try {
+        await job();
+      } catch (error) {
+        pushNotice(error instanceof Error ? error.message : String(error), "error");
+      }
+    },
+    [pushNotice],
+  );
   /* the host keeps every notification it ever sent; ids that timed out or were
      dismissed here must never reappear on the next payload */
   const [prefill, setPrefill] = useState<string | undefined>(undefined);
@@ -133,6 +185,16 @@ export function App() {
   const [atBottom, setAtBottom] = useState(true);
   /** the transcript is remounted when the view key changes; remember where the reader was */
   const scrollMemoryRef = useRef(0);
+
+  /* the window's own width, which is also what a zoom change moves; a
+     resized row would move with the monitor's own width and flap, and a
+     ResizeObserver only answers on frames the app may not be drawing */
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const [zoomFactor, setZoomFactor] = useState<number>(() => {
     try {
@@ -173,23 +235,22 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Ctrl+wheel zoom, and Ctrl + / Ctrl - / Ctrl 0 keyboard zoom
+  // Ctrl+wheel zoom, and the keyboard zoom chords from the shortcut table
   useEffect(() => {
     const onWheel = (event: WheelEvent) => {
-      if (event.ctrlKey || event.metaKey) {
-        event.preventDefault();
-        applyZoom(zoomRef.current + (event.deltaY < 0 ? 0.05 : -0.05));
-      }
+      if (!matches({ key: "wheel", ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, shiftKey: event.shiftKey }, chordOf("zoomWheel"))) return;
+      event.preventDefault();
+      applyZoom(zoomRef.current + (event.deltaY < 0 ? 0.05 : -0.05));
     };
     const onKey = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey)) return;
-      if (event.key === "+" || event.key === "=") {
+      const id = resolveEvent(event);
+      if (id === "zoomIn") {
         event.preventDefault();
         applyZoom(zoomRef.current + 0.05);
-      } else if (event.key === "-") {
+      } else if (id === "zoomOut") {
         event.preventDefault();
         applyZoom(zoomRef.current - 0.05);
-      } else if (event.key === "0") {
+      } else if (id === "zoomReset") {
         event.preventDefault();
         applyZoom(1);
       }
@@ -210,7 +271,14 @@ export function App() {
       setTools(payload.tools);
       if (payload.uiRequest !== undefined) setUiRequest(payload.uiRequest);
       if (payload.notifications) {
-        setNotices(payload.notifications.filter((notice) => !retiredNoticesRef.current.has(notice.id)));
+        /* The host re-sends its whole list on every bridge event, so it
+           replaces its own notices and leaves the shell's in place — a "saved
+           to models.json" from settings must not vanish because an extension
+           happened to raise a toast a moment later. */
+        setNotices((current) => [
+          ...current.filter((notice) => notice.id.startsWith("local-")),
+          ...payload.notifications!.filter((notice) => !retiredNoticesRef.current.has(notice.id)),
+        ]);
       }
     });
     void window.pi.getState().then((payload) => {
@@ -232,6 +300,12 @@ export function App() {
     };
   }, []);
 
+  /* the embedded browser is per folder: its own page, its own logins. Switching
+     projects swaps the view rather than navigating the shared one away. */
+  useEffect(() => {
+    if (state.cwd) void window.pi.setBrowserWorkspace(state.cwd);
+  }, [state.cwd]);
+
   const sendDesignPick = useCallback(
     (pick: DesignPick, instruction?: string) => {
       setView("chat");
@@ -251,9 +325,55 @@ export function App() {
     [browser.designMode, state.snapshot?.model?.supportsImages],
   );
 
+  /* the desktop config is read once and kept: the plan tab needs the build
+     model it remembers, and that is written by the host on every build */
+  const [buildModel, setBuildModel] = useState<{ provider: string; id: string } | undefined>(undefined);
   useEffect(() => {
-    void window.pi.getDesktopConfig().then((config) => setOnboarded(config.onboardingDone));
+    void window.pi.getDesktopConfig().then((config) => {
+      setOnboarded(config.onboardingDone);
+      setBuildModel(config.buildModel);
+    });
   }, []);
+
+  /* Plan mode's controls. The feature is a plugin, so the window presses its
+   * subcommands rather than doing any of the work itself; the host writes the
+   * build model down the moment it is used, which is what makes it the default
+   * next time. */
+  const planAction = useCallback((action: PlanAction) => {
+    void window.pi
+      .planAction(action)
+      .then(() => {
+        if (action.model) setBuildModel(action.model);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  /* a plan was just written, or a session with a live plan was opened: the
+   * panel that holds it comes up, because that plan is what the next decision
+   * is about. Keyed on the file so re-renders do not fight the user's clicks. */
+  const shownPlanRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const path = state.plan.path;
+    if (!path || path === shownPlanRef.current) return;
+    shownPlanRef.current = path;
+    if (state.plan.phase !== "review" && state.plan.phase !== "executing") return;
+    setDockTool("plan");
+    setDockOpen(true);
+  }, [state.plan.path, state.plan.phase]);
+
+  /* the fleet panel follows the same rule as the plan's: it arrives with the
+     thing it shows. The first spawn of a wave opens the dock on it — but only
+     if the user has not already picked a panel for themselves */
+  const fleetOpenedRef = useRef(false);
+  useEffect(() => {
+    const active = state.fleet.length > 0;
+    if (active && !fleetOpenedRef.current && dockTool !== "agents") {
+      fleetOpenedRef.current = true;
+      setDockTool("agents");
+      setDockOpen(true);
+    }
+    if (!active) fleetOpenedRef.current = false;
+  }, [state.fleet.length, dockTool]);
 
   // warm the docked browser's chunk — first open then skips the lazy fetch
   useEffect(() => {
@@ -322,26 +442,31 @@ export function App() {
   const aborted = Boolean(state.error && /abort|cancel|stopped/i.test(state.error));
   const fatalError = state.error && !aborted ? state.error : null;
 
+  /* the chords themselves live in lib/keybindings so the Settings table can
+   * rebind them; this handler only says what each one *does* */
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && streaming) {
+      const id = resolveEvent(event);
+      if (!id) return;
+      // an abort is not a failure, and Escape must still reach the open overlay
+      if (id === "abort") {
+        if (!streaming) return;
         event.preventDefault();
         void window.pi.abort();
         return;
       }
-      const mod = event.ctrlKey || event.metaKey;
-      if (mod && event.key.toLowerCase() === "k") {
+      if (id === "palette") {
         event.preventDefault();
         setPaletteOpen(true);
         return;
       }
-      if (mod && event.key.toLowerCase() === "n") {
+      if (id === "newSession") {
         event.preventDefault();
         setView("chat");
         void window.pi.newSession();
         return;
       }
-      if (mod && event.shiftKey && event.key.toLowerCase() === "d") {
+      if (id === "designMode") {
         event.preventDefault();
         // design mode opens the docked browser, not the fullscreen one — you
         // pick an element while the conversation stays in view
@@ -350,24 +475,19 @@ export function App() {
         void window.pi.setDesignMode(!browser.designMode);
         return;
       }
-      if (mod && event.key.toLowerCase() === "u") {
-        event.preventDefault();
-        // the usage dashboard now lives inside Settings
-        setView((value) => (value === "settings" ? "chat" : "settings"));
-      }
-      if (mod && event.key === ",") {
-        // Cursor/VS Code/Aureways all open preferences on this chord
+      if (id === "usage" || id === "settings") {
+        // the usage dashboard now lives inside Settings, and Cursor/VS Code
+        // open preferences on `,`
         event.preventDefault();
         setView((value) => (value === "settings" ? "chat" : "settings"));
         return;
       }
-      if (mod && event.key.toLowerCase() === "b") {
-        // the workbench chord: the right dock
+      if (id === "dock") {
         event.preventDefault();
         setDockOpen((value) => !value);
         return;
       }
-      if (mod && event.key.toLowerCase() === "l") {
+      if (id === "focusComposer") {
         // focus the composer from anywhere — Cursor's shortcut
         event.preventDefault();
         setView("chat");
@@ -503,19 +623,32 @@ export function App() {
     };
   }, [resizingBrowser]);
 
+  /* opening a file or a diff lands it in the dock's files tab — never in the
+     conversation's place */
   const openDockFile = useCallback((entry: FileEntry) => {
     setActiveChange(null);
     setOpenFile(entry.path);
+    setDockTool("file");
+    setDockOpen(true);
   }, []);
-  const openDockDiff = useCallback(
-    (path: string) => {
-      const change = collectChanges(buildTurns(messages, [])).find((entry) => entry.file === path) ?? null;
-      setActiveChange(change);
-      setOpenFile(path);
-    },
-    [messages],
-  );
+  /* the entry carries both the label the reader clicked and the real path to
+     open — the label is `App.tsx:361`, which is not a file on disk */
+  const openDockDiff = useCallback((change: ChangeEntry) => {
+    setActiveChange(change);
+    setOpenFile(change.path ?? change.file);
+    setDockTool("file");
+    setDockOpen(true);
+  }, []);
   const revealFile = useCallback((path: string) => void window.pi.revealFile(path), []);
+  const closeDockFile = useCallback(() => {
+    setOpenFile(undefined);
+    setActiveChange(null);
+  }, []);
+  /* a line quote from the code tab lands in the composer as an @mention with
+     its line range; the file's contents ride on the clipboard */
+  const addRefToChat = useCallback((ref: string) => {
+    setPrefill((current) => (current ? `${current}\n${ref}` : ref));
+  }, []);
   const openDockBrowser = useCallback(() => {
     setDockOpen(false);
     setBrowserDockOpen(true);
@@ -527,12 +660,45 @@ export function App() {
     void window.pi.respondUi(reply);
   }, []);
 
+  /** a fresh session owns the middle of the window, not the bottom edge */
+  const emptySession = messages.length === 0 && !streaming;
+  /** the folder switcher inside the greeting is open — the rest of the page dims */
+  const [pickingFolder, setPickingFolder] = useState(false);
+  /* "In {name} What should Pi do next?" wraps the inline folder switcher, so
+   * the template splits around the name instead of interpolating it */
+  const [greetingBefore, greetingAfter] = useMemo(() => {
+    const [before, ...rest] = t("In {name} What should Pi do next?").split("{name}");
+    return [before, rest.join("{name}")];
+  }, []);
+
+  /* the run settling is the one moment worth interrupting for: a chime here,
+   * and a Windows toast when the window is not the one you are looking at */
+  const wasStreamingRef = useRef(false);
+  useEffect(() => {
+    const was = wasStreamingRef.current;
+    wasStreamingRef.current = streaming;
+    if (!was || streaming) return;
+    if (localStorage.getItem("pi-sound-done") !== "off") playDoneChime();
+    if (localStorage.getItem("pi-notify-done") !== "off" && !document.hasFocus()) {
+      void window.pi.notify({ title: "Pi Agent", body: t("The run finished.") });
+    }
+  }, [streaming]);
+
+  // a new session focuses the composer, so you can just start typing
+  useEffect(() => {
+    if (!emptySession) return;
+    const timer = window.setTimeout(() => {
+      document.querySelector<HTMLTextAreaElement>("[data-promptbar] textarea")?.focus();
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [emptySession]);
+
   // Every hook above this line: the onboarding gate below returns early, and a
   // hook declared after an early return changes the hook count between renders.
   if (onboarded === false) {
     return (
       <div className="flex h-screen flex-col overflow-hidden bg-page text-ink">
-        <TitleBar dark={dark} onToggleTheme={theme.toggle} />
+        <TitleBar />
         <Suspense fallback={<ViewSkeleton />}>
           <WelcomeView onDone={() => setOnboarded(true)} />
         </Suspense>
@@ -558,44 +724,58 @@ export function App() {
       }}
       onSetThinking={(level) => void window.pi.setThinking(level).catch(() => undefined)}
       onAbort={() => void window.pi.abort()}
-      onSetModel={(provider, modelId) => void window.pi.setModel(provider, modelId).catch(() => undefined)}
+      onSetModel={(provider, modelId) => void reportFailure(() => window.pi.setModel(provider, modelId))}
+      onPlanAction={planAction}
     />
   );
 
-  /** a fresh session owns the middle of the window, not the bottom edge */
-  const emptySession = messages.length === 0 && !streaming;
-
-  /* the run settling is the one moment worth interrupting for: a chime here,
-   * and a Windows toast when the window is not the one you are looking at */
-  const wasStreamingRef = useRef(false);
-  useEffect(() => {
-    const was = wasStreamingRef.current;
-    wasStreamingRef.current = streaming;
-    if (!was || streaming) return;
-    if (localStorage.getItem("pi-sound-done") !== "off") playDoneChime();
-    if (localStorage.getItem("pi-notify-done") !== "off" && !document.hasFocus()) {
-      void window.pi.notify({ title: "Pi Agent", body: t("The run finished.") });
-    }
-  }, [streaming]);
-
-  // a new session focuses the composer, so you can just start typing
-  useEffect(() => {
-    if (!emptySession) return;
-    const timer = window.setTimeout(() => {
-      document.querySelector<HTMLTextAreaElement>("[data-promptbar] textarea")?.focus();
-    }, 150);
-    return () => window.clearTimeout(timer);
-  }, [emptySession]);
-
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-page text-ink">
-      <TitleBar
-        dark={dark}
-        onToggleTheme={theme.toggle}
-        dock={<DockToggle open={dockOpen} onToggle={() => setDockOpen((value) => !value)} />}
-        sidebar={<SidebarToggle collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((value) => !value)} />}
-      />
-      <div className="flex min-h-0 flex-1">
+      <TitleBar />
+
+      {/* the working controls live on their own strip below the title bar —
+          they are tools, not window chrome, so they do not sit with the
+          close/minimize buttons. The terminal button only opens the dock's
+          terminal: that is the one terminal the shell has. */}
+      <div className="flex h-10 shrink-0 items-center justify-end gap-1 border-b border-line bg-canvas px-3">
+        <FolderOpener
+          cwd={state.cwd}
+          onBrowse={() => {
+            setDockTool("file");
+            setDockOpen(true);
+          }}
+        />
+        <button
+          type="button"
+          aria-label={t("Task monitor")}
+          title={t("Task monitor")}
+          aria-pressed={monitorOpen}
+          onClick={() => setMonitorOpen((value) => !value)}
+          className={cn(
+            "pressable flex size-7 items-center justify-center rounded-[6px]",
+            monitorOpen ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
+          )}
+        >
+          <ListChecksIcon size={14} />
+        </button>
+        <button
+          type="button"
+          aria-label={t("Terminal")}
+          title={t("Terminal")}
+          onClick={() => {
+            setDockTool((current) => (dockOpen && current === "terminal" ? null : "terminal"));
+            setDockOpen(true);
+          }}
+          className={cn(
+            "pressable flex size-7 items-center justify-center rounded-[6px]",
+            dockOpen && dockTool === "terminal" ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
+          )}
+        >
+          <TerminalIcon size={14} />
+        </button>
+        <DockToggle open={dockOpen} onToggle={() => setDockOpen((value) => !value)} />
+      </div>
+      <div className="relative flex min-h-0 flex-1">
         {/* No icon rail: the sidebar's own rows are the navigation, so Views are
             the three panes rather than five icon targets. Browser and Usage open
             from inside Customize and Settings. */}
@@ -624,22 +804,8 @@ export function App() {
                 await window.pi.newSession();
               })();
             }}
-            onNewInFolder={(cwd) => {
-              setView("chat");
-              void (async () => {
-                await window.pi.setCwd(cwd);
-                await window.pi.newSession();
-              })();
-            }}
             collapsed={sidebarCollapsed}
             onCollapsedChange={setSidebarCollapsed}
-            onPickNewFolder={() => {
-              setView("chat");
-              void (async () => {
-                const picked = await window.pi.pickCwd();
-                if (picked) await window.pi.newSession();
-              })();
-            }}
           />
         )}
 
@@ -665,21 +831,11 @@ export function App() {
               />
             ) : null}
 
-            {view === "chat" && openFile ? (
-              <FileViewer
-                path={openFile}
-                diffLines={activeChange?.file === openFile ? activeChange.diffLines : undefined}
-                dockToggle={<DockToggle open={dockOpen} onToggle={() => setDockOpen((value) => !value)} />}
-                onClose={() => {
-                  setOpenFile(undefined);
-                  setActiveChange(null);
-                }}
-                onReveal={(path) => void window.pi.revealFile(path)}
-              />
-            ) : null}
+            {/* the code viewer lives in the dock — the centre is always the
+                conversation; opening a file only widens the right pane */}
 
-            {view === "chat" && !openFile ? (
-              <div className="flex min-h-0 flex-1">
+            {view === "chat" ? (
+              <div className="relative flex min-h-0 flex-1">
               <div className="flex min-w-0 flex-1 flex-col">
                 {/* no conversation header — Cursor runs the thread straight to
                     the top edge; the session name lives on its sidebar row and
@@ -691,20 +847,43 @@ export function App() {
                 {emptySession ? (
                   <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 pb-20">
                     <div
-                      className="mb-5 text-center"
+                      className={cn(
+                        "-mt-6 flex flex-col items-center transition-[filter,opacity] duration-300",
+                        pickingFolder && "pointer-events-none select-none opacity-60 [filter:blur(5px)]",
+                      )}
                       style={{ animation: "fade-up 320ms cubic-bezier(0.23,1,0.32,1) both" }}
                     >
-                      <div className="text-[22px] font-semibold tracking-[-0.03em] text-ink">What should Pi do next?</div>
-                      <p className="mx-auto mt-2 max-w-md text-[13px] text-ink-3">
-                        This window talks to the Pi agent already installed on this machine. Sessions, models, and credentials
-                        stay in ~/.pi/agent.
-                      </p>
+                      <div className="text-[20px] font-semibold tracking-[-0.02em] text-ink">
+                        {t("Only Coding，First Windows.")}
+                      </div>
                     </div>
-                    {composer}
+                    {/* the greeting sentence: mostly dimmed copy, with the
+                        folder name as the one crisp, bold, underlined link.
+                        Same body size as the line above it — the two read as
+                        one heading, not a heading and a caption. */}
+                    <p
+                      className={cn(
+                        "mt-3 max-w-[620px] text-center text-[20px] leading-[1.5] tracking-[-0.02em] text-ink-3 transition-[filter,opacity] duration-300",
+                        pickingFolder && "pointer-events-none select-none opacity-60 [filter:blur(5px)]",
+                      )}
+                    >
+                      {greetingBefore}
+                      <FolderPicker cwd={state.cwd} onOpenChange={setPickingFolder} />
+                      {greetingAfter}
+                    </p>
+                    <div
+                      className={cn(
+                        "mt-12 flex w-full justify-center transition-[filter,opacity] duration-300",
+                        pickingFolder && "pointer-events-none select-none opacity-60 [filter:blur(5px)]",
+                      )}
+                    >
+                      {composer}
+                    </div>
                   </div>
                 ) : (
                   <>
-                <div className="relative min-h-0 flex-1">
+                <div className="flex min-h-0 flex-1">
+                  <div className="relative min-h-0 flex-1">
                   {/* a session switch remounts the transcript with a soft
                       enter instead of the old conversation snapping out */}
                   <div
@@ -737,6 +916,9 @@ export function App() {
                       {streaming ? t("Follow the stream") : t("Jump to latest")}
                     </button>
                   ) : null}
+                  </div>
+                  {/* the conversation's minimap, down the transcript's right edge */}
+                  <SessionStrip messages={messages} onJump={jumpToTurn} />
                 </div>
 
                 <QueueBar
@@ -757,6 +939,30 @@ export function App() {
                   </>
                 )}
               </div>
+
+              {/* the monitor is a column of the conversation area while the
+                  window can afford three of them — it takes real width, so the
+                  thread narrows instead of being covered. With the dock open or
+                  a small window that column would leave the thread unusable, so
+                  the same panel floats over the right edge instead. Either way
+                  it is a pane, not a popover: only the toolbar button or its own
+                  close puts it away. */}
+              {monitorOpen ? (
+                <Suspense fallback={null}>
+                  <MonitorPanel
+                    state={state}
+                    messages={messages}
+                    floating={dockOpen || viewportWidth < MONITOR_FLOAT_WIDTH}
+                    onClose={() => setMonitorOpen(false)}
+                    onOpenChanges={() => {
+                      setDockTool("changes");
+                      setDockOpen(true);
+                    }}
+                    onOpenDiff={openDockDiff}
+                    onOpenFile={openDockFile}
+                  />
+                </Suspense>
+              ) : null}
 
               {/* the docked browser: the page composites above this pane, its
                   chrome is the same BrowserPanel the fullscreen view uses.
@@ -821,14 +1027,19 @@ export function App() {
                     }
                   }}
                   onOpen={(plugin) => void window.pi.showItem(plugin.path)}
-                  onUseModel={(provider, modelId) => void window.pi.setModel(provider, modelId).catch(() => undefined)}
-                  onSaveModel={(edit) => void window.pi.saveModel(edit).catch(() => undefined)}
-                  onDeleteModel={(provider, modelId) => void window.pi.deleteModel(provider, modelId).catch(() => undefined)}
+                  onUseModel={(provider, modelId) => void reportFailure(() => window.pi.setModel(provider, modelId))}
+                  onSaveModel={(edit) => void runModelWrite(() => window.pi.saveModel(edit), t("Saved to models.json")).catch(() => undefined)}
+                  onDeleteModel={(provider, modelId) =>
+                    void runModelWrite(() => window.pi.deleteModel(provider, modelId), t("Removed from models.json")).catch(() => undefined)
+                  }
                   onSetDefaultModel={(provider, modelId) =>
                     void window.pi.updateSettings({ defaultProvider: provider, defaultModel: modelId }).catch(() => undefined)
                   }
                   onReload={() => void window.pi.reload()}
                   onBack={() => setView("chat")}
+                  onCreateRule={async (scope, name) => {
+                    setPlugins(await window.pi.createRule(scope, name));
+                  }}
                 />
               </Suspense>
             ) : null}
@@ -844,6 +1055,16 @@ export function App() {
                   onBack={() => setView("chat")}
                   dockToggle={<DockToggle open={dockOpen} onToggle={() => setDockOpen((value) => !value)} />}
                   onUpdate={(patch) => void window.pi.updateSettings(patch).catch(() => undefined)}
+                  onSaveModel={(edit) => runModelWrite(() => window.pi.saveModel(edit), t("Saved to models.json"))}
+                  onDeleteModel={(provider, modelId) =>
+                    runModelWrite(() => window.pi.deleteModel(provider, modelId), t("Removed from models.json"))
+                  }
+                  onSetEnabledModels={(keys) =>
+                    runModelWrite(
+                      () => window.pi.updateSettings({ enabledModels: keys }),
+                      t("Model availability updated"),
+                    )
+                  }
                   onReload={() => void window.pi.reload()}
                   usage={usage}
                   usageLoading={usageLoading}
@@ -868,10 +1089,16 @@ export function App() {
           openFile={openFile}
           onOpenFile={openDockFile}
           activeChangeFile={activeChange?.file}
+          activeChange={activeChange}
           onOpenDiff={openDockDiff}
           onReveal={revealFile}
           onJumpToTurn={jumpToTurn}
           onOpenBrowser={openDockBrowser}
+          onCloseFile={closeDockFile}
+          buildModel={buildModel}
+          onPlanAction={planAction}
+          onFleetInterrupt={(name) => void window.pi.fleetInterrupt(name)}
+          onAddToChat={addRefToChat}
         />
       </div>
 
@@ -897,7 +1124,7 @@ export function App() {
           setView("chat");
           void window.pi.switchSession(path);
         }}
-        onSetModel={(provider, modelId) => void window.pi.setModel(provider, modelId).catch(() => undefined)}
+        onSetModel={(provider, modelId) => void reportFailure(() => window.pi.setModel(provider, modelId))}
         onView={setView}
         onPickCwd={() => void window.pi.pickCwd()}
         onReload={() => void window.pi.reload()}

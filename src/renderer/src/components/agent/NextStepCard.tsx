@@ -4,6 +4,7 @@ import RecommendationCard, {
   type RecommendationOption,
 } from "../beautiful/primitives/RecommendationCard";
 import { buildTurns, toolSignature } from "../../lib/agent-view";
+import { t, tf, useLocale } from "../../lib/i18n";
 import { collectChanges } from "../panel/ChangesPanel";
 
 /**
@@ -23,6 +24,7 @@ export function NextStepCard({
   messages: ChatMessage[];
   onSend: (text: string) => void;
 }) {
+  const locale = useLocale();
   const turns = useMemo(() => buildTurns(messages, []), [messages]);
   const signature = toolSignature(turns);
 
@@ -35,15 +37,15 @@ export function NextStepCard({
         key: "continue",
         body: (
           <>
-            Continue with <strong className="font-medium text-ink">{pending[0].label}</strong>
-            {pending.length > 1 ? ` and ${pending.length - 1} more` : ""}
+            {t("Continue with")} <strong className="font-medium text-ink">{pending[0].label}</strong>
+            {pending.length > 1 ? ` ${tf("and {count} more", { count: pending.length - 1 })}` : ""}
           </>
         ),
         short: pending[0].label,
         signal: Math.min(3, pending.length),
         tone: "var(--accent)",
-        label: `${pending.length} open task${pending.length === 1 ? "" : "s"}`,
-        cta: "Continue",
+        label: tf(pending.length === 1 ? "{count} open task" : "{count} open tasks", { count: pending.length }),
+        cta: t("Continue"),
         ctaVariant: "accent",
       });
     }
@@ -56,16 +58,20 @@ export function NextStepCard({
         key: "review",
         body: (
           <>
-            Review the <strong className="font-medium text-ink">{changes.length}</strong> file
-            {changes.length === 1 ? "" : "s"} edited this session —{" "}
-            <span className="text-green">+{added}</span> <span className="text-red">−{removed}</span>
+            {tf(
+              changes.length === 1
+                ? "Review the {count} file edited this session"
+                : "Review the {count} files edited this session",
+              { count: changes.length },
+            )}{" "}
+            — <span className="text-green">+{added}</span> <span className="text-red">−{removed}</span>
           </>
         ),
         short: `${changes.length} files, +${added} −${removed}`,
         signal: changes.length > 3 ? 3 : 2,
         tone: "var(--orange)",
-        label: "unreviewed edits",
-        cta: "Review",
+        label: t("unreviewed edits"),
+        cta: t("Review"),
         ctaVariant: "secondary",
       });
     }
@@ -76,15 +82,17 @@ export function NextStepCard({
         key: "compact",
         body: (
           <>
-            Context is at <strong className="font-medium text-ink">{usage.percent}%</strong> of{" "}
-            {usage.contextWindow.toLocaleString()} tokens — compact before it starts trimming
+            {tf("Context is at {percent}% of {tokens} tokens — compact before it starts trimming", {
+              percent: usage.percent,
+              tokens: usage.contextWindow.toLocaleString(),
+            })}
           </>
         ),
         short: `${usage.percent}% of the window`,
         signal: usage.percent > 85 ? 3 : 2,
         tone: usage.percent > 85 ? "var(--red)" : "var(--orange)",
-        label: usage.percent > 85 ? "critical" : "watch",
-        cta: "Compact",
+        label: usage.percent > 85 ? t("critical") : t("watch"),
+        cta: t("Compact"),
         ctaVariant: "secondary",
       });
     }
@@ -95,21 +103,26 @@ export function NextStepCard({
         key: "retry",
         body: (
           <>
-            Retry <strong className="font-medium text-ink">{failedRuns[0].label}</strong> —{" "}
-            {failedRuns.length} tool call{failedRuns.length === 1 ? "" : "s"} failed this session
+            {t("Retry")} <strong className="font-medium text-ink">{failedRuns[0].label}</strong> —{" "}
+            {tf(
+              failedRuns.length === 1
+                ? "{count} tool call failed this session"
+                : "{count} tool calls failed this session",
+              { count: failedRuns.length },
+            )}
           </>
         ),
         short: failedRuns[0].chip,
         signal: 2,
         tone: "var(--red)",
-        label: "failed",
-        cta: "Retry",
+        label: t("failed"),
+        cta: t("Retry"),
         ctaVariant: "secondary",
       });
     }
 
     return out;
-  }, [state.todos, state.snapshot, signature]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [state.todos, state.snapshot, signature, locale]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!options.length || state.snapshot?.isStreaming) return null;
 
@@ -125,10 +138,10 @@ export function NextStepCard({
       <RecommendationCard
         options={options}
         labels={{
-          title: "Where to go next",
-          alternatives: "Alternatives",
-          otherOptions: "Other options",
-          accepted: "Sent",
+          title: t("Where to go next"),
+          alternatives: t("Alternatives"),
+          otherOptions: t("Other options"),
+          accepted: t("Sent"),
         }}
         onAccept={(key) => onSend(prompts[key] ?? options[0].short)}
       />

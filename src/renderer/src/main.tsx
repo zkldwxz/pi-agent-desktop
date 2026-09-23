@@ -2,11 +2,16 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { installPreviewBridge } from "./lib/preview-bridge";
+import { applyCodeTheme, getCodeTheme } from "./lib/code-theme";
 import "./index.css";
 
 /* a browser tab has no Electron bridge — stand one up so localhost:5173 can
    render the whole UI for design iteration */
 installPreviewBridge();
+
+/* the stored code palette applies before first paint, so a code block never
+   flashes the default theme on its way to the saved one */
+applyCodeTheme(getCodeTheme());
 
 /**
  * Dev-only: React's duplicate-key warning is the one class of bug that is

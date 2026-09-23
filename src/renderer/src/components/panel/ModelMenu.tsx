@@ -2,8 +2,10 @@ import { useMemo, useState } from "react";
 import type { HostState } from "@shared/types";
 import { cn } from "../../lib/cn";
 import { GlideList, Popover } from "../motion";
+import { ThinkingTrack, ThinkingTrackEnds } from "../ThinkingTrack";
 import { BrainIcon, ChevronDownIcon, GlobeIcon, LayersIcon } from "../icons";
 import { pressureFor } from "../../lib/context-pressure";
+import { t, tf } from "../../lib/i18n";
 
 /** A ring painted in the pressure band's colour, with the percentage inside. */
 function ContextRing({ percent, size = 30 }: { percent: number | null; size?: number }) {
@@ -17,7 +19,7 @@ function ContextRing({ percent, size = 30 }: { percent: number | null; size?: nu
     <span
       className="relative inline-flex shrink-0 items-center justify-center"
       style={{ width: size, height: size }}
-      title={percent === null ? "Context usage unknown" : `Context ${percent}% — ${label}`}
+      title={percent === null ? t("Context usage unknown") : tf("Context {percent}% — {pressure}", { percent, pressure: t(label) })}
     >
       <svg width={size} height={size} className="absolute inset-0 -rotate-90">
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--line)" strokeWidth={stroke} />
@@ -68,7 +70,7 @@ export function ModelMenu({
   const current = state.snapshot?.model;
   const levels = state.snapshot?.thinkingLevels ?? ["off"];
   const level = state.snapshot?.thinkingLevel ?? "off";
-  const index = Math.max(0, levels.indexOf(level));
+
   const percent = state.snapshot?.stats?.contextUsage?.percent ?? null;
   const { tone } = pressureFor(percent);
 
@@ -89,7 +91,7 @@ export function ModelMenu({
         data-popover-trigger
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        title="Model, thinking depth and context"
+        title={t("Model, thinking depth and context")}
         className={cn(
           "pressable inline-flex h-6 items-center gap-2 rounded-chip bg-field pl-1.5 pr-1",
           open ? "text-ink" : "text-ink-2 hover:bg-hover-2",
@@ -97,9 +99,9 @@ export function ModelMenu({
       >
         {/* the pressure dot keeps the current state visible without opening the menu */}
         <span className="size-1.5 shrink-0 rounded-full" style={{ background: percent === null ? "var(--line-strong)" : tone }} />
-        <span className="max-w-[170px] truncate text-[11.5px]">{current?.name ?? "No model"}</span>
+        <span className="max-w-[170px] truncate text-[11.5px]">{current?.name ?? t("No model")}</span>
         {current ? (
-          <span className="font-mono text-[10px] text-ink-3">{level === "off" ? "" : `· ${level}`}</span>
+          <span className="font-mono text-[10px] text-ink-3">{level === "off" ? "" : `· ${t(level)}`}</span>
         ) : null}
         <ChevronDownIcon
           size={11}
@@ -111,7 +113,7 @@ export function ModelMenu({
       <Popover open={open} onClose={() => setOpen(false)} anchor="bottom-right" className="w-72">
         <div className="scrollbar-thin max-h-[70vh] overflow-y-auto p-2">
           {/* 1 — model */}
-          <div className="px-1 pb-1 text-[10px] tracking-[0.4px] text-ink-3">MODEL</div>
+          <div className="px-1 pb-1 text-[10px] tracking-[0.4px] text-ink-3">{t("MODEL")}</div>
           {grouped.map(([provider, models]) => (
             <div key={provider} className="mb-1.5">
               <div className="flex items-center gap-1.5 px-1 pb-0.5">
@@ -154,57 +156,17 @@ export function ModelMenu({
           <div className="mt-1 border-t border-line pt-2">
             <div className="flex items-center gap-1.5 px-1 pb-1">
               <BrainIcon size={11} className="text-ink-3" />
-              <span className="text-[10px] tracking-[0.4px] text-ink-3">THINKING</span>
+              <span className="text-[10px] tracking-[0.4px] text-ink-3">{t("THINKING")}</span>
               <span className="flex-1" />
-              <span className="font-mono text-[10.5px] text-ink-2">{level}</span>
+              <span className="font-mono text-[10.5px] text-ink-2">{t(level)}</span>
             </div>
             {levels.length > 1 ? (
-              <div className="px-2.5 pt-1.5 pb-2">
-                <div className="relative h-1.5 rounded-full bg-field">
-                  <div
-                    className="absolute inset-y-0 left-0 rounded-full bg-accent"
-                    style={{
-                      width: `${(index / (levels.length - 1)) * 100}%`,
-                      transition: "width 320ms cubic-bezier(0.23,1,0.32,1)",
-                    }}
-                  />
-                  {levels.map((entry, position) => {
-                    const reached = position <= index;
-                    return (
-                      <button
-                        key={entry}
-                        type="button"
-                        title={entry}
-                        aria-label={`Thinking depth ${entry}`}
-                        onClick={() => {
-                          onSetThinking(entry);
-                          // max is the one setting that changes the character of a run
-                          if (entry === "max") window.dispatchEvent(new CustomEvent("pi:celebrate"));
-                        }}
-                        className="group/step absolute top-1/2 flex size-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
-                        style={{ left: `${(position / (levels.length - 1)) * 100}%` }}
-                      >
-                        <span
-                          className={cn(
-                            "rounded-full transition-[width,height,background-color] duration-200",
-                            position === index
-                              ? "size-3 bg-ink shadow-[0_0_0_2px_var(--surface)]"
-                              : reached
-                                ? "size-2 bg-accent group-hover/step:size-2.5"
-                                : "size-1.5 bg-line-strong group-hover/step:size-2.5 group-hover/step:bg-ink-3",
-                          )}
-                        />
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="mt-2 flex justify-between">
-                  <span className="font-mono text-[9.5px] text-ink-3">{levels[0]}</span>
-                  <span className="font-mono text-[9.5px] text-ink-3">{levels.at(-1)}</span>
-                </div>
+              <div className="px-2 pt-2 pb-2">
+                <ThinkingTrack levels={levels} value={level} onPick={onSetThinking} />
+                <ThinkingTrackEnds levels={levels} />
               </div>
             ) : (
-              <div className="px-1.5 pb-2 text-[11px] text-ink-3">This model does not expose thinking levels.</div>
+              <div className="px-1.5 pb-2 text-[11px] text-ink-3">{t("This model does not expose thinking levels.")}</div>
             )}
           </div>
 
@@ -213,9 +175,9 @@ export function ModelMenu({
             <div className="flex items-center gap-2.5 px-1 pb-0.5">
               <ContextRing percent={percent} />
               <span className="min-w-0 flex-1">
-                <span className="block text-[12px] text-ink">Context window</span>
+                <span className="block text-[12px] text-ink">{t("Context window")}</span>
                 <span className="block font-mono text-[10px] text-ink-3">
-                  {current ? `${Math.round(current.contextWindow / 1000)}K tokens` : "—"}
+                  {current ? tf("{size}K tokens", { size: Math.round(current.contextWindow / 1000) }) : "—"}
                 </span>
               </span>
               <span className="shrink-0 text-[11px]" style={{ color: percent === null ? "var(--ink-3)" : tone }}>
@@ -224,8 +186,10 @@ export function ModelMenu({
             </div>
             {state.snapshot?.stats?.contextUsage ? (
               <div className="px-1 pt-1 font-mono text-[10px] text-ink-3 tabular-nums">
-                {state.snapshot.stats.contextUsage.tokens?.toLocaleString() ?? "—"} of{" "}
-                {state.snapshot.stats.contextUsage.contextWindow.toLocaleString()}
+                {tf("{used} of {total}", {
+                  used: state.snapshot.stats.contextUsage.tokens?.toLocaleString() ?? "—",
+                  total: state.snapshot.stats.contextUsage.contextWindow.toLocaleString(),
+                })}
               </div>
             ) : null}
           </div>

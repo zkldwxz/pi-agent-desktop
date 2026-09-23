@@ -1,5 +1,5 @@
 import { Logo } from "./Logo";
-import { MinusIcon, MoonIcon, SquareIcon, SunIcon, XIcon } from "./icons";
+import { MinusIcon, SquareIcon, XIcon } from "./icons";
 import { t, useLocale } from "../lib/i18n";
 
 function WindowButton({
@@ -28,17 +28,10 @@ function WindowButton({
 }
 
 export function TitleBar({
-  dark,
-  onToggleTheme,
   dock,
-  sidebar,
 }: {
-  dark: boolean;
-  onToggleTheme: () => void;
   /** right-side chrome ahead of the window controls (the tool dock toggle) */
   dock?: React.ReactNode;
-  /** the sidebar's trigger — visible whether the rail is open or collapsed */
-  sidebar?: React.ReactNode;
 }) {
   useLocale();
 
@@ -46,42 +39,9 @@ export function TitleBar({
     <div className="titlebar-drag flex h-10 shrink-0 items-center gap-2 border-b border-line bg-canvas px-2.5">
       <Logo />
       <div className="text-[12.5px] font-semibold text-ink">Pi Agent</div>
-      {sidebar ? <div className="titlebar-no-drag flex items-center pl-1">{sidebar}</div> : null}
       <div className="flex-1" />
 
-      {dock ? <div className="titlebar-no-drag flex items-center pr-2">{dock}</div> : null}
-
-      {/* one knob slides between the two states instead of both repainting */}
-      <div className="titlebar-no-drag relative flex h-6 w-14 items-center rounded-full bg-field p-0.5">
-        <span
-          aria-hidden
-          className="pointer-events-none absolute top-0.5 left-0.5 h-5 w-[26px] rounded-full bg-surface shadow-hairline"
-          style={{
-            transform: dark ? "translateX(26px)" : "translateX(0)",
-            transition: "transform 320ms cubic-bezier(0.23,1,0.32,1)",
-          }}
-        />
-        <button
-          type="button"
-          onClick={() => dark && onToggleTheme()}
-          className={`pressable relative z-10 flex h-5 w-[26px] items-center justify-center rounded-full ${
-            dark ? "text-ink-3" : "text-ink"
-          }`}
-          aria-label={t("Light mode")}
-        >
-          <SunIcon size={12} />
-        </button>
-        <button
-          type="button"
-          onClick={() => !dark && onToggleTheme()}
-          className={`pressable relative z-10 flex h-5 w-[26px] items-center justify-center rounded-full ${
-            dark ? "text-ink" : "text-ink-3"
-          }`}
-          aria-label={t("Dark mode")}
-        >
-          <MoonIcon size={12} />
-        </button>
-      </div>
+      {dock ? <div className="titlebar-no-drag flex items-center gap-1 pr-2">{dock}</div> : null}
 
       <div className="titlebar-no-drag flex items-center gap-0.5 pl-1.5">
         <WindowButton onClick={() => window.pi.minimize()} label={t("Minimize")}>

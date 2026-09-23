@@ -1,9 +1,10 @@
+import { createHash } from "node:crypto";
 import { BrowserWindow, WebContentsView } from "electron";
 import type { BrowserBounds, BrowserState, DesignPick } from "@shared/browser";
 import { DESIGN_OVERLAY_SCRIPT } from "./design-overlay";
 
 /**
- * The embedded browser.
+ * The embedded browser, one instance per project folder.
  *
  * `WebContentsView` rather than `<webview>` or an external Chrome: it is the
  * same Chromium the app already runs, and — the reason it matters here —
@@ -13,9 +14,17 @@ import { DESIGN_OVERLAY_SCRIPT } from "./design-overlay";
  * The view is a native layer that composites *above* the renderer, so it cannot
  * be styled or overlapped by React. The renderer therefore reports the rect of
  * a placeholder element and the host positions the view to match.
+ *
+ * Isolation is the other half of the design: switching workspaces swaps in that
+ * folder's own view, with its own persistent partition. Site logins, cookies,
+ * localStorage and the back/forward list belong to the project that opened
+ * them, so a preview server left running in one folder is not still on screen
+ * when you move to another. Views are created on first use and kept alive,
+ * which is what makes coming back to a project land on the page you left.
  */
 export class BrowserHost {
-  private view: WebContentsView | null = null;
+  private readonly browsers = new Map<string, WebContentsView>();
+  private workspace = "";
   private bounds: BrowserBounds = { x: 0, y: 0, width: 0, height: 0 };
   private visible = false;
   private designMode = false;
@@ -26,6 +35,7 @@ export class BrowserHost {
     private readonly emit: (state: BrowserState) => void,
     private readonly emitPick: (pick: DesignPick | null) => void,
   ) {}
+
   private state(extra?: Partial<BrowserState>): BrowserState {
     const wc = this.view?.webContents;
     return {
@@ -44,9 +54,49 @@ export class BrowserHost {
     this.emit(this.state(extra));
   }
 
-  /** Create the view lazily and wire its events exactly once. */
+  /** Views are keyed by folder, so the same path with a different spelling
+   *  still resolves to the same browser. */
+  static workspaceKey(cwd: string): string {
+    const normalized = cwd.replace(/[\\/]+$/, "").replace(/\\/g, "/").toLowerCase();
+    return normalized;
+  }
+
+  private partitionFor(key: string): string {
+    if (!key) return "persist:pi-browser";
+    const hash = createHash("sha1").update(key).digest("hex").slice(0, 10);
+    return `persist:pi-browser-${hash}`;
+  }
+
+  /** The active folder's view, or null when none has been opened yet. */
+  private get view(): WebContentsView | null {
+    return this.browsers.get(this.workspace) ?? null;
+  }
+
+  /**
+   * Point the host at a project folder. The previous view is hidden, not torn
+   * down — its page keeps running — and this folder's view is created only when
+   * the browser is actually on screen.
+   */
+  setWorkspace(cwd: string): void {
+    const key = BrowserHost.workspaceKey(cwd);
+    if (key === this.workspace) return;
+    if (this.designMode) this.stopDesign();
+    this.workspace = key;
+    const existing = this.browsers.get(key);
+    for (const view of this.browsers.values()) {
+      if (view !== existing) view.setVisible(false);
+    }
+    if (existing) {
+      existing.setBounds(this.bounds);
+      existing.setVisible(this.visible && this.bounds.width > 0 && this.bounds.height > 0);
+    }
+    this.push();
+  }
+
+  /** Create the active folder's view lazily and wire its events exactly once. */
   private ensure(): WebContentsView | null {
-    if (this.view) return this.view;
+    const existing = this.view;
+    if (existing) return existing;
     const win = this.getWindow();
     if (!win) return null;
 
@@ -55,8 +105,8 @@ export class BrowserHost {
         sandbox: true,
         contextIsolation: true,
         nodeIntegration: false,
-        // its own partition so site logins survive restarts without touching the app session
-        partition: "persist:pi-browser",
+        // one partition per folder: site logins survive restarts without sharing
+        partition: this.partitionFor(this.workspace),
       },
     });
     win.contentView.addChildView(view);
@@ -64,7 +114,11 @@ export class BrowserHost {
     view.setVisible(false);
 
     const wc = view.webContents;
-    const forward = () => this.push();
+    const forward = () => {
+      // a background folder's page still fires load events — only the one on
+      // screen may overwrite the chrome the user is looking at
+      if (this.browsers.get(this.workspace) === view) this.push();
+    };
     // registered one by one: the overloaded `on` signature does not accept a union
     wc.on("did-start-loading", forward);
     wc.on("did-stop-loading", forward);
@@ -73,16 +127,17 @@ export class BrowserHost {
     wc.on("page-title-updated", forward);
     wc.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
       if (errorCode === -3) return; // aborted, e.g. a redirect
+      if (this.browsers.get(this.workspace) !== view) return;
       this.push({ error: `${errorDescription} (${errorCode}) — ${validatedURL}` });
     });
-    wc.on("devtools-opened", () => this.push({ devtoolsOpen: true }));
-    wc.on("devtools-closed", () => this.push({ devtoolsOpen: false }));
+    wc.on("devtools-opened", () => forward());
+    wc.on("devtools-closed", () => forward());
     wc.setWindowOpenHandler(({ url }) => {
       void this.navigate(url);
       return { action: "deny" };
     });
 
-    this.view = view;
+    this.browsers.set(this.workspace, view);
     return view;
   }
 
@@ -98,11 +153,6 @@ export class BrowserHost {
   }
 
   setBounds(bounds: BrowserBounds): void {
-    const view = this.view;
-    if (!view) {
-      this.bounds = bounds;
-      return;
-    }
     const next = {
       x: Math.round(bounds.x),
       y: Math.round(bounds.y),
@@ -119,6 +169,8 @@ export class BrowserHost {
       return;
     }
     this.bounds = next;
+    const view = this.view;
+    if (!view) return;
     view.setBounds(next);
     // a zero-area rect means the panel is closed; hide rather than resize to nothing
     const shouldShow = this.visible && next.width > 0 && next.height > 0;
@@ -315,14 +367,16 @@ export class BrowserHost {
   }
 
   destroy(): void {
-    if (!this.view) return;
-    try {
-      this.getWindow()?.contentView.removeChildView(this.view);
-      this.view.webContents.close();
-    } catch {
-      /* window already gone */
+    const win = this.getWindow();
+    for (const view of this.browsers.values()) {
+      try {
+        win?.contentView.removeChildView(view);
+        view.webContents.close();
+      } catch {
+        /* window already gone */
+      }
     }
-    this.view = null;
+    this.browsers.clear();
     this.visible = false;
   }
 }

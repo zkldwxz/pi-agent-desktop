@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { HostState } from "@shared/types";
 import { pressureFor } from "../../lib/context-pressure";
+import { t, tf } from "../../lib/i18n";
 
 /**
  * Context pressure.
@@ -48,7 +49,7 @@ export function ContextBadge({ state }: { state: HostState }) {
       <button
         type="button"
         aria-expanded={open}
-        aria-label={percent === null ? "Context usage unknown" : `Context ${Math.round(percent)}%`}
+        aria-label={percent === null ? t("Context usage unknown") : tf("Context {percent}%", { percent: Math.round(percent) })}
         onClick={() => setPinned((value) => !value)}
         className="pressable flex size-5 items-center justify-center rounded-[5px] hover:bg-hover"
       >
@@ -78,8 +79,8 @@ export function ContextBadge({ state }: { state: HostState }) {
         >
           <span className="flex items-center gap-2 border-b border-line px-3 py-2">
             <span className="size-2 shrink-0 rounded-full" style={{ background: tone }} />
-            <span className="min-w-0 flex-1 text-[12px] font-medium text-ink">Context {percent === null ? "—" : `${Math.round(percent)}%`}</span>
-            {pinned ? <span className="font-mono text-[9.5px] text-ink-3">pinned · Esc</span> : null}
+            <span className="min-w-0 flex-1 text-[12px] font-medium text-ink">{tf("Context {percent}", { percent: percent === null ? "—" : `${Math.round(percent)}%` })}</span>
+            {pinned ? <span className="font-mono text-[9.5px] text-ink-3">{t("pinned · Esc")}</span> : null}
           </span>
           <span className="flex flex-col gap-1.5 px-3 py-2">
             <Row
@@ -95,7 +96,7 @@ export function ContextBadge({ state }: { state: HostState }) {
             {state.snapshot?.stats ? (
               <Row label="Session total" value={state.snapshot.stats.tokens.total.toLocaleString()} tone="var(--ink-2)" />
             ) : null}
-            <span className="mt-1 border-t border-line pt-1.5 text-[11px] leading-snug text-ink-3">{label}</span>
+            <span className="mt-1 border-t border-line pt-1.5 text-[11px] leading-snug text-ink-3">{t(label)}</span>
           </span>
         </span>
       ) : null}
@@ -106,7 +107,7 @@ export function ContextBadge({ state }: { state: HostState }) {
 function Row({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
     <span className="flex items-baseline justify-between gap-3">
-      <span className="text-[11.5px] text-ink-3">{label}</span>
+      <span className="text-[11.5px] text-ink-3">{t(label)}</span>
       <span className="font-mono text-[11.5px] tabular-nums" style={{ color: tone }}>
         {value}
       </span>

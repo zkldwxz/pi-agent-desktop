@@ -44,6 +44,12 @@
   --accent-ink: oklch(0.556 0.187 255.617);
   --accent-tint: oklch(0.96 0.019 252.878);
 
+  /* depth ceiling — the purple the thinking track ends on, and the colour the
+   * top levels (max / ultra) take wherever they are written as text */
+  --ultra: oklch(0.606 0.25 292.717);
+  --ultra-ink: oklch(0.541 0.281 293.009);
+  --ultra-tint: oklch(0.962 0.019 296.5);
+
   /* semantic */
   --green: oklch(0.603 0.155 150.883);
   --green-tint: oklch(0.958 0.017 159.118);
@@ -106,6 +112,10 @@
   --accent-ink: oklch(0.788 0.113 248.33);
   --accent-tint: oklch(0.68 0.173 253.301 / 0.16);
 
+  --ultra: oklch(0.68 0.19 292.717);
+  --ultra-ink: oklch(0.78 0.125 292.717);
+  --ultra-tint: oklch(0.68 0.19 292.717 / 0.16);
+
   --green: oklch(0.705 0.154 153.814);
   --green-tint: oklch(0.705 0.154 153.814 / 0.14);
   --orange: oklch(0.746 0.156 55.642);
@@ -151,6 +161,9 @@
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
   --color-accent-tint: var(--accent-tint);
+  --color-ultra: var(--ultra);
+  --color-ultra-ink: var(--ultra-ink);
+  --color-ultra-tint: var(--ultra-tint);
   --color-green: var(--green);
   --color-green-tint: var(--green-tint);
   --color-orange: var(--orange);
@@ -425,6 +438,24 @@ a:focus-visible .animated-underline::after {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* The star field inside a Max-depth thinking bar: each dot is given its own
+   duration and a negative delay inline, so the field breathes instead of moving
+   as one strip. Amplitude stays inside the 22px rail. */
+@keyframes spark-drift {
+  from {
+    transform: translateY(-3px);
+  }
+  to {
+    transform: translateY(3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-spark {
+    animation: none;
   }
 }
 

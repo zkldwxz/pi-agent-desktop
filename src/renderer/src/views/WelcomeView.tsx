@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import type { CatalogItem } from "@shared/types";
 import { cn } from "../lib/cn";
+import { t, tf } from "../lib/i18n";
 import { StatusPill } from "../components/beautiful/atoms/StatusPill";
-import { CheckIcon, GlobeIcon, LayersIcon, ListIcon, SparkIcon } from "../components/icons";
+import { CheckIcon, GlobeIcon, LayersIcon, ListChecksIcon, ListIcon, SparkIcon } from "../components/icons";
 
 const ICON: Record<string, React.ReactNode> = {
   "skill:browser-design": <SparkIcon size={16} />,
   "skill:browser-ops": <GlobeIcon size={16} />,
   "skill:plan-with-tasks": <ListIcon size={16} />,
+  "extension:plan-mode": <ListChecksIcon size={16} />,
   "capability:browser": <GlobeIcon size={16} />,
   "capability:todos": <LayersIcon size={16} />,
 };
@@ -81,6 +83,7 @@ export function WelcomeView({ onDone }: { onDone: () => void }) {
     }
   };
 
+  const extensions = items.filter((item) => item.kind === "extension");
   const skills = items.filter((item) => item.kind === "skill");
   const capabilities = items.filter((item) => item.kind === "capability");
 
@@ -92,11 +95,11 @@ export function WelcomeView({ onDone }: { onDone: () => void }) {
             <div className="flex size-9 items-center justify-center rounded-card bg-ink text-canvas">
               <span className="text-[15px] font-semibold">π</span>
             </div>
-            <h1 className="text-[22px] font-semibold tracking-[-0.03em] text-ink">Set up Pi Agent Desktop</h1>
+            <h1 className="text-[22px] font-semibold tracking-[-0.03em] text-ink">{t("Set up Pi Agent Desktop")}</h1>
             <p className="text-[13px] leading-relaxed text-ink-3">
-              These attach to the Pi agent already on this machine. Skills are written to{" "}
-              <span className="font-mono text-ink-2">~/.pi/agent/skills/</span> and capabilities are built into this app.
-              Nothing here is required, and you can change it later in Settings.
+              {t("These attach to the Pi agent already on this machine. Skills are written to")}{" "}
+              <span className="font-mono text-ink-2">~/.pi/agent/skills/</span>{" "}
+              {t("and capabilities are built into this app. Nothing here is required, and you can change it later in Settings.")}
             </p>
           </header>
 
@@ -112,15 +115,23 @@ export function WelcomeView({ onDone }: { onDone: () => void }) {
             </div>
           ) : (
             <>
-              <Group title="Capabilities" hint="built in — no files copied">
+              <Group title={t("Capabilities")} hint={t("built in — no files copied")}>
                 {capabilities.map((item, index) => (
                   <Item key={item.id} item={item} on={picked.has(item.id)} index={index} onToggle={() => toggle(item.id)} />
                 ))}
               </Group>
 
               {skills.length ? (
-                <Group title="Skills" hint="copied into ~/.pi/agent/skills/">
+                <Group title={t("Skills")} hint={t("copied into ~/.pi/agent/skills/")}>
                   {skills.map((item, index) => (
+                    <Item key={item.id} item={item} on={picked.has(item.id)} index={index} onToggle={() => toggle(item.id)} />
+                  ))}
+                </Group>
+              ) : null}
+
+              {extensions.length ? (
+                <Group title={t("Extensions")} hint={t("copied into ~/.pi/agent/extensions/")}>
+                  {extensions.map((item, index) => (
                     <Item key={item.id} item={item} on={picked.has(item.id)} index={index} onToggle={() => toggle(item.id)} />
                   ))}
                 </Group>
@@ -139,7 +150,7 @@ export function WelcomeView({ onDone }: { onDone: () => void }) {
               onClick={() => void apply()}
               className="pressable-soft pressable h-9 rounded-control bg-ink px-4 text-[13px] font-medium text-canvas disabled:opacity-50"
             >
-              {busy ? "Setting up…" : `Continue with ${picked.size} selected`}
+              {busy ? t("Setting up…") : tf("Continue with {count} selected", { count: picked.size })}
             </button>
             <button
               type="button"
@@ -150,10 +161,10 @@ export function WelcomeView({ onDone }: { onDone: () => void }) {
               }}
               className="pressable h-9 rounded-control px-3 text-[12.5px] text-ink-3 hover:bg-hover hover:text-ink-2"
             >
-              Skip for now
+              {t("Skip for now")}
             </button>
             <span className="flex-1" />
-            <span className="text-[10.5px] text-ink-3">Settings → Plugins to change this later</span>
+            <span className="text-[10.5px] text-ink-3">{t("Settings → Plugins to change this later")}</span>
           </div>
         </div>
       </div>
@@ -199,8 +210,8 @@ function Item({
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
           <span className="text-[12.5px] font-medium text-ink">{item.name}</span>
-          {item.installed ? <StatusPill tone="green">Installed</StatusPill> : null}
-          {item.kind === "capability" ? <StatusPill tone="accent">Built in</StatusPill> : null}
+          {item.installed ? <StatusPill tone="green">{t("Installed")}</StatusPill> : null}
+          {item.kind === "capability" ? <StatusPill tone="accent">{t("Built in")}</StatusPill> : null}
         </span>
         <span className="mt-0.5 block text-[11.5px] leading-snug text-ink-3">{item.description}</span>
       </span>
