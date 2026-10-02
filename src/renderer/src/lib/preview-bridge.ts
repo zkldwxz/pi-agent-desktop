@@ -1,6 +1,25 @@
-import type { ChatMessage, HostState, ModelInfo, PlanAction, ToolActivity } from "@shared/types";
+import type {
+  CatalogItem,
+  ChannelEdit,
+  ChatMessage,
+  HostState,
+  ModelInfo,
+  PlanAction,
+  ToolActivity,
+  UsageBucket,
+  UsageCacheStats,
+  UsageDay,
+  UsageDeviation,
+  UsageModelRow,
+  UsagePerModel,
+  UsageProviderRow,
+  UsageStats,
+  UsageTotals,
+} from "@shared/types";
+import { cacheHitRate } from "@shared/cache-usage";
+import { endpointId } from "@shared/channel";
 import type { BrowserState } from "@shared/browser";
-import type { FileContent, FileEntry } from "@shared/workspace";
+import type { AppOpener, FileContent, FileEntry } from "@shared/workspace";
 
 /**
  * Browser preview bridge.
@@ -20,7 +39,14 @@ import type { FileContent, FileEntry } from "@shared/workspace";
    same pristine ramp rather than from levels it already edited */
 const BASE_RAMP: Record<string, string[]> = {};
 
-const model = (id: string, name: string, provider: string, reasoning = true): ModelInfo => {
+const model = (
+  id: string,
+  name: string,
+  provider: string,
+  reasoning = true,
+  options: { vision?: boolean; contextWindow?: number } = {},
+): ModelInfo => {
+  const vision = options.vision ?? true;
   const thinkingLevels = reasoning ? ["off", "low", "medium", "high", "xhigh", "max"] : ["off"];
   BASE_RAMP[`${provider}/${id}`] = thinkingLevels;
   return {
@@ -28,11 +54,11 @@ const model = (id: string, name: string, provider: string, reasoning = true): Mo
     name,
     provider,
     providerName: provider,
-    contextWindow: 1_000_000,
+    contextWindow: options.contextWindow ?? 1_000_000,
     maxTokens: 64_000,
     reasoning,
-    supportsImages: true,
-    input: ["text", "image"],
+    supportsImages: vision,
+    input: vision ? ["text", "image"] : ["text"],
     /* the whole ramp, because that is what a reasoning model offers here — and the
        xhigh + max pair is what makes a model eligible for Ultra in the list */
     thinkingLevels,
@@ -45,13 +71,22 @@ const model = (id: string, name: string, provider: string, reasoning = true): Mo
 const MODELS: ModelInfo[] = [
   model("deepseek-v4-flash", "DeepSeek V4 Flash 1M", "deepseek"),
   model("deepseek-v4-pro", "DeepSeek V4 Pro 1M", "deepseek"),
-  model("glm-5.3", "GLM 5.3 1M", "opcc"),
+  model("deepseek-r1", "DeepSeek R1", "deepseek", true, { vision: false, contextWindow: 128_000 }),
+  model("glm-5.3", "GLM 5.3 1M", "opcc", true, { vision: false }),
+  model("glm-5.3-flash", "GLM 5.3 Flash 1M", "opcc"),
   model("kimi-k3", "Kimi K3 1M", "opcc"),
-  model("claude-sonnet-4.5", "Claude Sonnet 4.5", "anthropic"),
-  model("gpt-5.2-codex", "GPT-5.2 Codex", "openai"),
+  model("claude-sonnet-4.5", "Claude Sonnet 4.5", "anthropic", true, { contextWindow: 200_000 }),
+  model("claude-haiku-4.5", "Claude Haiku 4.5", "anthropic", true, { contextWindow: 200_000 }),
+  model("gpt-5.2-codex", "GPT-5.2 Codex", "openai", true, { contextWindow: 272_000 }),
+  model("gpt-5.2-mini", "GPT-5.2 Mini", "openai", true, { contextWindow: 400_000 }),
   /* one non-reasoning model, so the preview also shows what a model that takes
      no depths at all looks like — no depth chip, and no Ultra column entry */
   model("gemini-3.8-flash", "Gemini 3.8 Flash 1M", "google", false),
+  model("gemini-3.8-pro", "Gemini 3.8 Pro", "google", true, { contextWindow: 2_000_000 }),
+  model("qwen3-coder", "Qwen3 Coder 480B", "qwen", true, { contextWindow: 131_072 }),
+  model("qwen3-plus", "Qwen3 Plus", "qwen", true, { contextWindow: 1_000_000 }),
+  model("minimax-m3", "MiniMax M3", "minimax", true, { contextWindow: 1_000_000 }),
+  model("kimi-k2.5", "Kimi K2.5", "moonshot", true, { contextWindow: 256_000 }),
 ];
 
 const now = Date.now();
@@ -130,7 +165,7 @@ const MESSAGES: ChatMessage[] = [
         "             </Row>",
         "-            {modelKeys.map((key) => (",
         "-              <Row key={key} title={`Default level · ${key}`} hint=\"per-model override\">",
-        "+            <div className=\"border-b border-line px-4 py-1.5 text-[10.5px] text-ink-3 uppercase\">",
+        "+            <div className=\"border-b border-line px-4 py-1.5 text-ui-xs text-ink-3 uppercase\">",
         "+              Per-model overrides",
         "+            </div>",
         "+            {modelKeys.map((key) => (",
@@ -150,6 +185,18 @@ const MESSAGES: ChatMessage[] = [
     role: "user",
     timestamp: now - 40_000,
     text: "顺手把 dock 的高度上限也检查一下。",
+    blocks: [],
+  },
+  /* The plan/build seam, exactly as plan mode writes it: a `custom` message the
+     extension sends when the build starts. The transcript cuts the next task
+     here, so the fixture has to carry the same shape the log does or the
+     boundary row would only ever be exercised against a real session. */
+  {
+    key: "b1",
+    role: "custom",
+    customType: "plan-mode-build",
+    timestamp: now - 36_000,
+    text: "**Building the plan — dock 高度上限** (3 steps)",
     blocks: [],
   },
   {
@@ -197,6 +244,59 @@ const MESSAGES: ChatMessage[] = [
     blocks: [{ type: "thinking", text: "先把能一眼看出来的记下来，别展开成大改。" }],
     usage: { input: 12_400, output: 486, total: 12_886, cacheRead: 11_020, model: "DeepSeek V4 Flash", provider: "deepseek" },
   },
+  /* A searched answer with no code in it. This is the shape that used to lose
+     its formatting: cited sources push the final beat down the path that listed
+     the prose as word tokens, so headings and lists arrived as literal text. */
+  {
+    key: "u4",
+    role: "user",
+    timestamp: now - 90_000,
+    text: "tokio 的 spawn_blocking 什么时候该用？给个结论。",
+    blocks: [],
+  },
+  {
+    key: "a4t",
+    role: "assistant",
+    timestamp: now - 84_000,
+    text: "",
+    blocks: [
+      { type: "toolCall", id: "w1", name: "web_search", arguments: { query: "tokio spawn_blocking when to use site:docs.rs" } },
+    ],
+  },
+  {
+    key: "rw1",
+    role: "toolResult",
+    timestamp: now - 78_000,
+    toolName: "web_search",
+    toolCallId: "w1",
+    text: [
+      "[1] tokio::task — Rust",
+      "https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html",
+      "Runs the provided closure on a thread where blocking is acceptable.",
+      "",
+      "[2] Blocking, and how to avoid it",
+      "https://tokio.rs/tokio/tutorial/blocking",
+      "Use spawn_blocking for CPU-heavy work or blocking IO.",
+    ].join("\n"),
+    blocks: [],
+  },
+  {
+    key: "a4",
+    role: "assistant",
+    timestamp: now - 60_000,
+    text: [
+      "## 结论",
+      "",
+      "**只在需要阻塞时**才用 `spawn_blocking`：",
+      "",
+      "- 同步文件 IO、阻塞式数据库驱动",
+      "- CPU 密集且预计跑超过几毫秒",
+      "",
+      "> 普通异步 IO 直接用 `tokio::spawn`，不要占用阻塞线程池。",
+    ].join("\n"),
+    blocks: [],
+    usage: { input: 4_120, output: 210, total: 4_330, cacheRead: 3_800, model: "GLM 5.3", provider: "opcc" },
+  },
 ];
 
 const TOOLS: ToolActivity[] = [
@@ -211,6 +311,7 @@ const TOOLS: ToolActivity[] = [
 
 const STATE: HostState = {
   cwd: "F:/Projects/pi-agent-desktop",
+  homeDir: "F:/Users/demo",
   connected: true,
   snapshot: {
     sessionId: "preview",
@@ -250,6 +351,35 @@ const STATE: HostState = {
     hasAuth: true,
     editable: true,
   })),
+  /* the endpoints the providers fold into. The providers pi ships are not
+     `custom` — the desktop cannot re-key them — and the last one carries two
+     members on purpose: a channel with several keys is the shape the panel only
+     ever shows when the storage underneath really has it, and the preview is
+     where that shape gets looked at before it ships. */
+  channels: [
+    ...new Map(
+      MODELS.map((entry) => [
+        entry.provider,
+        {
+          id: entry.provider,
+          name: entry.provider,
+          api: "openai-completions",
+          members: [entry.provider],
+          modelCount: MODELS.filter((model) => model.provider === entry.provider).length,
+          custom: false,
+        },
+      ]),
+    ).values(),
+    {
+      id: "anthropic-messages|https://relay.example/v1",
+      name: "Relay",
+      api: "anthropic-messages",
+      baseUrl: "https://relay.example/v1",
+      members: ["relay", "relay-2"],
+      modelCount: 0,
+      custom: true,
+    },
+  ],
   commands: [
     { name: "compact", description: "Compact the context window", source: "builtin" },
     { name: "review", description: "Review the current diff", source: "extension" },
@@ -308,7 +438,30 @@ const STATE: HostState = {
       endedAt: now - 61_000,
       tokens: { input: 22_800, output: 5_040, total: 27_840 },
       cost: 0.061,
-      summary: "共扫出 17 个缺失键，全部集中在 settings 的 hooks 区。清单已写入 .pi/tmp/i18n-missing.md，前三个是：'Hooks'、'Hook path'、'Add hook'。",
+      /* A sub-agent's `summary` is its final answer, so it is markdown — the
+         panel used to lay it down as pre-wrapped source. This fixture carries
+         every block a report actually arrives with: a heading, a list, inline
+         code, a table and a fence. */
+      summary: [
+        "共扫出 **17 个缺失键**，全部集中在 settings 的 hooks 区。",
+        "",
+        "## 前三个",
+        "",
+        "1. `Hooks` — 面板标题",
+        "2. `Hook path` — 行标签",
+        "3. `Add hook` — 按钮文案",
+        "",
+        "| 区块 | 缺失 | 文件 |",
+        "| --- | ---: | --- |",
+        "| hooks | 11 | `HooksSection.tsx` |",
+        "| models | 6 | `ModelManager.tsx` |",
+        "",
+        "清单已写入 `.pi/tmp/i18n-missing.md`，补词典：",
+        "",
+        "```json",
+        '{ "Hooks": "钩子", "Hook path": "钩子路径" }',
+        "```",
+      ].join("\n"),
     },
   ],
   surfaces: [
@@ -424,6 +577,251 @@ const PREVIEW_FILES = [
   "package.json",
 ];
 
+/**
+ * The usage ledger the preview reports.
+ *
+ * Buckets are generated once for ninety days and every aggregate is derived
+ * from them, the way the scanner derives them from session files. Hand-typed
+ * totals would contradict themselves the moment a day or an hour is clicked —
+ * and clicking a slice is the interaction these charts exist for. The range
+ * filter happens after generation, so a 7-day window really is the tail of the
+ * 30-day one instead of different numbers wearing the same clothes.
+ *
+ * Seeded rather than random: a preview that redraws differently on every reload
+ * cannot be compared against a previous screenshot.
+ */
+const PREVIEW_MODELS: Array<{ provider: string; providerName: string; model: string; share: number }> = [
+  { provider: "deepseek", providerName: "DeepSeek", model: "deepseek-v4-flash", share: 0.95 },
+  { provider: "opcc", providerName: "智谱", model: "glm-5.3", share: 0.6 },
+  { provider: "opcc", providerName: "智谱", model: "glm-5.3-flash", share: 0.45 },
+  { provider: "anthropic", providerName: "Anthropic", model: "claude-sonnet-4.5", share: 0.34 },
+  { provider: "openai", providerName: "OpenAI", model: "gpt-6-sol", share: 0.22 },
+  { provider: "google", providerName: "Google", model: "gemini-3.8-flash", share: 0.15 },
+  { provider: "deepseek", providerName: "DeepSeek", model: "deepseek-r1", share: 0.08 },
+];
+
+const emptyTotals = (): UsageTotals => ({
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+  total: 0,
+  cost: 0,
+  reasoning: 0,
+});
+
+/** The five prompt-and-bill fields every row of the ledger carries. */
+type Soakable = Pick<UsageTotals, "input" | "output" | "cacheRead" | "cacheWrite" | "cost">;
+
+const soak = (row: Soakable, bucket: UsageBucket): void => {
+  row.input += bucket.input;
+  row.output += bucket.output;
+  row.cacheRead += bucket.cacheRead;
+  row.cacheWrite += bucket.cacheWrite;
+  row.cost += bucket.cost;
+};
+
+const soakTotals = (row: UsageTotals, bucket: UsageBucket): void => {
+  soak(row, bucket);
+  row.total += bucket.total;
+};
+
+const dateKey = (time: number): string => new Date(time).toISOString().slice(0, 10);
+
+const PREVIEW_BUCKETS: UsageBucket[] = (() => {
+  let seed = 20260926;
+  const rnd = () => {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    return seed / 4294967296;
+  };
+  const rows: UsageBucket[] = [];
+  const today = Date.now();
+  for (let offset = 89; offset >= 0; offset -= 1) {
+    const day = new Date(today - offset * 86_400_000);
+    const date = dateKey(day.getTime());
+    const quiet = day.getDay() === 0 || day.getDay() === 6;
+    // whole days off, more on weekends — an all-time heatmap with no gaps is a
+    // wall of one colour, which reads as a broken chart rather than as usage
+    if (rnd() < (quiet ? 0.55 : 0.14)) continue;
+    const hours = [9, 10, 11, 12, 14, 15, 16, 17, 20, 21, 22].filter(() => rnd() < 0.62);
+    for (const hour of hours) {
+      for (const entry of PREVIEW_MODELS) {
+        if (rnd() > entry.share) continue;
+        const input = Math.round(9_000 + rnd() * 60_000);
+        const output = Math.round(600 + rnd() * 7_000);
+        const cacheRead = Math.round(input * (2.2 + rnd() * 4));
+        const cacheWrite = Math.round(input * (0.1 + rnd() * 0.5));
+        rows.push({
+          date,
+          hour,
+          provider: entry.provider,
+          providerName: entry.providerName,
+          model: entry.model,
+          calls: 1 + Math.round(rnd() * 9),
+          input,
+          output,
+          cacheRead,
+          cacheWrite,
+          total: input + output + cacheRead + cacheWrite,
+          cost: (input + output + cacheWrite + cacheRead * 0.1) / 1_000_000 * 2.6,
+        });
+      }
+    }
+  }
+  return rows.sort((a, b) => a.date.localeCompare(b.date) || a.hour - b.hour);
+})();
+
+function previewUsage(days: number): UsageStats {
+  const cutoff = days > 0 ? dateKey(Date.now() - (days - 1) * 86_400_000) : "";
+  const buckets = cutoff ? PREVIEW_BUCKETS.filter((bucket) => bucket.date >= cutoff) : PREVIEW_BUCKETS;
+
+  const totals = emptyTotals();
+  const hourTotals = new Array<number>(24).fill(0);
+  const dayMap = new Map<string, UsageDay>();
+  const modelMap = new Map<string, UsageModelRow>();
+  const providerMap = new Map<string, UsageProviderRow & { seen: Set<string> }>();
+
+  for (const bucket of buckets) {
+    soakTotals(totals, bucket);
+    hourTotals[bucket.hour] += bucket.total;
+
+    const day = dayMap.get(bucket.date) ?? {
+      date: bucket.date,
+      calls: 0,
+      tokens: 0,
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      cost: 0,
+    };
+    day.calls += bucket.calls;
+    day.tokens += bucket.total;
+    soak(day, bucket);
+    dayMap.set(bucket.date, day);
+
+    const modelKey = `${bucket.provider}/${bucket.model}`;
+    const model = modelMap.get(modelKey) ?? {
+      ...emptyTotals(),
+      provider: bucket.provider,
+      providerName: bucket.providerName,
+      model: bucket.model,
+      calls: 0,
+      cacheRate: 0,
+      firstUsed: `${bucket.date}T09:00:00.000Z`,
+      lastUsed: `${bucket.date}T09:00:00.000Z`,
+      medianTokensPerCall: 0,
+    };
+    model.calls += bucket.calls;
+    if (bucket.date > model.lastUsed.slice(0, 10)) model.lastUsed = `${bucket.date}T21:00:00.000Z`;
+    soakTotals(model, bucket);
+    modelMap.set(modelKey, model);
+
+    const provider = providerMap.get(bucket.provider) ?? {
+      ...emptyTotals(),
+      provider: bucket.provider,
+      providerName: bucket.providerName,
+      calls: 0,
+      models: 0,
+      cacheRate: 0,
+      seen: new Set<string>(),
+    };
+    provider.calls += bucket.calls;
+    provider.seen.add(bucket.model);
+    soakTotals(provider, bucket);
+    providerMap.set(bucket.provider, provider);
+  }
+
+  const byTokens = <T extends { total: number }>(a: T, b: T) => b.total - a.total;
+  const models = [...modelMap.values()].sort(byTokens);
+  const providers = [...providerMap.values()]
+    .map(({ seen, ...row }) => ({ ...row, models: seen.size }))
+    .sort(byTokens);
+  for (const row of models) row.cacheRate = cacheHitRate(row);
+  for (const row of providers) row.cacheRate = cacheHitRate(row);
+
+  const dayList = [...dayMap.values()].sort((a, b) => a.date.localeCompare(b.date));
+  const activeDays = dayList.map((day) => day.date);
+
+  const streaks = (dates: string[]): [number, number] => {
+    const set = new Set(dates);
+    let longest = 0;
+    let run = 0;
+    for (const date of dates) {
+      run = set.has(date) ? run + 1 : 0;
+      longest = Math.max(longest, run);
+    }
+    let current = 0;
+    for (let offset = 0; offset < 366; offset += 1) {
+      if (!set.has(dateKey(Date.now() - offset * 86_400_000))) break;
+      current += 1;
+    }
+    return [current, longest];
+  };
+  const [currentStreak, longestStreak] = streaks(activeDays);
+
+  const cacheByChannel: UsagePerModel[] = models.map((row) => ({
+    provider: row.provider,
+    providerName: row.providerName,
+    model: row.model,
+    calls: row.calls,
+    cacheHitRate: cacheHitRate(row),
+    tokens: row.total,
+    cacheRead: row.cacheRead,
+    cacheWrite: row.cacheWrite,
+  }));
+
+  const cache: UsageCacheStats = {
+    cacheRead: totals.cacheRead,
+    cacheWrite: totals.cacheWrite,
+    freshInput: totals.input,
+    hitRate: cacheHitRate(totals),
+    savedTokens: totals.cacheRead,
+    byModel: cacheByChannel,
+  };
+
+  const deviations: UsageDeviation[] = dayList.map((day) => ({
+    date: day.date,
+    tokens: day.tokens,
+    calls: day.calls,
+    cacheRate: cacheHitRate(day),
+    cost: day.cost,
+  }));
+
+  const peakHour = hourTotals.some((value) => value > 0) ? hourTotals.indexOf(Math.max(...hourTotals)) : null;
+
+  return {
+    generatedAt: new Date().toISOString(),
+    range: {
+      from: activeDays[0] ? `${activeDays[0]}T00:00:00.000Z` : null,
+      to: activeDays.at(-1) ? `${activeDays.at(-1)}T00:00:00.000Z` : null,
+      days,
+    },
+    totals,
+    kpis: {
+      sessions: Math.max(1, Math.round(buckets.length / 5)),
+      messages: buckets.reduce((sum, bucket) => sum + bucket.calls, 0),
+      activeDays: activeDays.length,
+      currentStreak,
+      longestStreak,
+      peakHour,
+      favoriteModel: models[0] ? `${models[0].provider}/${models[0].model}` : null,
+    },
+    days: dayList,
+    hours: hourTotals,
+    models,
+    providers,
+    cache,
+    cacheByChannel,
+    deviations,
+    buckets,
+    sessionCount: Math.max(1, Math.round(buckets.length / 5)),
+    messageCount: buckets.reduce((sum, bucket) => sum + bucket.calls, 0),
+    scannedFiles: Math.max(1, Math.round(buckets.length / 3)),
+    errors: [],
+  };
+}
+
 export function installPreviewBridge(): void {
   const w = window as unknown as { pi?: unknown };
   if (w.pi) return;
@@ -446,6 +844,10 @@ export function installPreviewBridge(): void {
   const emit = () => {
     for (const fn of listeners) fn(payload());
   };
+  /** Transcript positions where a user prompt starts, oldest first — the index
+   *  space `forkAt` and `rewindTo` address. */
+  const promptStarts = (): number[] =>
+    messages.map((message, position) => (message.role === "user" ? position : -1)).filter((position) => position >= 0);
 
   const unsub = () => () => {};
   /* mutable, so switching / creating / deleting a branch in the preview behaves
@@ -485,6 +887,35 @@ export function installPreviewBridge(): void {
   };
   const table: Record<string, (...args: never[]) => unknown> = {
     getState: async () => payload(),
+    /* Where a prompt starts in the preview's transcript, counted the same way
+       the host counts them — by position on the branch being shown, not by
+       anything stored on the message. */
+    forkAt: async (index: number) => {
+      const cut = promptStarts()[index];
+      if (cut === undefined) return { cancelled: true };
+      messages = messages.slice(0, cut + 1);
+      tools = [];
+      emit();
+      return { cancelled: false };
+    },
+    /* Rewinds for real rather than answering the same question forever: the
+       edited prompt has to leave the transcript, or the preview shows the exact
+       bug this replaced — an edit that stacked a second copy on top. */
+    rewindTo: async (index: number) => {
+      const cut = promptStarts()[index];
+      if (cut === undefined) return { text: "", cancelled: true };
+      const text = messages[cut]?.text ?? "";
+      messages = messages.slice(0, cut);
+      tools = [];
+      emit();
+      return { text, cancelled: false };
+    },
+    setCwd: async (cwd: string) => {
+      STATE.cwd = cwd === "~" ? STATE.homeDir : cwd;
+      if (STATE.snapshot) STATE.snapshot.cwd = STATE.cwd;
+      emit();
+    },
+    pickCwd: async () => STATE.cwd,
     newSession: async () => {
       messages = [];
       tools = [];
@@ -535,6 +966,45 @@ export function installPreviewBridge(): void {
       }
       emit();
     },
+    /* Channels behave like the real writer in here: an endpoint lands as one
+       member per key, and the panel re-reads them without a reload — which is
+       the only way the multi-key rows can be looked at before they ship. */
+    createChannel: async (edit: ChannelEdit) => {
+      const slug = edit.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "channel";
+      const ids = edit.keys.map((key, index) => (index === 0 ? slug : `${slug}-${index + 1}`));
+      const channelId = endpointId(edit.api, edit.baseUrl);
+      STATE.channels = [
+        ...STATE.channels.filter((entry) => entry.id !== channelId),
+        {
+          id: channelId,
+          name: edit.name,
+          api: edit.api,
+          baseUrl: edit.baseUrl,
+          members: ids,
+          modelCount: 0,
+          custom: true,
+        },
+      ];
+      emit();
+      return ids;
+    },
+    removeChannel: async (channelId: string) => {
+      STATE.channels = STATE.channels.filter((entry) => entry.id !== channelId);
+      emit();
+    },
+    addChannelKey: async (channelId: string, key: string) => {
+      const channel = STATE.channels.find((entry) => entry.id === channelId);
+      if (!channel?.members.length || !key.trim()) return undefined;
+      const id = `${channel.members[0]}-${channel.members.length + 1}`;
+      channel.members = [...channel.members, id];
+      emit();
+      return id;
+    },
+    removeChannelKey: async (providerId: string) => {
+      for (const channel of STATE.channels) channel.members = channel.members.filter((id) => id !== providerId);
+      STATE.channels = STATE.channels.filter((channel) => channel.members.length > 0);
+      emit();
+    },
     onUpdate: ((fn: (payload: unknown) => void) => {
       listeners.add(fn);
       return () => listeners.delete(fn);
@@ -557,7 +1027,47 @@ export function installPreviewBridge(): void {
         binary: false,
       };
     },
-    getDesktopConfig: async () => ({ onboardingDone: true, cwd: STATE.cwd, buildModel }),
+    getDesktopConfig: async () => ({
+      /* the preview can be driven back onto the welcome flow with
+         localStorage "pi-preview-onboarded" = "0" — how the onboarding
+         screens are actually looked at without a fresh machine */
+      onboardingDone: localStorage.getItem("pi-preview-onboarded") !== "0",
+      cwd: STATE.cwd,
+      buildModel,
+      userName: localStorage.getItem("pi-preview-user-name") ?? "dnxkrad8",
+    }),
+    setUserName: async (name: string) => {
+      localStorage.setItem("pi-preview-user-name", name);
+      return window.pi.getDesktopConfig();
+    },
+    /* the bundled catalogue, with the same shape the main process reports, so
+       the recommended-plugin rows and the welcome checklist are previewable */
+    getCatalog: async () => {
+      const installed = localStorage.getItem("pi-preview-catalog")?.split(",").filter(Boolean) ?? [
+        "capability:browser",
+        "capability:todos",
+        "extension:plan-mode",
+        "extension:agent-team",
+      ];
+      const rows: Array<[string, string, string, CatalogItem["kind"]]> = [
+        ["skill:browser-design", "Browser design", "Pick a component in the browser and anchor a change to it.", "skill"],
+        ["skill:browser-ops", "Browser ops", "Drive the embedded browser: snapshot, click, fill, search text, screenshot.", "skill"],
+        ["skill:plan-with-tasks", "Task planning", "Keep the sidebar task list current through multi-step work.", "skill"],
+        ["extension:plan-mode", "Plan mode", "A read-only planning phase with a reviewable plan, then a build that tracks its own steps.", "extension"],
+        ["extension:agent-team", "Agent team", "Codex-style sub-agents backed by real in-process sessions with their own context windows.", "extension"],
+        ["capability:browser", "Browser", "An embedded Chromium panel with 7 tools.", "capability"],
+        ["capability:todos", "Task list", "Lets the agent maintain a task list, shown live in the side panel.", "capability"],
+      ];
+      return rows.map(([id, name, description, kind]) => ({ id, name, description, kind, installed: installed.includes(id) }));
+    },
+    applyCatalog: async (ids: string[]) => {
+      localStorage.setItem("pi-preview-catalog", ids.join(","));
+      return { config: await window.pi.getDesktopConfig(), installed: [] };
+    },
+    finishOnboarding: async () => {
+      localStorage.setItem("pi-preview-onboarded", "1");
+      return window.pi.getDesktopConfig();
+    },
     /* Plan mode belongs to the extension, so the mock walks the same four phases
        the plugin does — enough to see every state the panel renders, and to see
        the composer's pill change with them. */
@@ -580,6 +1090,30 @@ export function installPreviewBridge(): void {
         emit();
         buildTimer = window.setInterval(advanceBuild, 1500);
       }
+      emit();
+    },
+    /* the queue, so the card above the composer can be looked at with real
+       content in it rather than only in a live run */
+    steer: async (text: string) => {
+      STATE.queue = { ...STATE.queue, steering: [...STATE.queue.steering, text] };
+      emit();
+    },
+    followUp: async (text: string) => {
+      STATE.queue = { ...STATE.queue, followUp: [...STATE.queue.followUp, text] };
+      emit();
+    },
+    clearQueue: async () => {
+      const texts = [...STATE.queue.steering, ...STATE.queue.followUp];
+      STATE.queue = { ...STATE.queue, steering: [], followUp: [] };
+      emit();
+      return { ...STATE.queue, texts };
+    },
+    removeQueued: async (kind: "steering" | "followUp", index: number) => {
+      STATE.queue = { ...STATE.queue, [kind]: STATE.queue[kind].filter((_, at) => at !== index) };
+      emit();
+    },
+    setQueueMode: async (kind: "steering" | "followUp", mode: "all" | "one-at-a-time") => {
+      STATE.queue = { ...STATE.queue, [kind === "steering" ? "steeringMode" : "followUpMode"]: mode };
       emit();
     },
     gitStatus: async () => ({
@@ -617,48 +1151,7 @@ export function installPreviewBridge(): void {
     gitCommit: async () => ({ ok: true, output: "3 files changed, 148 insertions(+), 22 deletions(-)" }),
     gitPush: async () => ({ ok: true, output: "To github.com:pi/agent-desktop.git\n   8f1c2ab..b7d2ba2  master -> master" }),
     getPlugins: async () => [],
-    getUsage: async () => ({
-      generatedAt: new Date().toISOString(),
-      range: { from: null, to: null, days: 30 },
-      totals: { total: 12_840_000, input: 3_120_000, output: 486_000, cacheRead: 9_180_000, cacheWrite: 54_000, cost: 18.42, calls: 1_284 },
-      kpis: { sessions: 42, messages: 1_284, activeDays: 18, currentStreak: 5, longestStreak: 11, peakHour: 15, favoriteModel: "DeepSeek V4 Flash" },
-      days: Array.from({ length: 30 }, (_, i) => ({
-        day: new Date(Date.now() - (29 - i) * 86_400_000).toISOString().slice(0, 10),
-        total: 120_000 + Math.round(Math.sin(i / 3) * 60_000) + i * 4_000,
-        input: 40_000 + i * 900,
-        output: 6_000 + i * 120,
-        cacheRead: 70_000 + i * 2_400,
-        cacheWrite: 2_000,
-        cost: 0.4 + i * 0.03,
-        calls: 20 + i,
-      })),
-      hours: Array.from({ length: 24 }, (_, h) => (h > 8 && h < 23 ? 40 + ((h * 37) % 60) : 4)),
-      models: [
-        { provider: "deepseek", model: "deepseek-v4-flash", label: "DeepSeek V4 Flash", total: 6_400_000, input: 1_500_000, output: 220_000, cacheRead: 4_600_000, cacheWrite: 26_000, cost: 8.1, calls: 720 },
-        { provider: "opcc", model: "glm-5.3", label: "GLM 5.3", total: 3_900_000, input: 980_000, output: 160_000, cacheRead: 2_700_000, cacheWrite: 18_000, cost: 5.4, calls: 402 },
-        { provider: "anthropic", model: "claude-sonnet-4.5", label: "Claude Sonnet 4.5", total: 2_540_000, input: 640_000, output: 106_000, cacheRead: 1_880_000, cacheWrite: 10_000, cost: 4.9, calls: 162 },
-      ],
-      providers: [
-        { provider: "deepseek", label: "deepseek", total: 6_400_000, cost: 8.1, calls: 720, cacheRead: 4_600_000, cacheHitRate: 0.72 },
-        { provider: "opcc", label: "opcc", total: 3_900_000, cost: 5.4, calls: 402, cacheRead: 2_700_000, cacheHitRate: 0.68 },
-        { provider: "anthropic", label: "anthropic", total: 2_540_000, cost: 4.9, calls: 162, cacheRead: 1_880_000, cacheHitRate: 0.71 },
-      ],
-      cache: { read: 9_180_000, write: 54_000, input: 3_120_000, hitRate: 0.72, saved: 12.6 },
-      cacheByChannel: [
-        { provider: "deepseek", model: "deepseek-v4-flash", calls: 720, tokens: 6_400_000, input: 1_500_000, output: 220_000, cacheRead: 4_600_000, cacheWrite: 26_000, cacheHitRate: 0.72, cost: 8.1 },
-        { provider: "opcc", model: "glm-5.3", calls: 402, tokens: 3_900_000, input: 980_000, output: 160_000, cacheRead: 2_700_000, cacheWrite: 18_000, cacheHitRate: 0.68, cost: 5.4 },
-        { provider: "anthropic", model: "claude-sonnet-4.5", calls: 162, tokens: 2_540_000, input: 640_000, output: 106_000, cacheRead: 1_880_000, cacheWrite: 10_000, cacheHitRate: 0.71, cost: 4.9 },
-      ],
-      deviations: [],
-      buckets: [
-        { key: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash", total: 6_400_000, input: 1_500_000, output: 220_000, cacheRead: 4_600_000, cacheWrite: 26_000, cost: 8.1, calls: 720 },
-        { key: "opcc/glm-5.3", label: "GLM 5.3", total: 3_900_000, input: 980_000, output: 160_000, cacheRead: 2_700_000, cacheWrite: 18_000, cost: 5.4, calls: 402 },
-      ],
-      sessionCount: 42,
-      messageCount: 1_284,
-      scannedFiles: 96,
-      errors: [],
-    }),
+    getUsage: async (days: number) => previewUsage(days),
     getContextBreakdown: async () => ({ parts: [], used: null, contextWindow: 0, percent: null }),
     getZoomFactor: () => 1,
     setZoomFactor: () => undefined,
@@ -667,6 +1160,22 @@ export function installPreviewBridge(): void {
     onTerminalChunk: () => unsub(),
     onNotice: () => unsub(),
     bashState: async () => ({ running: false }),
+    /* The agent shell's own command. There is no real bash in a browser tab, so
+     * this stands in for one — and it answers after a beat, because the running
+     * row now names the command it is on and that state has to be visible to be
+     * checked at all. */
+    runBash: async (command: string) => {
+      await new Promise((done) => setTimeout(done, 4000));
+      return {
+        runId: "preview",
+        command,
+        output: `(preview) no real shell — this stands in for what ${command} would print`,
+        exitCode: 0,
+        cancelled: false,
+        truncated: false,
+        durationMs: 4000,
+      };
+    },
     /* the terminal panel's shell menu, with the palette of a real Windows box
        so the settings list and the picker render their full shape */
     listShells: async () => ({
@@ -680,6 +1189,20 @@ export function installPreviewBridge(): void {
     }),
     listPtySessions: async () => [],
     spawnPty: async () => ({ error: "The design preview has no real terminals." }),
+    /* The openers list, spelled the way the real host answers it on macOS: the
+     * file-manager row with no command (its mark comes from the OS), the default
+     * application, and the editors a Mac usually has. The fallback path has no
+     * `icon`, which is the state the toolbar's own glyph has to cover — and the
+     * row the preview exists to check, since the unlisted methods below resolve
+     * to `undefined` and leave the button with nothing to render. */
+    listOpeners: async (): Promise<AppOpener[]> => [
+      { id: "reveal", name: "File manager", kind: "reveal" },
+      { id: "default", name: "Default application", kind: "default" },
+      { id: "/usr/local/bin/code", name: "Visual Studio Code", kind: "app", command: "/usr/local/bin/code" },
+      { id: "/usr/local/bin/cursor", name: "Cursor", kind: "app", command: "/usr/local/bin/cursor" },
+    ],
+    openWith: async () => ({ ok: true }),
+    revealFile: async () => undefined,
   };
 
   const bridge = new Proxy(table, {

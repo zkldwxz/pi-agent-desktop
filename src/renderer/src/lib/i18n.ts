@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { AppOpener } from "@shared/workspace";
+import { IS_MAC } from "./platform";
 
 /**
  * UI language.
@@ -31,6 +32,18 @@ const listeners = new Set<() => void>();
 
 export function getLocale(): Locale {
   return locale;
+}
+
+/**
+ * The BCP-47 tag for the interface language.
+ *
+ * `toLocaleDateString(undefined, …)` follows the *operating system*, so a
+ * Chinese interface running on an English Windows box labels the usage axis
+ * "Sep 3" while every word around it is Chinese. Anything that formats dates or
+ * numbers for display passes this instead.
+ */
+export function localeTag(): string {
+  return locale === "zh" ? "zh-CN" : "en-US";
 }
 
 export function setLocale(next: Locale): void {
@@ -93,12 +106,23 @@ const ZH: Record<string, string> = {
   "Looking up apps…": "正在查找可用的应用…",
   "File manager": "文件管理器",
   "Default application": "默认应用",
-  "Only Coding，First Windows.": "Windows优先，专注于Coding",
+  "Only Coding，First {platform}.": "{platform}优先，专注于Coding",
   "In {name} What should Pi do next?": "在 {name} 用Pi创造了不起的事物",
+  /* ── new-conversation starter prompts ─────────────────── */
+  "Read this repo and tell me where to start.": "读一遍这个仓库，告诉我该从哪里入手。",
+  "Run typecheck and the regressions, then fix what fails.": "跑一遍类型检查和相关回归，把失败的地方修掉。",
+  "Turn the current changes into a commit message.": "把当前的改动整理成一条提交信息。",
+  "Explain why this code is written this way.": "解释这段代码为什么是这么写的。",
+  "Add unit tests for the function I have selected.": "给我选中的函数补上单元测试。",
+  "Plan it first — show me the approach before touching files.": "先给方案，动文件之前让我看到思路。",
+  "Find the duplicated logic and give it one owner.": "找出重复的逻辑，把它收敛到一个归属。",
+  "Trace this error to its cause and fix it there.": "把这个报错追到成因，在成因上修掉。",
+  "Shuffle suggestions": "换一批建议",
   "New workspace": "新建工作区",
   "New SSH connection": "新建 SSH 连接",
   "SSH connections are coming soon": "SSH 连接即将支持",
   "No workspace": "不指定工作区",
+  "Home": "Home",
   "Archive session": "归档会话",
   "Monitor": "监控",
   "Environment": "环境信息",
@@ -139,6 +163,44 @@ const ZH: Record<string, string> = {
   "Show the full message ({count} lines)": "展开全部（{count} 行）",
   "No sessions yet.": "还没有会话。",
   "Add a folder": "添加文件夹",
+  "No chats here yet": "这里还没有会话",
+  "Token activity": "Token 活动",
+  "Recommended": "内置推荐",
+  "Collapse run": "收起",
+  "{count} reads": "读 {count}",
+  "{count} edits": "编辑 {count}",
+  "{count} terminals": "终端 {count}",
+  "{count} thinking": "思考 {count}",
+  "Running terminal": "终端运行中",
+  "Message delivery": "消息发送",
+  "what happens to a message sent while the agent is working": "智能体工作时发来的消息如何投递",
+  "Terminal shell": "终端 Shell",
+  "what the terminal pane and the agent's commands start in": "终端面板与智能体命令使用的 Shell",
+  "auto": "默认",
+  "powershell": "PowerShell",
+  "gitbash": "Git Bash",
+  "cmd": "命令提示符",
+  "path:/bin/zsh": "zsh",
+  "path:/bin/bash": "bash",
+  "Editing a queued message — Enter sends it": "编辑排队消息 — 回车直接发送",
+  "bundled with this app — one click to install": "随应用内置，点击即装",
+  "What's your name?": "请输入您的名字",
+  "Your name": "您的名字",
+  "It sits in the corner of the sidebar as your avatar and your name.": "它会作为你的头像和名字，显示在侧边栏角落。",
+  "Preparing your workspace…": "正在准备你的工作区…",
+  "User": "用户",
+  "Daily": "每日",
+  "Weekly": "每周",
+  "Cumulative": "累计",
+  "Time range": "时间范围",
+  "Peak tokens": "峰值 Token 数",
+  "{count}d": "{count} 天",
+  "Daily token trend": "每日 Token 趋势",
+  "Model usage": "模型用量",
+  "week": "当周",
+  "to date": "累计",
+  "The busiest day was {day}, with about {tokens} tokens.": "最忙的一天是 {day}，约 {tokens} tokens。",
+  "No usage in the scanned logs yet.": "扫描到的日志里还没有用量数据。",
   "New chat": "新建会话",
   "Rename": "重命名",
   "Open in IDE": "在 IDE 中打开",
@@ -186,6 +248,7 @@ const ZH: Record<string, string> = {
   "Show {count} earlier turn": "展开更早的 {count} 条",
   "Show {count} earlier turns": "展开更早的 {count} 条",
   "Jump to latest": "回到最新",
+  "Jump to turn {count}": "跳转到第 {count} 轮",
   "Follow the stream": "跟随输出",
   "What should Pi do next?": "接下来做什么？",
   "This window talks to the Pi agent already installed on this machine. Sessions, models, and credentials stay in ~/.pi/agent.":
@@ -209,6 +272,7 @@ const ZH: Record<string, string> = {
   /* ── dock ───────────────────────────────────────────── */
   "Files": "文件",
   "Terminal": "终端",
+  "command": "命令",
   "Changes": "改动",
   "Browser": "浏览器",
   "Tasks": "任务",
@@ -245,6 +309,8 @@ const ZH: Record<string, string> = {
   "Desktop": "桌面",
   "Completion sound": "完成提示音",
   "a short chime when a run finishes": "任务结束时播放一段短提示音",
+  "Interface sounds": "界面音效",
+  "a quiet click on what you press, pitched to what it does": "点击控件时给一声轻响，音色随操作类型变化",
   "Windows notification": "Windows 通知",
   "a toast when the run finishes while the window is in the background": "窗口在后台时，任务结束弹出系统通知",
   "Images & output": "图片与输出",
@@ -511,6 +577,40 @@ const ZH: Record<string, string> = {
   "Saved to models.json": "已写入 models.json",
   "Removed from models.json": "已从 models.json 中删除",
   "Model availability updated": "模型启停状态已更新",
+  "Smart model matching": "智能匹配模型",
+  "read the context size and vision support from the model id": "根据模型 ID 推断上下文大小和是否支持视觉",
+
+  /* ── channels: one endpoint, one provider entry per key ─ */
+  "an endpoint from models.json": "models.json 里的一个服务地址",
+  "New channel…": "新建渠道…",
+  "Channel name": "渠道名称",
+  "Protocol": "协议",
+  "the wire format the endpoint answers": "该地址使用的接口协议",
+  "where pi sends the requests for these models": "pi 把这些模型的请求发往哪里",
+  "API keys": "API Key",
+  "Every key stays its own provider on this endpoint — they are never merged into one.":
+    "每个 Key 都会成为该地址下独立的 provider，不会互相合并。",
+  "Add another key": "再加一个 Key",
+  "Add key": "添加 Key",
+  "sk-… one more key for this endpoint": "sk-… 这个地址的另一个 Key",
+  "Create channel and add": "创建渠道并添加",
+  "new channel": "新建渠道",
+  "Pick a channel": "选择一个渠道",
+  "{count} keys": "{count} 个 Key",
+  "Remove key {index}": "删除第 {index} 个 Key",
+  "Forget key {index}": "删除第 {index} 个 Key",
+  "Flat": "平铺",
+  "By provider": "按供应商",
+  "Manage keys": "管理 Key",
+  "Remove this endpoint": "删除这个渠道",
+  "Remove this endpoint and every key on it from models.json?": "从 models.json 删除这个渠道和它的全部 Key？",
+  "No models on this endpoint yet — add one and every key can serve it.":
+    "这个渠道下还没有模型 —— 添加后会自动同步给它的每一个 Key。",
+  "The channel needs a name, an address and at least one key.": "渠道需要名称、地址和至少一个 Key。",
+  "Channel written to models.json": "渠道已写入 models.json",
+  "Channel removed": "渠道已删除",
+  "Key added": "Key 已添加",
+  "Key removed": "Key 已删除",
 
   /* ── command palette & global actions ───────────────── */
   "Command palette": "命令面板",
@@ -542,7 +642,7 @@ const ZH: Record<string, string> = {
   "Overview": "总览",
   "Insights": "洞察",
   "Cache": "缓存",
-  "Total tokens": "Token 总消耗",
+  "Total tokens": "累计 Token 数",
   "Prompt cache": "提示词缓存",
   "Estimated cost": "预估总费用",
   "Sessions recorded": "记录会话数",
@@ -564,13 +664,20 @@ const ZH: Record<string, string> = {
     "使用 Pi 进行对话后，此处将展示详细的 Token 和费用明细。",
   "Messages": "消息数",
   "Active days": "活跃天数",
-  "Current streak": "当前连续",
-  "Longest streak": "最长连续",
+  "Current streak": "当前连续天数",
+  "Longest streak": "最长连续天数",
   "Peak hour": "高峰时段",
+  "peak": "高峰",
   "Favorite model": "常用模型",
   "Activity": "活跃趋势",
   "Selected slice": "所选区间",
-  "Top models in slice": "区间内常用模型",
+  "Daily model trend": "模型逐日趋势",
+  "Model share": "模型用量占比",
+  "Other": "其他",
+  "Nothing to chart yet": "暂无可绘制的数据",
+  "No model calls in this range.": "所选区间内没有模型调用。",
+  "This chart couldn't be rendered": "这张图表无法渲染",
+  "The data in this range is malformed.": "该区间的数据存在异常。",
   "Cache share by channel": "各渠道缓存占比",
   "Cache by channel": "按渠道统计缓存",
   "Channel": "渠道",
@@ -778,6 +885,17 @@ const ZH: Record<string, string> = {
   "Clear": "清空",
   "Clear the queue and put the text back in the editor": "清空队列并把文本放回输入框",
   "Remove from queue": "移出队列",
+  "{count} message queued": "已排队 {count} 条消息",
+  "{count} messages queued": "已排队 {count} 条消息",
+  "Wait": "等待",
+  "one at a time": "逐条",
+  "all at once": "一次性",
+  "Hand pi one queued message at a time": "逐条把排队的消息交给 pi",
+  "Hand pi every queued message together": "把排队的消息一次性全部交给 pi",
+  "delivered at the next turn boundary": "在下一个回合边界送达",
+  "delivered once the agent stops": "智能体停止后送达",
+  "After the run": "本轮之后",
+  "{count} more in this queue": "队列中还有 {count} 条",
 
   /* ── ── right-hand panels */
   "Color": "颜色",
@@ -817,7 +935,7 @@ const ZH: Record<string, string> = {
   /* ── ── terminal panel */
   "Runs through the agent's own bash tool.": "通过智能体自带的 bash 工具运行。",
   "Try": "试试",
-  "running…": "执行中…",
+  "done": "已完成",
   "Enter to run — output joins the conversation": "回车执行 —— 输出会加入会话",
   "Run command": "执行命令",
   "exited {code}": "已退出（{code}）",
@@ -844,6 +962,22 @@ const ZH: Record<string, string> = {
   "List": "列出",
   "{count} entries": "{count} 个条目",
   "Search the web": "网络搜索",
+  /* groupRuns/plural() compose collapsed tool-row labels from these; every one
+   * was missing, so the counts rendered as English inside the Chinese UI */
+  "{count} file": "{count} 个文件",
+  "{count} files": "{count} 个文件",
+  "{count} search": "{count} 次搜索",
+  "{count} searches": "{count} 次搜索",
+  "{count} command": "{count} 条命令",
+  "{count} commands": "{count} 条命令",
+  "{count} call": "{count} 次调用",
+  "{count} calls": "{count} 次调用",
+  "ran": "执行了",
+  "Ran": "执行了",
+  "Exploring": "探索中",
+  "Explored": "已探索",
+  "Editing": "编辑中",
+  "Edited": "已编辑",
 
   /* ── ── customize, welcome & extension flow */
   "No prompt templates or themes found. Add a": "未找到提示词模板或主题。添加一个",
@@ -886,7 +1020,14 @@ const ZH: Record<string, string> = {
   "Start a conversation and token usage will show up here.": "开始对话后，这里会展示 Token 与费用明细。",
   "clear": "清除筛选",
   "cache hit": "缓存命中",
+  "in": "输入",
   "out": "输出",
+  "or": "或",
+  "at": "用了",
+  "of": "／",
+  "{action} {model}": "{action} {model}",
+  "You've used ~{count}× more tokens than Moby-Dick — with {percent} of prompt tokens served from cache.":
+    "你的 token 用量约是《白鲸》全书的 {count} 倍——其中 {percent} 的提示 token 由缓存提供。",
   "cache read": "缓存读取",
   "streak": "天连续",
   "longest": "最长",
@@ -954,6 +1095,20 @@ const ZH: Record<string, string> = {
   "Detail": "详情",
   "Done": "已完成",
   "status": "状态",
+  /* sidebar grouping mode + settings switch; lowercase keys are the Select's
+   * raw values, whose labels pass back through t() */
+  "Groups": "任务分组",
+  "Ungrouped": "未分组",
+  "New group": "新建分组",
+  "Group name": "分组名称",
+  "Delete group": "删除分组",
+  "New chat in this group": "在这个分组里新建对话",
+  "Sidebar grouping": "侧边栏分组",
+  "workspaces follow folders; task groups lay every chat out flat":
+    "工作区按文件夹划分；任务分组把所有对话平铺展示",
+  "workspace": "工作区",
+  "date": "按日期",
+  "groups": "任务分组",
   "This session": "本会话",
   "Session activity": "会话活动",
   "Ask Pi to plan multi-step work and it will keep this list updated as it goes.":
@@ -1021,7 +1176,10 @@ export function tf(text: string, vars: Record<string, string | number>): string 
  * as registered, because translating it would misname the application.
  */
 export function openerName(opener: AppOpener): string {
-  if (opener.kind === "reveal") return t("File manager");
+  /* the row always means the operating system's own file browser, and on macOS
+     the honest label is the application's name rather than a translation of
+     the Windows one */
+  if (opener.kind === "reveal") return IS_MAC ? "Finder" : t("File manager");
   if (opener.kind === "default") return t("Default application");
   return opener.name;
 }

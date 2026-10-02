@@ -120,12 +120,12 @@ export default function RecommendationCard({
   return (
     <div className="w-full max-w-95 overflow-hidden rounded-card bg-surface shadow-card">
       <div className="primitive-card-pad">
-        <span className="text-[14px] font-medium text-ink">
+        <span className="text-ui-lg font-medium text-ink">
           {t.title}
         </span>
         <p
           key={active.key}
-          className="mt-1.5 min-h-12 text-[13px] leading-relaxed text-ink-2"
+          className="mt-1.5 min-h-12 text-ui-base leading-relaxed text-ink-2"
           style={{ animation: "fade-in 180ms ease-out both" }}
         >
           {active.body}
@@ -138,12 +138,12 @@ export default function RecommendationCard({
         style={{
           gridTemplateRows: open ? "1fr" : "0fr",
           opacity: open ? 1 : 0,
-          transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+          transitionTimingFunction: "var(--ease-link-css)",
         }}
       >
         <div className="overflow-hidden">
           <div className="border-t border-line bg-surface px-2 py-2">
-            <p className="px-1.5 pb-1 text-[11px] font-medium text-ink-3">
+            <p className="px-1.5 pb-1 text-ui-sm font-medium text-ink-3">
               {t.otherOptions}
             </p>
             {others.map(({ o, i }) => (
@@ -158,8 +158,8 @@ export default function RecommendationCard({
                   text-left transition-colors duration-100 hover:bg-hover"
               >
                 <Meter signal={o.signal} tone={o.tone} />
-                <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink">{o.short}</span>
-                <span className="shrink-0 text-[11px] text-ink-3">{o.label}</span>
+                <span className="min-w-0 flex-1 truncate text-ui-caption text-ink">{o.short}</span>
+                <span className="shrink-0 text-ui-sm text-ink-3">{o.label}</span>
               </button>
             ))}
           </div>
@@ -169,7 +169,7 @@ export default function RecommendationCard({
       <div className="primitive-card-footer flex items-center justify-between gap-3 bg-surface">
         <span className="flex items-center gap-2">
           <Meter signal={active.signal} tone={active.tone} />
-          <span className="text-[12.5px] font-medium text-ink-2">{active.label}</span>
+          <span className="text-ui-caption font-medium text-ink-2">{active.label}</span>
         </span>
 
         <span className="-mr-0.5 flex items-center gap-2">
@@ -178,7 +178,7 @@ export default function RecommendationCard({
             size="sm"
             aria-expanded={open}
             onClick={() => setOpen((current) => !current)}
-            className="px-2.5 text-[12.5px]"
+            className="px-2.5 text-ui-caption"
           >
             {t.alternatives}
           </Button>
@@ -189,7 +189,7 @@ export default function RecommendationCard({
               setAccepted(true);
               onAccept?.(active.key);
             }}
-            className="text-[12.5px]"
+            className="text-ui-caption"
           >
             {accepted ? t.accepted : active.cta}
           </Button>

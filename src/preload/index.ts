@@ -1,8 +1,10 @@
 import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";
 import type {
+  ChannelEdit,
   ChatMessage,
   ContextBreakdown,
   HostState,
+  HostSnapshot,
   HostUpdate,
   ModelEdit,
   PlanAction,
@@ -22,7 +24,7 @@ import type { UiAnswer } from "@shared/ui";
 
 
 export interface PiBridge {
-  getState: () => Promise<HostUpdate>;
+  getState: () => Promise<HostSnapshot>;
   prompt: (payload: PromptPayload) => Promise<void>;
   abort: () => Promise<void>;
   newSession: () => Promise<void>;
@@ -40,6 +42,11 @@ export interface PiBridge {
   updateSettings: (patch: Partial<RuntimeSettings>) => Promise<void>;
   saveModel: (edit: ModelEdit) => Promise<void>;
   deleteModel: (provider: string, modelId: string) => Promise<void>;
+  /** one endpoint with one provider entry per key; see ChannelInfo */
+  createChannel: (edit: ChannelEdit) => Promise<string[]>;
+  removeChannel: (channelId: string) => Promise<void>;
+  addChannelKey: (channelId: string, key: string) => Promise<string | undefined>;
+  removeChannelKey: (providerId: string) => Promise<void>;
   listAllSessions: () => Promise<HostState["sessions"]>;
   deleteWorkspace: (cwd: string) => Promise<void>;
   setZoomFactor: (factor: number) => void;
@@ -49,13 +56,16 @@ export interface PiBridge {
   clearQueue: () => Promise<HostState["queue"] & { texts: string[] }>;
   removeQueued: (kind: "steering" | "followUp", index: number) => Promise<void>;
   setQueueMode: (kind: "steering" | "followUp", mode: "all" | "one-at-a-time") => Promise<void>;
-  forkTargets: () => Promise<{ entryId: string; text: string }[]>;
   forkAt: (index: number) => Promise<{ cancelled: boolean }>;
+  /** step the conversation back to before prompt `index`, and get its text */
+  rewindTo: (index: number) => Promise<{ text: string; cancelled: boolean }>;
   respondUi: (answer: UiAnswer) => Promise<void>;
   getDesktopConfig: () => Promise<DesktopConfig>;
   getCatalog: () => Promise<CatalogItem[]>;
   applyCatalog: (ids: string[]) => Promise<{ config: DesktopConfig; installed: string[] }>;
   finishOnboarding: () => Promise<DesktopConfig>;
+  /** the account row's name — an empty string clears it back to the OS user */
+  setUserName: (name: string) => Promise<DesktopConfig>;
   getPlugins: () => Promise<PluginInfo[]>;
   /** the folders the agent loads extensions / hooks from */
   getPluginRoots: () => Promise<PluginRoots>;
@@ -145,6 +155,10 @@ const api: PiBridge = {
   updateSettings: (patch) => ipcRenderer.invoke("pi:updateSettings", patch),
   saveModel: (edit) => ipcRenderer.invoke("pi:saveModel", edit),
   deleteModel: (provider, modelId) => ipcRenderer.invoke("pi:deleteModel", provider, modelId),
+  createChannel: (edit) => ipcRenderer.invoke("pi:createChannel", edit),
+  removeChannel: (channelId) => ipcRenderer.invoke("pi:removeChannel", channelId),
+  addChannelKey: (channelId, key) => ipcRenderer.invoke("pi:addChannelKey", channelId, key),
+  removeChannelKey: (providerId) => ipcRenderer.invoke("pi:removeChannelKey", providerId),
   listAllSessions: () => ipcRenderer.invoke("pi:listAllSessions"),
   deleteWorkspace: (cwd) => ipcRenderer.invoke("pi:deleteWorkspace", cwd),
   setZoomFactor: (factor) => webFrame.setZoomFactor(factor),
@@ -154,13 +168,14 @@ const api: PiBridge = {
   clearQueue: () => ipcRenderer.invoke("pi:clearQueue"),
   removeQueued: (kind, index) => ipcRenderer.invoke("pi:removeQueued", kind, index),
   setQueueMode: (kind, mode) => ipcRenderer.invoke("pi:queueMode", kind, mode),
-  forkTargets: () => ipcRenderer.invoke("pi:forkTargets"),
   forkAt: (index) => ipcRenderer.invoke("pi:forkAt", index),
+  rewindTo: (index) => ipcRenderer.invoke("pi:rewindTo", index),
   respondUi: (answer) => ipcRenderer.invoke("ui:respond", answer),
   getDesktopConfig: () => ipcRenderer.invoke("desktop:getConfig"),
   getCatalog: () => ipcRenderer.invoke("desktop:catalog"),
   applyCatalog: (ids) => ipcRenderer.invoke("desktop:applyCatalog", ids),
   finishOnboarding: () => ipcRenderer.invoke("desktop:finishOnboarding"),
+  setUserName: (name) => ipcRenderer.invoke("desktop:setUserName", name),
   getPlugins: () => ipcRenderer.invoke("pi:getPlugins"),
   getPluginRoots: () => ipcRenderer.invoke("pi:pluginRoots"),
   setPluginEnabled: (path, kind, enabled) => ipcRenderer.invoke("pi:setPluginEnabled", path, kind, enabled),

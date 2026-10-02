@@ -49,6 +49,18 @@ interface Family {
  * means "takes a thinking budget", not "is good at reasoning".
  */
 const FAMILIES: Family[] = [
+  /*
+   * The models this author actually runs, recorded rather than inferred: the
+   * window and the vision flag below are stated facts, not a family default.
+   * `maxTokens` is left out wherever nobody told us what it is — a guessed
+   * output ceiling is an invention, and an invented one is worse than a blank
+   * field the user fills in.
+   */
+  { match: /glm-?5\.3-flash/, contextWindow: 1 * M, maxTokens: 128 * K, supportsImages: true, reasoning: true },
+  { match: /glm-?5\.3/, contextWindow: 1 * M, maxTokens: 128 * K, supportsImages: false, reasoning: true },
+  { match: /deepseek[^\s]*flash/, contextWindow: 1 * M, supportsImages: true, reasoning: true },
+  { match: /gpt-6-sol/, contextWindow: 272 * K, supportsImages: true, reasoning: true },
+  { match: /gemini-3\.8-flash/, contextWindow: 1 * M, maxTokens: 64 * K, supportsImages: true, reasoning: true },
   /* Anthropic */
   { match: /claude|anthropic/, contextWindow: 200 * K, maxTokens: 64 * K, supportsImages: true, reasoning: true },
   /* OpenAI */

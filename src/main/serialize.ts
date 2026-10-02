@@ -1,4 +1,5 @@
 import type { ChatBlock, ChatMessage, ModelInfo, SessionListItem, SessionStatus, UltraMode } from "@shared/types";
+import { THINKING_LEVELS } from "../shared/thinking.ts";
 
 /** Structural stand-in for pi's message type (kept local so the desktop build
  *  does not depend on pi's nested workspace packages). */
@@ -8,6 +9,8 @@ interface ModelLike {
   id: string;
   name: string;
   provider: string;
+  /** the wire protocol the runtime reached this model over */
+  api?: string;
   contextWindow: number;
   maxTokens: number;
   reasoning: boolean;
@@ -43,7 +46,7 @@ function asRecord(value: unknown): Record<string, unknown> {
  * reasoning dumped into it renders a second time as the answer itself — the
  * trace shows it, then the reply repeats it. Reasoning lives in `blocks`.
  */
-function textFromContent(content: unknown): string {
+export function textFromContent(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
   return content
@@ -99,6 +102,13 @@ export function serializeMessage(message: AgentMessageLike, index: number, strea
     streaming,
   };
 
+  if (role === "custom") {
+    /* Custom messages are the only ones an extension labels, and the label is
+     * what the transcript keys its turn boundaries on — a `custom` message that
+     * lost its type here would be indistinguishable from an anonymous one. */
+    chat.customType = typeof record.customType === "string" ? record.customType : undefined;
+  }
+
   if (role === "toolResult") {
     chat.toolName = typeof record.toolName === "string" ? record.toolName : undefined;
     chat.toolCallId = typeof record.toolCallId === "string" ? record.toolCallId : undefined;
@@ -112,6 +122,11 @@ export function serializeMessage(message: AgentMessageLike, index: number, strea
     const output = typeof record.output === "string" ? record.output : "";
     chat.text = command ? `$ ${command}\n${output}` : output;
     chat.toolName = "bash";
+    /* The two halves stay separate on the way out. Flattening them into `text`
+       is what made a terminal row render its own command as the summary chip —
+       the row wants the command, and the output wants to be the detail you open
+       the row to read. */
+    chat.toolDetails = { command, output };
   }
 
   if (typeof usage.input === "number" || typeof usage.output === "number") {
@@ -137,13 +152,12 @@ export function serializeMessages(messages: readonly unknown[], streamingMessage
   return items;
 }
 
-const LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 export function thinkingLevelsFor(model: ModelLike): string[] {
   if (!model.reasoning) return ["off"];
   const map = model.thinkingLevelMap;
-  if (!map) return LEVELS;
-  const levels = LEVELS.filter((level) => level === "off" || map[level] === undefined || map[level] !== null);
+  if (!map) return THINKING_LEVELS;
+  const levels = THINKING_LEVELS.filter((level) => level === "off" || map[level] === undefined || map[level] !== null);
   return levels.length ? levels : ["off"];
 }
 
@@ -172,6 +186,7 @@ export function serializeModel(model: ModelLike | null | undefined, ultra?: Ultr
     name: model.name,
     provider: model.provider,
     providerName: model.provider,
+    api: model.api,
     contextWindow: model.contextWindow,
     maxTokens: model.maxTokens,
     reasoning: Boolean(model.reasoning),

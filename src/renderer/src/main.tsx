@@ -1,13 +1,14 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
-import { installPreviewBridge } from "./lib/preview-bridge";
 import { applyCodeTheme, getCodeTheme } from "./lib/code-theme";
+import { installInteractionSounds } from "./lib/sound";
+import { IS_MAC } from "./lib/platform";
 import "./index.css";
 
-/* a browser tab has no Electron bridge — stand one up so localhost:5173 can
-   render the whole UI for design iteration */
-installPreviewBridge();
+/* set before the first paint, or the scrollbars style themselves once and then
+   change shape mid-render */
+document.documentElement.classList.toggle("os-mac", IS_MAC);
 
 /* the stored code palette applies before first paint, so a code block never
    flashes the default theme on its way to the saved one */
@@ -33,8 +34,22 @@ if (import.meta.env.DEV) {
   };
 }
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+/* The preview bridge is loaded lazily and only under DEV: `import.meta.env.DEV`
+   folds to `false` in a production build, so the fixture — 32KB of fake sessions
+   and a stand-in `window.pi` — is dropped from the bundle instead of shipping to
+   users who can never reach it. The render waits for the import so the bridge is
+   installed before the first component reads `window.pi`. */
+async function boot(): Promise<void> {
+  if (import.meta.env.DEV) {
+    const { installPreviewBridge } = await import("./lib/preview-bridge");
+    installPreviewBridge();
+  }
+  installInteractionSounds();
+  createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+}
+
+void boot();

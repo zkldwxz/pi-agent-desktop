@@ -51,7 +51,7 @@ export function ContextBadge({ state }: { state: HostState }) {
         aria-expanded={open}
         aria-label={percent === null ? t("Context usage unknown") : tf("Context {percent}%", { percent: Math.round(percent) })}
         onClick={() => setPinned((value) => !value)}
-        className="pressable flex size-5 items-center justify-center rounded-[5px] hover:bg-hover"
+        className="pressable flex size-5 items-center justify-center rounded-chip hover:bg-hover"
       >
         <span className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
           <svg width={size} height={size} className="absolute inset-0 -rotate-90">
@@ -65,7 +65,7 @@ export function ContextBadge({ state }: { state: HostState }) {
               strokeWidth={stroke}
               strokeLinecap="round"
               strokeDasharray={`${circumference * filled} ${circumference}`}
-              style={{ transition: "stroke-dasharray 420ms cubic-bezier(0.23,1,0.32,1), stroke 240ms ease-out" }}
+              style={{ transition: "stroke-dasharray 420ms var(--ease-out-strong-css), stroke 240ms ease-out" }}
             />
           </svg>
         </span>
@@ -75,12 +75,12 @@ export function ContextBadge({ state }: { state: HostState }) {
         <span
           role="dialog"
           className="absolute bottom-full right-0 z-30 mb-2 w-64 overflow-hidden rounded-card bg-surface shadow-overlay"
-          style={{ animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "bottom right" }}
+          style={{ animation: "pop-in 180ms var(--ease-out-strong-css) both", transformOrigin: "bottom right" }}
         >
           <span className="flex items-center gap-2 border-b border-line px-3 py-2">
             <span className="size-2 shrink-0 rounded-full" style={{ background: tone }} />
-            <span className="min-w-0 flex-1 text-[12px] font-medium text-ink">{tf("Context {percent}", { percent: percent === null ? "—" : `${Math.round(percent)}%` })}</span>
-            {pinned ? <span className="font-mono text-[9.5px] text-ink-3">{t("pinned · Esc")}</span> : null}
+            <span className="min-w-0 flex-1 text-ui-caption font-medium text-ink">{tf("Context {percent}", { percent: percent === null ? "—" : `${Math.round(percent)}%` })}</span>
+            {pinned ? <span className="font-mono text-ui-xs text-ink-3">{t("pinned · Esc")}</span> : null}
           </span>
           <span className="flex flex-col gap-1.5 px-3 py-2">
             <Row
@@ -96,7 +96,7 @@ export function ContextBadge({ state }: { state: HostState }) {
             {state.snapshot?.stats ? (
               <Row label="Session total" value={state.snapshot.stats.tokens.total.toLocaleString()} tone="var(--ink-2)" />
             ) : null}
-            <span className="mt-1 border-t border-line pt-1.5 text-[11px] leading-snug text-ink-3">{t(label)}</span>
+            <span className="mt-1 border-t border-line pt-1.5 text-ui-sm leading-snug text-ink-3">{t(label)}</span>
           </span>
         </span>
       ) : null}
@@ -107,8 +107,8 @@ export function ContextBadge({ state }: { state: HostState }) {
 function Row({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
     <span className="flex items-baseline justify-between gap-3">
-      <span className="text-[11.5px] text-ink-3">{t(label)}</span>
-      <span className="font-mono text-[11.5px] tabular-nums" style={{ color: tone }}>
+      <span className="text-ui-sm text-ink-3">{t(label)}</span>
+      <span className="font-mono text-ui-sm tabular-nums" style={{ color: tone }}>
         {value}
       </span>
     </span>

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AppOpener, FileContent } from "@shared/workspace";
 import CodeBlock from "../beautiful/primitives/CodeBlock";
-import { ExplorerGlyph } from "./FolderOpener";
-import { ChevronDownIcon, MessagePlusIcon, XIcon } from "../icons";
+import { FileManagerGlyph } from "./FolderOpener";
+import { ChevronDownIcon, ChevronRightIcon, MessagePlusIcon, XIcon } from "../icons";
 import { toDiffRows } from "../../lib/agent-view";
 import { cn } from "../../lib/cn";
 import { openerName, t, tf } from "../../lib/i18n";
@@ -83,7 +83,7 @@ function OpenWith({ path, onReveal }: { path: string; onReveal: (path: string) =
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="pressable inline-flex h-6 items-center gap-1 rounded-chip bg-field px-2 text-[11.5px] text-ink-2 hover:bg-hover-2"
+        className="pressable inline-flex h-6 items-center gap-1 rounded-chip bg-field px-2 text-ui-sm text-ink-2 hover:bg-hover-2"
       >
         {t("Open with")}
         <ChevronDownIcon size={11} className="text-ink-3" />
@@ -91,11 +91,11 @@ function OpenWith({ path, onReveal }: { path: string; onReveal: (path: string) =
 
       {open ? (
         <div
-          className="absolute right-0 top-full z-30 mt-1.5 w-64 overflow-hidden rounded-[10px] bg-surface py-1 shadow-overlay"
-          style={{ animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "top right" }}
+          className="absolute right-0 top-full z-30 mt-1.5 w-64 overflow-hidden rounded-control bg-surface py-1 shadow-overlay"
+          style={{ animation: "pop-in 180ms var(--ease-out-strong-css) both", transformOrigin: "top right" }}
         >
           {openers === null ? (
-            <div className="px-2.5 py-2 text-[11.5px] text-ink-3">{t("Looking up registered apps…")}</div>
+            <div className="px-2.5 py-2 text-ui-sm text-ink-3">{t("Looking up registered apps…")}</div>
           ) : (
             openers.map((opener) => (
               <button
@@ -107,21 +107,21 @@ function OpenWith({ path, onReveal }: { path: string; onReveal: (path: string) =
               >
                 <span className="flex size-4 shrink-0 items-center justify-center">
                   {opener.icon ? (
-                    <img src={opener.icon} alt="" className="size-4 rounded-[3px]" />
+                    <img src={opener.icon} alt="" className="size-4 rounded-tiny" />
                   ) : opener.kind === "reveal" ? (
-                    <ExplorerGlyph size={15} />
+                    <FileManagerGlyph size={15} />
                   ) : (
                     <span className="size-1.5 rounded-full bg-line-strong" />
                   )}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink">{openerName(opener)}</span>
+                <span className="min-w-0 flex-1 truncate text-ui-caption text-ink">{openerName(opener)}</span>
                 {opener.kind === "default" ? (
-                  <span className="shrink-0 font-mono text-[9.5px] text-ink-3">{t("default")}</span>
+                  <span className="shrink-0 font-mono text-ui-xs text-ink-3">{t("default")}</span>
                 ) : null}
               </button>
             ))
           )}
-          {error ? <div className="border-t border-line px-2.5 py-1.5 text-[10.5px] text-red">{error}</div> : null}
+          {error ? <div className="border-t border-line px-2.5 py-1.5 text-ui-xs text-red">{error}</div> : null}
         </div>
       ) : null}
     </div>
@@ -212,14 +212,20 @@ export function FileViewer({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-page">
-      <header className="flex h-[42px] shrink-0 items-center gap-2 border-b border-line px-4">
-        <div className="min-w-0">
-          <div className="truncate font-mono text-[12.5px] font-medium text-ink">{file?.name ?? path}</div>
-          <div className="truncate font-mono text-[10px] text-ink-3">{parentDir(path)}</div>
+      {/* One line, the reference's breadcrumb: the folders that contain the file
+          stay a step down in ink, the file itself is the bright leaf. It used to
+          be two stacked lines inside a 42px bar — a 13px name over a 10px path,
+          which is the one place in the dock where the smallest type carried the
+          only orientation the row gives. */}
+      <header className="flex h-[40px] shrink-0 items-center gap-[8px] border-b border-line px-[12px]">
+        <div className="flex min-w-0 items-center gap-[4px]">
+          <span className="min-w-0 truncate font-mono text-ui-sm text-ink-3">{parentDir(path)}</span>
+          <ChevronRightIcon size={12} className="shrink-0 text-ink-3" />
+          <span className="min-w-0 truncate font-mono text-ui-base text-ink">{file?.name ?? path}</span>
         </div>
         <span className="flex-1" />
         {file && !file.binary ? (
-          <span className="font-mono text-[10.5px] text-ink-3 tabular-nums">
+          <span className="shrink-0 font-mono text-ui-sm text-ink-3 tabular-nums">
             {tf("{count} lines · {size}", { count: lines.length, size: formatSize(file.size) })}
           </span>
         ) : null}
@@ -228,28 +234,32 @@ export function FileViewer({
           type="button"
           onClick={onClose}
           aria-label={t("Close file")}
-          className="pressable flex size-6 items-center justify-center rounded-[6px] text-ink-3 hover:bg-hover hover:text-ink"
+          className="pressable flex size-[28px] shrink-0 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
         >
           <XIcon size={13} />
         </button>
         {dockToggle}
       </header>
 
-      <div className="scrollbar-thin min-h-0 flex-1 overflow-auto p-4">
+      <div className="scrollbar-thin min-h-0 flex-1 overflow-auto p-[12px]">
         {loading ? (
-          <div className="flex flex-col gap-1.5">
+          /* the reference's code texture: a 32×12 gutter chip beside a 12px bar,
+              16px rows six apart — it reads as a listing, not as a form */
+          <div className="flex flex-col gap-[6px]">
             {Array.from({ length: 12 }).map((_, index) => (
-              <div
-                key={index}
-                className="h-4 rounded-[4px] bg-hover-2"
-                style={{ width: `${40 + ((index * 17) % 55)}%`, animation: `fade-in 300ms ease-out ${index * 25}ms both` }}
-              />
+              <div key={index} className="flex h-[16px] items-center gap-[8px]">
+                <span className="h-[12px] w-[32px] shrink-0 rounded-tiny bg-hover" />
+                <span
+                  className="h-[12px] rounded-tiny bg-hover-2"
+                  style={{ width: `${40 + ((index * 17) % 55)}%`, animation: `fade-in 300ms ease-out ${index * 25}ms both` }}
+                />
+              </div>
             ))}
           </div>
         ) : file?.error ? (
-          <div className="rounded-card bg-red-tint px-3 py-2 text-[12px] text-red">{file.error}</div>
+          <div className="rounded-card bg-red-tint px-3 py-2 text-ui-caption text-red">{file.error}</div>
         ) : file?.binary ? (
-          <div className="rounded-card border border-dashed border-line-strong px-4 py-8 text-center text-[12px] text-ink-3">
+          <div className="rounded-card border border-dashed border-line-strong px-4 py-8 text-center text-ui-caption text-ink-3">
             {tf("Binary file — {size}. Nothing to display.", { size: formatSize(file.size) })}
           </div>
         ) : (
@@ -260,7 +270,7 @@ export function FileViewer({
                 which said the same thing twice and left the diff with no way
                 back to the file it belonged to. */}
             {diffLines?.length ? null : (
-              <div className="rounded-card border border-dashed border-line-strong px-3 py-2 text-[11.5px] text-ink-3">
+              <div className="rounded-card border border-dashed border-line-strong px-3 py-2 text-ui-sm text-ink-3">
                 {t("No diff was recorded for this file — it may have been written before this session, or by another tool.")}
               </div>
             )}
@@ -275,7 +285,7 @@ export function FileViewer({
               onVariantChange={setView}
             />
             {file?.truncated ? (
-              <div className="text-[11.5px] text-orange">
+              <div className="text-ui-sm text-orange">
                 {tf("Showing the first 512 KB — the file is {size}.", { size: formatSize(file.size) })}
               </div>
             ) : null}
@@ -287,17 +297,17 @@ export function FileViewer({
       {quotedRange && onAddToChat ? (
         <div
           className="flex shrink-0 items-center gap-2 border-t border-line bg-surface px-3 py-2"
-          style={{ animation: "fade-up 200ms cubic-bezier(0.23,1,0.32,1) both" }}
+          style={{ animation: "fade-up 200ms var(--ease-out-strong-css) both" }}
         >
           <MessagePlusIcon size={13} className="shrink-0 text-accent-ink" />
-          <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-2">
+          <span className="min-w-0 flex-1 truncate font-mono text-ui-sm text-ink-2">
             {file?.name ?? path}:{quotedRange.start}
             {quotedRange.end !== quotedRange.start ? `-${quotedRange.end}` : ""} · {quotedRange.end - quotedRange.start + 1} {t("lines")}
           </span>
           <button
             type="button"
             onClick={addQuoteToChat}
-            className="pressable flex h-6.5 shrink-0 items-center gap-1 rounded-chip bg-ink px-2.5 text-[11.5px] font-medium text-canvas"
+            className="pressable flex h-6.5 shrink-0 items-center gap-1 rounded-chip bg-ink px-2.5 text-ui-sm font-medium text-canvas"
           >
             {t("Add to chat")}
           </button>
@@ -305,7 +315,7 @@ export function FileViewer({
             type="button"
             onClick={() => setQuote(null)}
             aria-label={t("Cancel")}
-            className="pressable flex size-6 shrink-0 items-center justify-center rounded-[5px] text-ink-3 hover:bg-hover hover:text-ink"
+            className="pressable flex size-6 shrink-0 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
           >
             <XIcon size={12} />
           </button>

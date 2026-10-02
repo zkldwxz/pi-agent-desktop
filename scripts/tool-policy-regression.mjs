@@ -357,6 +357,38 @@ try {
     await assert.rejects(() => run("grep", { pattern: "needle", path: haystack }, { signal: controller.signal }));
   });
 
+  /* ── the file manager's mark ──────────────────────────────────────────
+   *
+   * The toolbar's folder button wears the icon of the application that opens
+   * folders: Explorer on Windows, Finder on macOS. Both are read from a file
+   * the platform owns, so the paths are checked here rather than trusted — a
+   * typo in `/System/Library/CoreServices/...` silently degrades the button to
+   * a generic gray glyph, which is exactly the bug this covers.
+   *
+   * Windows cannot be exercised from here, so its branch is checked for shape;
+   * macOS is checked for existence, being the platform this runs on.
+   */
+  {
+    const { readFileSync, existsSync } = await import("node:fs");
+    const source = readFileSync(new URL("../src/main/openers.ts", import.meta.url), "utf8");
+    await checkAsync("openers: the reveal row resolves to the platform's own file manager", async () => {
+      assert.match(source, /if \(process\.platform === "win32"\) return explorerExe\(\);/);
+      assert.match(source, /if \(process\.platform === "darwin"\) return finderIcon\(\);/);
+    });
+    const finder = "/System/Library/CoreServices/Finder.app/Contents/Resources/Finder.icns";
+    await checkAsync("openers: the Finder icon path is the real one", async () => {
+      assert.ok(source.includes(finder), "the path is spelled as Apple ships it");
+      if (process.platform === "darwin") assert.ok(existsSync(finder), `${finder} exists`);
+    });
+    /* `getFileIcon` answers with the generic application glyph for a `.app` on
+     * macOS (verified), so the `.icns` has to be unpacked in-process. Losing
+     * that branch is a silent regression back to the gray folder. */
+    await checkAsync("openers: a .icns is unpacked, not handed to getFileIcon", async () => {
+      assert.match(source, /icnsDataUrl\(source, ICON_WANT_PX\)/);
+      assert.match(source, /!== "icns"/);
+    });
+  }
+
   console.log(`${count} tool-policy checks passed`);
 } catch (error) {
   console.error(error);

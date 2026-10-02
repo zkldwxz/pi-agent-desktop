@@ -147,7 +147,7 @@ export function ThinkingTrack({
   const glide = drag === null;
   /* 260ms out-quint: the settle from the finger onto the grid has to be over
      before you notice it. Anything slower, or with overshoot, reads as wobble. */
-  const snap = "260ms cubic-bezier(0.22, 1, 0.36, 1)";
+  const snap = "260ms var(--ease-out-strong-css)";
 
   return (
     <div
@@ -263,8 +263,8 @@ export function ThinkingTrack({
 export function ThinkingTrackEnds({ levels }: { levels: string[] }) {
   return (
     <div className="mt-1 flex justify-between px-1">
-      <span className="font-mono text-[9.5px] text-ink-3">{t(levels[0])}</span>
-      <span className={cn("font-mono text-[9.5px]", thinkingLevelClass(levels.at(-1) ?? ""))}>
+      <span className="font-mono text-ui-xs text-ink-3">{t(levels[0])}</span>
+      <span className={cn("font-mono text-ui-xs", thinkingLevelClass(levels.at(-1) ?? ""))}>
         {t(levels.at(-1) ?? "")}
       </span>
     </div>

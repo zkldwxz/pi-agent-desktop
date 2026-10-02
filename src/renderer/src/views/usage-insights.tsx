@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { promptTokens } from "@shared/cache-usage";
 import type { UsageBucket, UsageStats } from "@shared/types";
 import { t, tf } from "../lib/i18n";
+import { compactTokens, percent } from "../lib/format";
 import InsightCards, { type InsightPage } from "../components/beautiful/primitives/InsightCards";
 import RecordsTable, { type RecordRow, type Strength } from "../components/beautiful/primitives/RecordsTable";
 
@@ -29,7 +30,7 @@ function Sparkline({ values, tone = "var(--accent)" }: { values: number[]; tone?
       .join(" ");
   }, [values]);
 
-  if (!path) return <div className="h-8 text-[11px] text-ink-3">{t("Not enough data yet.")}</div>;
+  if (!path) return <div className="h-8 text-ui-sm text-ink-3">{t("Not enough data yet.")}</div>;
 
   return (
     <div className="w-full">
@@ -39,16 +40,6 @@ function Sparkline({ values, tone = "var(--accent)" }: { values: number[]; tone?
       </svg>
     </div>
   );
-}
-
-function compact(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1000) return `${(value / 1000).toFixed(0)}K`;
-  return String(Math.round(value));
-}
-
-function percent(value: number): string {
-  return `${(value * 100).toFixed(value >= 0.995 ? 0 : 1)}%`;
 }
 
 /** Daily series for one slice of the ledger. */
@@ -88,9 +79,9 @@ export function UsageInsights({ stats, buckets }: { stats: UsageStats; buckets: 
                 : "Across {count} sessions you have moved",
               { count: stats.sessionCount },
             )}{" "}
-            <strong className="font-medium text-ink">{compact(stats.totals.total)}</strong> {t("tokens")}.{" "}
+            <strong className="font-medium text-ink">{compactTokens(stats.totals.total)}</strong> {t("tokens")}.{" "}
             {t("The busiest day was")} <strong className="font-medium text-ink">{busiestDay?.date ?? "—"}</strong>{" "}
-            {t("at")} {compact(busiestDay?.tokens ?? 0)}.
+            {t("at")} {compactTokens(busiestDay?.tokens ?? 0)}.
           </>
         ),
         Card: () => <Sparkline values={tokenSeries} />,
@@ -101,8 +92,8 @@ export function UsageInsights({ stats, buckets }: { stats: UsageStats; buckets: 
         prose: (
           <>
             <strong className="font-medium text-ink">{percent(hitRate)}</strong>{" "}
-            {t("of prompt tokens came from cache")} ({compact(stats.cache.cacheRead)} {t("of")}{" "}
-            {compact(promptTokens(stats.cache))}).{" "}
+            {t("of prompt tokens came from cache")} ({compactTokens(stats.cache.cacheRead)} {t("of")}{" "}
+            {compactTokens(promptTokens(stats.cache))}).{" "}
             {worstCache && worstCache.cacheRate < hitRate
               ? tf("{name} is the weakest at {percent} — the usual cause is a changing prefix.", {
                   name: worstCache.model,
@@ -123,7 +114,7 @@ export function UsageInsights({ stats, buckets }: { stats: UsageStats; buckets: 
           <>
             <strong className="font-medium text-ink">{topModel.model}</strong> {t("does most of the work")} —{" "}
             {tf("{tokens} tokens over {count} calls on {provider}.", {
-              tokens: compact(topModel.total),
+              tokens: compactTokens(topModel.total),
               count: topModel.calls,
               provider: topModel.provider,
             })}
@@ -191,14 +182,14 @@ export function UsageRecords({ stats, buckets }: { stats: UsageStats; buckets: U
           tags: [provider, ...(info && info.cacheRate > 0.5 ? [t("cache-friendly")] : [])],
           last: entry.last ? new Date(entry.last).toLocaleDateString() : "—",
           strength: strengthFor(entry.tokens / total),
-          website: `${compact(entry.tokens)} tok · ${entry.calls} ${t("calls")}`,
+          website: `${compactTokens(entry.tokens)} tok · ${entry.calls} ${t("calls")}`,
         } satisfies RecordRow;
       })
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [stats, buckets]);
 
   if (!rows.length) {
-    return <div className="px-3 py-6 text-center text-[12px] text-ink-3">{t("No model usage in this slice.")}</div>;
+    return <div className="px-3 py-6 text-center text-ui-caption text-ink-3">{t("No model usage in this slice.")}</div>;
   }
 
   return <RecordsTable rows={rows} />;

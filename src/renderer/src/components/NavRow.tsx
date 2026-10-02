@@ -50,7 +50,7 @@ export function NavRow({
       onClick={onClick}
       title={title ?? label}
       className={cn(
-        "pressable flex h-8 w-full items-center gap-2 rounded-[7px] px-2 text-left",
+        "pressable flex h-8 w-full items-center gap-2 rounded-chip px-2 text-left",
         raised ? "glide-row" : "",
         raised
           ? active
@@ -72,7 +72,7 @@ export function NavRow({
       </span>
       <span
         className={cn(
-          "min-w-0 flex-1 truncate text-[13px]",
+          "min-w-0 flex-1 truncate text-ui-base",
           active && !raised ? "font-medium text-ink" : "",
           copyClassName,
         )}
@@ -80,7 +80,7 @@ export function NavRow({
         {label}
       </span>
       {hint ? (
-        <span className={cn("shrink-0 text-[10.5px] text-ink-3 tabular-nums", copyClassName)}>{hint}</span>
+        <span className={cn("shrink-0 text-ui-xs text-ink-3 tabular-nums", copyClassName)}>{hint}</span>
       ) : null}
       {trailing ? <span className="shrink-0 text-ink-3">{trailing}</span> : null}
     </button>

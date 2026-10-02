@@ -29,7 +29,7 @@ function Kbd({ chord, muted }: { chord: Chord | null; muted?: boolean }) {
   return (
     <span
       className={cn(
-        "inline-flex h-6 min-w-[68px] items-center justify-center rounded-[6px] border border-line bg-field px-2 font-mono text-[11px]",
+        "inline-flex h-6 min-w-[68px] items-center justify-center rounded-chip border border-line bg-field px-2 font-mono text-ui-sm",
         muted ? "text-ink-3" : "text-ink-2",
       )}
     >
@@ -79,8 +79,8 @@ export function ShortcutsSection() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-baseline justify-between gap-3 px-0.5">
-        <h2 className="text-[12.5px] font-medium text-ink">{t("Keyboard shortcuts")}</h2>
-        <span className="min-w-0 truncate text-[11px] text-ink-3">
+        <h2 className="text-ui-caption font-medium text-ink">{t("Keyboard shortcuts")}</h2>
+        <span className="min-w-0 truncate text-ui-sm text-ink-3">
           {t("Click a shortcut, then press the combination you want")}
         </span>
       </div>
@@ -123,7 +123,7 @@ export function ShortcutsSection() {
                     aria-label={t(spec.label)}
                     onClick={() => setRecording(isRecording ? null : spec.id)}
                     className={cn(
-                      "pressable inline-flex h-6 min-w-[68px] items-center justify-center rounded-[6px] border px-2 font-mono text-[11px] transition-colors duration-150",
+                      "pressable inline-flex h-6 min-w-[68px] items-center justify-center rounded-chip border px-2 font-mono text-ui-sm transition-colors duration-150",
                       isRecording
                         ? "border-accent bg-accent-tint text-accent"
                         : chord
@@ -140,7 +140,7 @@ export function ShortcutsSection() {
                     aria-label={t("Reset")}
                     title={tf("Default: {chord}", { chord: fallback })}
                     onClick={() => resetChord(spec.id)}
-                    className="pressable flex size-6 items-center justify-center rounded-[6px] text-ink-3 hover:bg-hover-2 hover:text-ink"
+                    className="pressable flex size-6 items-center justify-center rounded-chip text-ink-3 hover:bg-hover-2 hover:text-ink"
                   >
                     ⟲
                   </button>
@@ -151,7 +151,7 @@ export function ShortcutsSection() {
         </Section>
       ))}
 
-      <p className="px-1 text-[11px] leading-relaxed text-ink-3">{t("Esc to cancel, Backspace to clear")}</p>
+      <p className="px-1 text-ui-sm leading-relaxed text-ink-3">{t("Esc to cancel, Backspace to clear")}</p>
     </div>
   );
 }

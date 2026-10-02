@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { highlightCode } from "../../../lib/highlight";
+import { highlightCode, highlightLines, languageFromFilename } from "../../../lib/highlight";
 import { t } from "../../../lib/i18n";
 import { cn } from "../../../lib/cn";
 
@@ -55,42 +55,6 @@ const HATCH = "repeating-linear-gradient(45deg, var(--red) 0, var(--red) 1.5px, 
 const GUTTER = "grid-cols-[34px_minmax(0,1fr)]";
 const GUTTER_EDGE = "left-[34px]";
 
-/**
- * Split highlighted HTML into per-line strings.
- *
- * `highlight.js` emits one HTML string for the whole snippet, and its spans can
- * cross a newline (a block comment, a template literal). Each visual line is
- * its own `<div>`, so a line has to be re-opened inside whatever spans are still
- * active — the browser closes them at the div boundary for us, which is exactly
- * the behaviour a line-per-row listing wants.
- */
-function splitHighlightedLines(html: string): string[] {
-  const out: string[] = [];
-  const stack: string[] = [];
-
-  for (const line of html.split("\n")) {
-    const openedAtStart = stack.join("");
-    const tokens = line.match(/<span\b[^>]*>|<\/span>|[^<]+/g) ?? [];
-    let body = "";
-
-    for (const token of tokens) {
-      if (token === "</span>") {
-        stack.pop();
-        body += token;
-      } else if (token.startsWith("<span")) {
-        stack.push(token);
-        body += token;
-      } else {
-        body += token;
-      }
-    }
-
-    out.push(openedAtStart + body);
-  }
-
-  return out;
-}
-
 function FileIcon() {
   return (
     <svg aria-hidden width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-ink-3">
@@ -100,13 +64,6 @@ function FileIcon() {
 }
 
 const DEFAULT_LABELS: CodeBlockLabels = { copy: "Copy", copied: "Copied" };
-
-/** `snippet.ts` → `ts`. A diff is labelled with the hunk's first line
- *  (`SettingsView.tsx:361`), so a trailing line number is part of the name. */
-function languageFromFilename(filename: string): string {
-  const match = /\.([a-z0-9]+)(?::\d+(?:-\d+)?)?$/i.exec(filename.trim());
-  return match ? match[1].toLowerCase() : "";
-}
 
 export type CodeBlockProps = {
   /** Which view to render — "Code" (line-numbered listing) or "Diff". */
@@ -157,11 +114,7 @@ export default function CodeBlock({
   /* One highlight pass for the whole snippet, then split — highlighting line by
      line would break any token that spans a newline. `null` means "no grammar",
      and the raw text renders uncoloured. */
-  const codeLines = useMemo(() => {
-    if (isDiff) return null;
-    const html = highlightCode(raw, lang);
-    return html ? splitHighlightedLines(html) : null;
-  }, [isDiff, raw, lang]);
+  const codeLines = useMemo(() => (isDiff ? null : highlightLines(raw, lang)), [isDiff, raw, lang]);
 
   /* Each run of a diff row is highlighted on its own: a changed run carries a
      tint of its own, and a tint can only wrap a run, never part of a span. */
@@ -187,7 +140,7 @@ export default function CodeBlock({
   return (
     <div className="w-full overflow-hidden rounded-card bg-surface shadow-card">
       {/* header — file · (diff stat | copy) · view switch */}
-      <div className="flex h-11 items-center gap-2 border-b border-line px-4 text-[12.5px]">
+      <div className="flex h-11 items-center gap-2 border-b border-line px-4 text-ui-caption">
         <span className="inline-flex min-w-0 items-center gap-[7px]">
           <FileIcon />
           <span className="truncate font-mono leading-none text-ink">{filename}</span>
@@ -195,7 +148,7 @@ export default function CodeBlock({
 
         <span className="ml-auto inline-flex shrink-0 items-center gap-2">
           {isDiff ? (
-            <span className="inline-flex items-center gap-2 font-mono text-[12px] leading-none tabular-nums">
+            <span className="inline-flex items-center gap-2 font-mono text-ui-caption leading-none tabular-nums">
               <span className="text-green">+{added}</span>
               <span className="text-red">-{removed}</span>
             </span>
@@ -204,7 +157,7 @@ export default function CodeBlock({
               type="button"
               aria-label={t("Copy code")}
               onClick={copy}
-              className={`-mr-1 flex h-6 items-center gap-1 rounded-[6px] px-1.5 text-[12px]
+              className={`-mr-1 flex h-6 items-center gap-1 rounded-chip px-1.5 text-ui-caption
                 font-medium transition-colors duration-100 hover:bg-hover
                 ${copied ? "text-green" : "text-ink-3 hover:text-ink"}`}
             >
@@ -218,7 +171,7 @@ export default function CodeBlock({
           )}
 
           {switchable ? (
-            <span role="tablist" aria-label={t("View")} className="inline-flex items-center rounded-[7px] bg-field p-0.5">
+            <span role="tablist" aria-label={t("View")} className="inline-flex items-center rounded-chip bg-field p-0.5">
               {(["Code", "Diff"] as const).map((option) => {
                 const active = (option === "Diff") === isDiff;
                 return (
@@ -229,7 +182,7 @@ export default function CodeBlock({
                     aria-selected={active}
                     onClick={() => onVariantChange?.(option)}
                     className={cn(
-                      "rounded-[5px] px-2 py-[3px] text-[11.5px] font-medium transition-colors duration-100",
+                      "rounded-chip px-2 py-[3px] text-ui-sm font-medium transition-colors duration-100",
                       active ? "bg-surface text-ink shadow-hairline" : "text-ink-3 hover:text-ink-2",
                     )}
                   >
@@ -243,7 +196,7 @@ export default function CodeBlock({
       </div>
 
       {/* body — equal inset on top / left / right; lines wrap */}
-      <div className="hljs py-3 font-mono text-[12.5px] leading-[1.65]">
+      <div className="hljs py-3 font-mono text-ui-caption leading-[1.65]">
         {isDiff ? (
           <div className="relative">
             <span className={cn("pointer-events-none absolute inset-y-0 w-px bg-line", GUTTER_EDGE)} />
@@ -258,7 +211,7 @@ export default function CodeBlock({
                 return (
                   <div key={i} className={cn("grid items-start pt-2 pb-0.5 first:pt-0", GUTTER)}>
                     <span />
-                    <code className="min-w-0 truncate pr-3 pl-1 text-[11px] text-ink-3">
+                    <code className="min-w-0 truncate pr-3 pl-1 text-ui-sm text-ink-3">
                       {row.pieces.map((piece) => piece.text).join("")}
                     </code>
                   </div>
@@ -273,7 +226,7 @@ export default function CodeBlock({
                   {(add || del) && (
                     <span className="absolute inset-y-0 left-0 w-[3px]" style={{ background: add ? "var(--green)" : HATCH }} />
                   )}
-                  <span className={cn("select-none pr-2 text-right text-[11px] tabular-nums", add ? "text-green" : del ? "text-red" : "text-ink-3")}>
+                  <span className={cn("select-none pr-2 text-right text-ui-sm tabular-nums", add ? "text-green" : del ? "text-red" : "text-ink-3")}>
                     {num ?? ""}
                   </span>
                   <code className="pr-3 pl-1 break-words whitespace-pre-wrap">
@@ -283,7 +236,7 @@ export default function CodeBlock({
                       return (
                         <span
                           key={j}
-                          className={changed ? "rounded-[3px]" : undefined}
+                          className={changed ? "rounded-tiny" : undefined}
                           style={
                             changed
                               ? {
@@ -324,7 +277,7 @@ export default function CodeBlock({
                 >
                   <span
                     className={cn(
-                      "select-none pr-2 text-right text-[11px] tabular-nums",
+                      "select-none pr-2 text-right text-ui-sm tabular-nums",
                       inQuote ? "font-medium text-accent-ink" : "text-ink-3",
                     )}
                   >

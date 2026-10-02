@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, extname, join } from "node:path";
 import { app, shell } from "electron";
 import type { AppOpener } from "@shared/workspace";
@@ -21,9 +21,16 @@ import type { AppOpener } from "@shared/workspace";
  * Linux have no equivalent registry, so the list falls back to the default
  * application plus whatever editor binaries are on PATH. Every probe is
  * best-effort — a missing key is not an error.
+ *
+ * The file manager itself is a per-platform *picture* rather than a registered
+ * verb: Explorer's executable on Windows, Finder on macOS. `iconSource` answers
+ * with the application the platform's reveal-in-folder actually runs, which is
+ * the only way the menu gets a real mark for a row that has no command.
  */
 
 const REG_TIMEOUT_MS = 4000;
+/** the pixel size the toolbar button and the menu rows draw at (16px, at 2x) */
+const ICON_WANT_PX = 32;
 /** discovery walks the registry once per extension, then answers from memory */
 const cache = new Map<string, { at: number; openers: AppOpener[] }>();
 const CACHE_MS = 60_000;
@@ -116,6 +123,89 @@ function expandEnv(value: string): string {
 /** Explorer's own executable — the handler behind every folder `open` verb. */
 function explorerExe(): string {
   return join(process.env.SystemRoot ?? "C:\\Windows", "Explorer.exe");
+}
+
+/**
+ * Finder, as a file to read a picture out of.
+ *
+ * `shell.showItemInFolder` is answered by Finder on macOS, and Finder is the
+ * application whose mark a Mac user reads as "open the file manager" — the blue
+ * smiley is Explorer's counterpart, not a generic glyph. It has no
+ * bundle-independent `/Applications` entry (it lives in CoreServices), so the
+ * path is spelled out.
+ *
+ * On macOS `app.getFileIcon` resolves by *type*, not by bundle: handed a `.app`
+ * it answers with the generic application glyph (verified — a pale placeholder,
+ * not Finder's face). The bundle's own `.icns` is the only picture of it, so
+ * that is what is read, and the read is the same best-effort probe as every
+ * other one here.
+ */
+function finderIcon(): string | undefined {
+  const icns = "/System/Library/CoreServices/Finder.app/Contents/Resources/Finder.icns";
+  return existsSync(icns) ? icns : undefined;
+}
+
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/**
+ * One picture out of a macOS `.icns`, as a data URL.
+ *
+ * An `.icns` is a container of PNGs at several sizes, so this walks it and takes
+ * the entry closest to `want` (preferring the larger one on a tie). Only
+ * PNG-backed entries are considered: macOS also stores some legacy sizes as raw
+ * bitmaps, and their pixel format is a decoder this file does not need — the
+ * sizes around them are enough for a 16px button.
+ *
+ * Falls back to the biggest PNG when the size table is odd, and to `undefined`
+ * when the file holds no PNG at all, so a machine Apple ships differently still
+ * gets a working menu rather than a thrown error.
+ */
+function icnsDataUrl(path: string, want: number): string | undefined {
+  let data: Buffer;
+  try {
+    data = readFileSync(path);
+  } catch {
+    return undefined;
+  }
+  if (data.length < 8 || data.toString("latin1", 0, 4) !== "icns") return undefined;
+
+  let best: { score: number; payload: Buffer } | undefined;
+  let biggest: Buffer | undefined;
+  for (let offset = 8; offset + 8 <= data.length; ) {
+    const type = data.toString("latin1", offset, offset + 4);
+    const size = data.readUInt32BE(offset + 4);
+    if (size < 8 || offset + size > data.length) break;
+    const payload = data.subarray(offset + 8, offset + size);
+    if (payload.subarray(0, 8).equals(PNG_MAGIC)) {
+      /* the type carries the size for the PNG kinds: ic07=128, ic08=256,
+       * ic09=512, ic10=1024, ic11=32, ic12=64, ic13=256@2x, ic14=512@2x */
+      const declared: Record<string, number> = {
+        ic07: 128,
+        ic08: 256,
+        ic09: 512,
+        ic10: 1024,
+        ic11: 32,
+        ic12: 64,
+        ic13: 256,
+        ic14: 512,
+      };
+      const byType = declared[type];
+      const width = byType ?? pngWidth(payload) ?? 0;
+      const score = width ? Math.abs(width - want) * 1000 - width : Number.MAX_SAFE_INTEGER;
+      if (!best || score < best.score) best = { score, payload };
+      if (!biggest || payload.length > biggest.length) biggest = payload;
+    }
+    offset += size;
+  }
+  const chosen = best?.payload ?? biggest;
+  if (!chosen) return undefined;
+  return `data:image/png;base64,${chosen.toString("base64")}`;
+}
+
+/** A PNG's width from its own IHDR, or nothing when the header is not one. */
+function pngWidth(png: Buffer): number | undefined {
+  if (png.length < 24 || png.toString("latin1", 12, 16) !== "IHDR") return undefined;
+  return png.readUInt32BE(16);
 }
 
 /** An icon source is only useful when it is a real file we can ask for an icon. */
@@ -407,8 +497,12 @@ async function iconForOpeners(openers: AppOpener[]): Promise<void> {
         return;
       }
       try {
-        const image = await app.getFileIcon(source, { size: "normal" });
-        const dataUrl = image.toDataURL();
+        /* a `.icns` is a container, not an image: `getFileIcon` cannot read one,
+         * so the picture is unpacked here instead */
+        const dataUrl = source.endsWith(".icns")
+          ? icnsDataUrl(source, ICON_WANT_PX)
+          : (await app.getFileIcon(source, { size: "normal" })).toDataURL();
+        if (!dataUrl) return;
         iconCache.set(opener.id, dataUrl);
         opener.icon = dataUrl;
       } catch (error) {
@@ -422,12 +516,19 @@ async function iconForOpeners(openers: AppOpener[]): Promise<void> {
 /**
  * Where an opener's icon comes from, or nothing when it has none.
  *
- * The file manager is a shell verb rather than an executable, so the only
- * picture of it is Explorer's own — which is exactly the folder a user expects
- * to see next to it.
+ * The file manager is a platform handler rather than an executable, so its only
+ * picture is the one the platform's own file manager shows: Explorer's own blue
+ * front on Windows, Finder's on macOS. Linux has no single answer — the reveal
+ * verb belongs to whichever registered handler the desktop environment picked —
+ * so its row keeps the neutral glyph rather than wearing a mark that may not be
+ * the application that opens.
  */
 function iconSource(opener: AppOpener): string | undefined {
-  if (opener.kind === "reveal") return process.platform === "win32" ? explorerExe() : undefined;
+  if (opener.kind === "reveal") {
+    if (process.platform === "win32") return explorerExe();
+    if (process.platform === "darwin") return finderIcon();
+    return undefined;
+  }
   if (opener.kind !== "app") return undefined;
   const preferred = iconSources.get(opener.id);
   if (preferred && existsSync(preferred)) return preferred;

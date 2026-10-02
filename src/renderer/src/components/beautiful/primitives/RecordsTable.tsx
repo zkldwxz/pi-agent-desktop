@@ -33,7 +33,7 @@ const STRENGTH: Record<Strength, { label: string; color: string; rank: number }>
 
 // A single mid-lightness base hue per tag. Background, text, and border are
 // derived from this via color-mix() against the theme tokens in .records-tag,
-// so the chips adapt to light and dark automatically (same pattern as FilterTable).
+// so the chips adapt to light and dark automatically.
 type TagColor = { base: string };
 
 const TAG_PALETTE: Record<string, TagColor> = {
@@ -290,7 +290,7 @@ function MiniSwitch({ on, onToggle, label }: { on: boolean; onToggle: () => void
     >
       <span
         className="absolute top-0.5 left-0.5 size-3.5 rounded-full bg-white shadow-btn transition-transform duration-150"
-        style={{ transform: on ? "translateX(12px)" : "translateX(0)", transitionTimingFunction: "cubic-bezier(0.23,1,0.32,1)" }}
+        style={{ transform: on ? "translateX(12px)" : "translateX(0)", transitionTimingFunction: "var(--ease-out-strong-css)" }}
       />
     </button>
   );
@@ -341,7 +341,7 @@ function HeaderCell({ label, icon, sortKey, sort, onSort, onResizeStart, resizin
 function ConfigRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="relative flex h-8 items-center justify-between">
-      <span className="text-[13px] text-ink-3">{label}</span>
+      <span className="text-ui-base text-ink-3">{label}</span>
       {children}
     </div>
   );
@@ -362,10 +362,10 @@ function ConfigPicker({
     <div
       role="menu"
       aria-label={label}
-      className="absolute left-full top-0 z-30 ml-5 w-[210px] rounded-[12px] bg-surface p-1.5 shadow-overlay"
-      style={{ animation: "pop-in 140ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "top left" }}
+      className="absolute left-full top-0 z-30 ml-5 w-[210px] rounded-card bg-surface p-1.5 shadow-overlay"
+      style={{ animation: "pop-in 140ms var(--ease-out-strong-css) both", transformOrigin: "top left" }}
     >
-      <div className="px-2 pb-1 pt-0.5 text-[11.5px] font-medium text-ink-3">{label}</div>
+      <div className="px-2 pb-1 pt-0.5 text-ui-sm font-medium text-ink-3">{label}</div>
       <GlideMenu className="flex flex-col gap-px">
         {options.map((option) => (
           <button
@@ -375,7 +375,7 @@ function ConfigPicker({
             role="menuitemradio"
             aria-checked={selected === option.label}
             onClick={() => onSelect(option.label)}
-            className="relative z-10 flex h-8 w-full items-center gap-1.5 rounded-[8px] px-1.5 text-left text-[13px] font-medium text-ink"
+            className="relative z-10 flex h-8 w-full items-center gap-1.5 rounded-control px-1.5 text-left text-ui-base font-medium text-ink"
           >
             <span className="flex size-4 shrink-0 items-center justify-center text-ink-2">{option.icon}</span>
             <span className="min-w-0 flex-1 truncate">{option.label}</span>
@@ -402,10 +402,10 @@ function InputPicker({
     <div
       role="menu"
       aria-label="Calculation inputs"
-      className="absolute left-full top-0 z-30 ml-5 w-[220px] rounded-[12px] bg-surface p-1.5 shadow-overlay"
-      style={{ animation: "pop-in 140ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "top left" }}
+      className="absolute left-full top-0 z-30 ml-5 w-[220px] rounded-card bg-surface p-1.5 shadow-overlay"
+      style={{ animation: "pop-in 140ms var(--ease-out-strong-css) both", transformOrigin: "top left" }}
     >
-      <div className="px-2 pb-1 pt-0.5 text-[11.5px] font-medium text-ink-3">Use values from</div>
+      <div className="px-2 pb-1 pt-0.5 text-ui-sm font-medium text-ink-3">Use values from</div>
       <GlideMenu className="flex flex-col gap-px">
         {options.map((option) => {
           const checked = selected.includes(option);
@@ -417,9 +417,9 @@ function InputPicker({
               role="menuitemcheckbox"
               aria-checked={checked}
               onClick={() => onToggle(option)}
-              className="relative z-10 flex h-8 w-full items-center gap-1.5 rounded-[8px] px-1.5 text-left text-[13px] font-medium text-ink"
+              className="relative z-10 flex h-8 w-full items-center gap-1.5 rounded-control px-1.5 text-left text-ui-base font-medium text-ink"
             >
-              <span className={`flex size-4 shrink-0 items-center justify-center rounded-[5px] border ${checked ? "border-accent bg-accent text-white" : "border-line-strong text-transparent"}`}>
+              <span className={`flex size-4 shrink-0 items-center justify-center rounded-chip border ${checked ? "border-accent bg-accent text-white" : "border-line-strong text-transparent"}`}>
                 <Icon size={11} strokeWidth={2.4}><path d="m5 12 4 4L19 6" /></Icon>
               </span>
               <span className="min-w-0 flex-1 truncate">{option}</span>
@@ -677,7 +677,7 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
                       const rect = (event.currentTarget as Element).getBoundingClientRect();
                       setAddOpen((current) => (current ? null : { x: Math.min(rect.left, window.innerWidth - 276), y: rect.bottom + 6 }));
                     }}
-                    className="flex size-7 items-center justify-center rounded-[7px] text-ink-2 transition-colors duration-100 hover:bg-hover hover:text-ink"
+                    className="flex size-7 items-center justify-center rounded-chip text-ink-2 transition-colors duration-100 hover:bg-hover hover:text-ink"
                   >
                     <Icon size={15} strokeWidth={2}><path d="M12 5v14M5 12h14" /></Icon>
                   </button>
@@ -695,7 +695,7 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
                         y: rect.bottom + 6,
                       });
                     }}
-                    className="flex size-7 items-center justify-center rounded-[7px] text-ink-3 transition-colors duration-100 hover:bg-hover hover:text-ink"
+                    className="flex size-7 items-center justify-center rounded-chip text-ink-3 transition-colors duration-100 hover:bg-hover hover:text-ink"
                   >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></svg>
                   </button>
@@ -747,10 +747,10 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
       {prop && meta && (
         <div
           data-recpop
-          className="fixed z-50 w-[320px] rounded-[14px] bg-surface px-3 pt-3 pb-1.5 shadow-overlay"
-          style={{ top: prop.y, left: prop.x, animation: "pop-in 160ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "top left" }}
+          className="fixed z-50 w-[320px] rounded-window bg-surface px-3 pt-3 pb-1.5 shadow-overlay"
+          style={{ top: prop.y, left: prop.x, animation: "pop-in 160ms var(--ease-out-strong-css) both", transformOrigin: "top left" }}
         >
-          <div className="pb-2 text-[13.5px] font-medium text-ink">{prop.col}</div>
+          <div className="pb-2 text-ui-base font-medium text-ink">{prop.col}</div>
 
           <ConfigRow label="Type">
             <button
@@ -758,7 +758,7 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
               aria-haspopup="menu"
               aria-expanded={configMenu === "type"}
               onClick={() => setConfigMenu((current) => current === "type" ? null : "type")}
-              className="flex items-center gap-1.5 rounded-[6px] px-1.5 py-1 text-[13px] font-medium text-ink transition-colors duration-100 hover:bg-hover"
+              className="flex items-center gap-1.5 rounded-chip px-1.5 py-1 text-ui-base font-medium text-ink transition-colors duration-100 hover:bg-hover"
             >
               <span className="text-ink-2"><Icon size={14}>{TYPE_GLYPHS[meta.type] ?? TYPE_GLYPHS.Text}</Icon></span>
               {meta.type}
@@ -782,7 +782,7 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
               aria-haspopup="menu"
               aria-expanded={configMenu === "tool"}
               onClick={() => setConfigMenu((current) => current === "tool" ? null : "tool")}
-              className="flex items-center gap-1.5 rounded-[6px] px-1.5 py-1 text-[13px] font-medium text-ink transition-colors duration-100 hover:bg-hover"
+              className="flex items-center gap-1.5 rounded-chip px-1.5 py-1 text-ui-base font-medium text-ink transition-colors duration-100 hover:bg-hover"
             >
               <span className={meta.toolKind === "model" ? "text-accent" : "text-ink-2"}>
                 {meta.toolKind === "model"
@@ -815,13 +815,13 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
                 aria-label="About grounding"
                 aria-expanded={groundingHelpOpen}
                 onClick={() => setGroundingHelpOpen((open) => !open)}
-                className="flex size-6 items-center justify-center rounded-[6px] text-ink-3 transition-colors duration-100 hover:bg-hover hover:text-ink"
+                className="flex size-6 items-center justify-center rounded-chip text-ink-3 transition-colors duration-100 hover:bg-hover hover:text-ink"
               >
                 <Icon size={13}><g><circle cx="12" cy="12" r="9" /><path d="M12 8h.01M11 12h1v4h1" /></g></Icon>
               </button>
             </span>
             {groundingHelpOpen && (
-              <div className="absolute right-0 top-[30px] z-30 w-[230px] rounded-[10px] px-3 py-2.5 text-[12px] leading-relaxed shadow-overlay" style={{ color: "var(--tooltip-fg)", background: "var(--tooltip-bg)" }} role="status">
+              <div className="absolute right-0 top-[30px] z-30 w-[230px] rounded-card px-3 py-2.5 text-ui-caption leading-relaxed shadow-overlay" style={{ color: "var(--tooltip-fg)", background: "var(--tooltip-bg)" }} role="status">
                 Grounding lets the model verify generated values against connected sources.
               </div>
             )}
@@ -832,14 +832,14 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
               aria-haspopup="menu"
               aria-expanded={configMenu === "inputs"}
               onClick={() => setConfigMenu((current) => current === "inputs" ? null : "inputs")}
-              className="flex max-w-[220px] items-center gap-1.5 rounded-[6px] px-1.5 py-1 text-[13px] text-ink-2 transition-colors duration-100 hover:bg-hover hover:text-ink"
+              className="flex max-w-[220px] items-center gap-1.5 rounded-chip px-1.5 py-1 text-ui-base text-ink-2 transition-colors duration-100 hover:bg-hover hover:text-ink"
             >
               {selectedInputs.length ? (
                 <span className="flex min-w-0 items-center gap-1">
                   {selectedInputs.slice(0, 2).map((input) => (
-                    <span key={input} className="max-w-[92px] truncate rounded-[5px] bg-accent-tint px-1.5 py-0.5 text-[12px] font-medium text-accent-ink">{input}</span>
+                    <span key={input} className="max-w-[92px] truncate rounded-chip bg-accent-tint px-1.5 py-0.5 text-ui-caption font-medium text-accent-ink">{input}</span>
                   ))}
-                  {selectedInputs.length > 2 && <span className="text-[11px] font-medium text-ink-3">+{selectedInputs.length - 2}</span>}
+                  {selectedInputs.length > 2 && <span className="text-ui-sm font-medium text-ink-3">+{selectedInputs.length - 2}</span>}
                 </span>
               ) : (
                 <span>Select inputs</span>
@@ -869,12 +869,12 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
             aria-label={`${prop.col} calculation prompt`}
             aria-multiline="true"
             spellCheck
-            className="mt-2 min-h-[88px] cursor-text rounded-[10px] bg-inset p-3 text-[13px] leading-relaxed shadow-hairline outline-none transition-[box-shadow] duration-150 focus:shadow-[0_0_0_2px_var(--accent)]"
+            className="mt-2 min-h-[88px] cursor-text rounded-card bg-inset p-3 text-ui-base leading-relaxed shadow-hairline outline-none transition-[box-shadow] duration-150 focus:shadow-[0_0_0_2px_var(--accent)]"
           >
             {meta.prompt ? (
               <span className="text-ink">
                 {meta.prompt.before}
-                {meta.prompt.chip && <span contentEditable={false} className="rounded-[5px] bg-accent-tint px-1.5 py-0.5 text-[12px] font-medium text-accent-ink">{meta.prompt.chip}</span>}
+                {meta.prompt.chip && <span contentEditable={false} className="rounded-chip bg-accent-tint px-1.5 py-0.5 text-ui-caption font-medium text-accent-ink">{meta.prompt.chip}</span>}
                 {meta.prompt.after}
               </span>
             ) : (
@@ -889,13 +889,13 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
               setCalc({ col: prop.col, resolved: 0 });
               setProp(null);
             }}
-            className="mt-2.5 flex h-9 w-full items-center justify-center gap-2 rounded-[9px] text-[12.5px] font-medium text-ink shadow-btn transition-[background-color,transform] duration-150 hover:bg-hover active:scale-[0.98] disabled:opacity-60"
+            className="mt-2.5 flex h-9 w-full items-center justify-center gap-2 rounded-control text-ui-caption font-medium text-ink shadow-btn transition-[background-color,transform] duration-150 hover:bg-hover active:scale-[0.98] disabled:opacity-60"
           >
             <Icon size={14} strokeWidth={1.9}><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" /></Icon>
             Go calculate
           </button>
 
-          <GlideMenu className="mt-3 flex flex-col gap-0.5 border-t border-line pt-2" highlightClassName="-inset-x-1.5 rounded-[8px] bg-hover">
+          <GlideMenu className="mt-3 flex flex-col gap-0.5 border-t border-line pt-2" highlightClassName="-inset-x-1.5 rounded-control bg-hover">
             <button
               data-menu-row
               type="button"
@@ -905,7 +905,7 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
                 next.has(prop.col) ? next.delete(prop.col) : next.add(prop.col);
                 return next;
               })}
-              className="relative z-10 -mx-1.5 flex h-8 items-center gap-2.5 rounded-[8px] px-1.5 text-left text-[13px] leading-none text-ink transition-transform duration-150 active:scale-[0.96]"
+              className="relative z-10 -mx-1.5 flex h-8 items-center gap-2.5 rounded-control px-1.5 text-left text-ui-base leading-none text-ink transition-transform duration-150 active:scale-[0.96]"
             >
               <span className={pinnedColumns.has(prop.col) ? "text-accent" : "text-ink-2"}><Icon size={15}><path d="M12 17v5M8 3h8l-1 7 3 3H6l3-3-1-7z" /></Icon></span>
               {pinnedColumns.has(prop.col) ? "Unpin" : "Pin"}
@@ -915,7 +915,7 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
               type="button"
               aria-expanded={moreSettingsOpen}
               onClick={() => setMoreSettingsOpen((open) => !open)}
-              className="relative z-10 -mx-1.5 flex h-8 items-center gap-2.5 rounded-[8px] px-1.5 text-left text-[13px] leading-none text-ink transition-transform duration-150 active:scale-[0.96]"
+              className="relative z-10 -mx-1.5 flex h-8 items-center gap-2.5 rounded-control px-1.5 text-left text-ui-base leading-none text-ink transition-transform duration-150 active:scale-[0.96]"
             >
               <span className={moreSettingsOpen ? "text-ink" : "text-ink-2"}><Icon size={15}><g><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" /></g></Icon></span>
               <span className="flex-1">More settings</span>
@@ -930,7 +930,7 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
                   setAiDone(false);
                   setProp(null);
                 }}
-                className="relative z-10 -mx-1.5 flex h-8 items-center gap-2.5 rounded-[8px] px-1.5 text-left text-[13px] leading-none text-ink transition-transform duration-150 active:scale-[0.96]"
+                className="relative z-10 -mx-1.5 flex h-8 items-center gap-2.5 rounded-control px-1.5 text-left text-ui-base leading-none text-ink transition-transform duration-150 active:scale-[0.96]"
               >
                 <span className="text-ink-2"><Icon size={15}><g><path d="M10.6 5.1A9.8 9.8 0 0 1 12 5c7 0 10 7 10 7a16.3 16.3 0 0 1-2.1 3M6.6 6.6A16 16 0 0 0 2 12s3 7 10 7a9.7 9.7 0 0 0 5.4-1.6M3 3l18 18" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /></g></Icon></span>
                 Hide from view
@@ -939,8 +939,8 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
           </GlideMenu>
 
           {moreSettingsOpen && (
-            <div className="mt-2 border-t border-line pt-2" style={{ animation: "fade-up 160ms cubic-bezier(0.23,1,0.32,1) both" }}>
-              <div className="pb-1 text-[11.5px] font-medium text-ink-3">Behavior</div>
+            <div className="mt-2 border-t border-line pt-2" style={{ animation: "fade-up 160ms var(--ease-out-strong-css) both" }}>
+              <div className="pb-1 text-ui-sm font-medium text-ink-3">Behavior</div>
               <ConfigRow label="Required value">
                 <MiniSwitch label="Required value" on={advancedSettings.required} onToggle={() => setAdvancedSettings((current) => ({ ...current, required: !current.required }))} />
               </ConfigRow>
@@ -959,10 +959,10 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
       {addOpen && (
         <div
           data-recpop
-          className="fixed z-50 w-[260px] rounded-[14px] bg-surface p-1.5 shadow-overlay"
-          style={{ top: addOpen.y, left: addOpen.x, animation: "pop-in 160ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "top left" }}
+          className="fixed z-50 w-[260px] rounded-window bg-surface p-1.5 shadow-overlay"
+          style={{ top: addOpen.y, left: addOpen.x, animation: "pop-in 160ms var(--ease-out-strong-css) both", transformOrigin: "top left" }}
         >
-          <div className="px-2 pb-1 pt-1 text-[12px] font-medium text-ink-3">New property</div>
+          <div className="px-2 pb-1 pt-1 text-ui-caption font-medium text-ink-3">New property</div>
           <GlideMenu className="flex flex-col gap-px">
             {NEW_PROPERTY_TYPES.map((type) => (
               <button
@@ -975,7 +975,7 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
                   setAiAdded(true);
                   setPendingOpenAi(true);
                 }}
-                className="relative z-10 flex h-9 w-full items-center gap-2.5 rounded-[8px] px-2 text-left text-[13px] text-ink"
+                className="relative z-10 flex h-9 w-full items-center gap-2.5 rounded-control px-2 text-left text-ui-base text-ink"
               >
                 <span className="text-ink-2"><Icon size={15}>{TYPE_GLYPHS[type]}</Icon></span>
                 {type}
@@ -989,10 +989,10 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
       {tableMenuOpen && (
         <div
           data-recpop
-          className="fixed z-50 w-[220px] rounded-[14px] bg-surface p-1.5 shadow-overlay"
-          style={{ top: tableMenuOpen.y, left: tableMenuOpen.x, animation: "pop-in 160ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "top right" }}
+          className="fixed z-50 w-[220px] rounded-window bg-surface p-1.5 shadow-overlay"
+          style={{ top: tableMenuOpen.y, left: tableMenuOpen.x, animation: "pop-in 160ms var(--ease-out-strong-css) both", transformOrigin: "top right" }}
         >
-          <div className="px-2 pb-1 pt-1 text-[12px] font-medium text-ink-3">Table options</div>
+          <div className="px-2 pb-1 pt-1 text-ui-caption font-medium text-ink-3">Table options</div>
           <GlideMenu className="flex flex-col gap-px">
           <button
             data-menu-row
@@ -1002,7 +1002,7 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
               setTableMenuOpen(null);
               setAddOpen({ x: Math.min(position.x, window.innerWidth - 276), y: position.y });
             }}
-            className="relative z-10 flex h-9 w-full items-center gap-2.5 rounded-[8px] px-2 text-left text-[13px] text-ink"
+            className="relative z-10 flex h-9 w-full items-center gap-2.5 rounded-control px-2 text-left text-ui-base text-ink"
           >
             <span className="text-ink-2"><Icon size={15} strokeWidth={2}><path d="M12 5v14M5 12h14" /></Icon></span>
             Add property
@@ -1014,7 +1014,7 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
               setColumnWidths({ company: 220, categories: 220, last: 155, strength: 180, links: 160, ai: 200 });
               setTableMenuOpen(null);
             }}
-            className="relative z-10 flex h-9 w-full items-center gap-2.5 rounded-[8px] px-2 text-left text-[13px] text-ink"
+            className="relative z-10 flex h-9 w-full items-center gap-2.5 rounded-control px-2 text-left text-ui-base text-ink"
           >
             <span className="text-ink-2"><Icon size={15}><path d="M4 8h16M7 4 3 8l4 4M17 4l4 4-4 4M4 16h16" /></Icon></span>
             Compact columns
@@ -1026,7 +1026,7 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
               setColumnWidths({ ...(initialColumnWidthsRef.current ?? DEFAULT_COLUMN_WIDTHS) });
               setTableMenuOpen(null);
             }}
-            className="relative z-10 flex h-9 w-full items-center gap-2.5 rounded-[8px] px-2 text-left text-[13px] text-ink"
+            className="relative z-10 flex h-9 w-full items-center gap-2.5 rounded-control px-2 text-left text-ui-base text-ink"
           >
             <span className="text-ink-2"><Icon size={15}><path d="M3 12a9 9 0 1 0 3-6.7M3 4v6h6" /></Icon></span>
             Reset column widths
@@ -1039,7 +1039,7 @@ export default function RecordsTable({ rows = INITIAL_ROWS, fill = false }: { ro
               setSelected(new Set());
               setTableMenuOpen(null);
             }}
-            className="relative z-10 flex h-9 w-full items-center gap-2.5 rounded-[8px] px-2 text-left text-[13px] text-ink"
+            className="relative z-10 flex h-9 w-full items-center gap-2.5 rounded-control px-2 text-left text-ui-base text-ink"
           >
             <span className="text-ink-2"><Icon size={15}><path d="M5 5l14 14M19 5 5 19" /></Icon></span>
             Clear selection

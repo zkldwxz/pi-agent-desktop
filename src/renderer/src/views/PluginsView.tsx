@@ -40,7 +40,7 @@ function Toggle({ on, onClick, disabled, label }: { on: boolean; onClick: () => 
         className="absolute left-[2px] top-[2px] size-[14px] rounded-full bg-white shadow"
         style={{
           transform: on ? "translateX(14px)" : "translateX(0)",
-          transition: "transform 240ms cubic-bezier(0.23,1,0.32,1)",
+          transition: "transform 240ms var(--ease-out-strong-css)",
         }}
       />
     </button>
@@ -108,26 +108,26 @@ export function PluginsView({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t("Filter by name, description or path")}
-              className="min-w-0 flex-1 bg-transparent text-[12px] text-ink outline-none placeholder:text-ink-3"
+              className="min-w-0 flex-1 bg-transparent text-ui-caption text-ink outline-none placeholder:text-ink-4"
             />
           </div>
         </div>
 
         {!loading && errored.length ? (
-          <div className="flex flex-wrap items-center gap-2 rounded-card bg-orange-tint px-4 py-2.5 text-[12px] text-orange">
+          <div className="flex flex-wrap items-center gap-2 rounded-card bg-orange-tint px-4 py-2.5 text-ui-caption text-orange">
             <span>
               {tf(errored.length === 1 ? "{count} entry could not be loaded" : "{count} entries could not be loaded", {
                 count: errored.length,
               })}
             </span>
-            <span className="font-mono text-[10.5px]">{errored.map((plugin) => plugin.name).join(", ")}</span>
+            <span className="font-mono text-ui-xs">{errored.map((plugin) => plugin.name).join(", ")}</span>
           </div>
         ) : null}
 
         {loading && !plugins.length ? (
           <div className="flex flex-col gap-3">
             {Array.from({ length: 4 }).map((_, index) => (
-              <Skeleton key={index} className="h-[78px]" index={index} />
+              <Skeleton key={index} className="h-[78px]" />
             ))}
           </div>
         ) : filtered.length === 0 ? (
@@ -143,7 +143,7 @@ export function PluginsView({
           groups.map(([groupKind, items], groupIndex) => (
             <div key={groupKind} className="flex flex-col gap-3">
               <div
-                className="flex items-center gap-2 pt-1 text-[12px] text-ink-3"
+                className="flex items-center gap-2 pt-1 text-ui-caption text-ink-3"
                 style={{ animation: "fade-in 240ms ease-out both" }}
               >
                 <span className="font-medium tracking-[0.5px] text-ink-2">{t(KIND_LABEL[groupKind]).toUpperCase()}</span>
@@ -168,20 +168,20 @@ export function PluginsView({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-[13px] font-medium text-ink">{plugin.name}</span>
-                      <span className="inline-flex h-5 items-center rounded-chip bg-field px-1.5 font-mono text-[10px] text-ink-3">
+                      <span className="truncate text-ui-base font-medium text-ink">{plugin.name}</span>
+                      <span className="inline-flex h-5 items-center rounded-chip bg-field px-1.5 font-mono text-ui-xs text-ink-3">
                         {plugin.scope}
                       </span>
                       {plugin.error ? (
-                        <span className="inline-flex h-5 items-center rounded-chip bg-red-tint px-1.5 text-[10.5px] text-red">
+                        <span className="inline-flex h-5 items-center rounded-chip bg-red-tint px-1.5 text-ui-xs text-red">
                           {plugin.error}
                         </span>
                       ) : null}
                     </div>
-                    <div className="mt-1 truncate text-[12px] text-ink-3">{plugin.description ?? plugin.path}</div>
-                    <div className="mt-1 truncate font-mono text-[10.5px] text-ink-3">{plugin.path}</div>
+                    <div className="mt-1 truncate text-ui-caption text-ink-3">{plugin.description ?? plugin.path}</div>
+                    <div className="mt-1 truncate font-mono text-ui-xs text-ink-3">{plugin.path}</div>
                   </div>
-                  <div className="shrink-0 text-right font-mono text-[10.5px] text-ink-3 tabular-nums">
+                  <div className="shrink-0 text-right font-mono text-ui-xs text-ink-3 tabular-nums">
                     {formatBytes(plugin.sizeBytes)}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
@@ -202,7 +202,7 @@ export function PluginsView({
                     {confirming === plugin.id ? (
                       <div
                         className="flex items-center gap-1.5"
-                        style={{ animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "right center" }}
+                        style={{ animation: "pop-in 180ms var(--ease-out-strong-css) both", transformOrigin: "right center" }}
                       >
                         <button
                           type="button"
@@ -210,14 +210,14 @@ export function PluginsView({
                             onDelete(plugin);
                             setConfirming(null);
                           }}
-                          className="pressable inline-flex h-7 items-center rounded-chip bg-red px-2.5 text-[11.5px] text-white"
+                          className="pressable inline-flex h-7 items-center rounded-chip bg-red px-2.5 text-ui-sm text-white"
                         >
                           {t("Move to trash")}
                         </button>
                         <button
                           type="button"
                           onClick={() => setConfirming(null)}
-                          className="pressable inline-flex h-7 items-center rounded-chip bg-field px-2.5 text-[11.5px] text-ink-2 hover:bg-hover-2"
+                          className="pressable inline-flex h-7 items-center rounded-chip bg-field px-2.5 text-ui-sm text-ink-2 hover:bg-hover-2"
                         >
                           {t("Cancel")}
                         </button>
@@ -243,7 +243,7 @@ export function PluginsView({
           ))
         )}
 
-        <div className="pt-1 text-[11.5px] leading-relaxed text-ink-3">
+        <div className="pt-1 text-ui-sm leading-relaxed text-ink-3">
           {t("Disabling moves the file to")} <span className="font-mono">extensions.disabled/</span>{" "}
           {t("next to its folder, so the Pi CLI sees the same change. Deleting moves it to")}{" "}
           <span className="font-mono">~/.pi/agent/trash/</span>.

@@ -1,96 +1,166 @@
-import type { HTMLAttributes } from "react";
+import type { CSSProperties, HTMLAttributes } from "react";
+import {
+  Archive,
+  ArrowLeft,
+  ArrowUp,
+  AtSign,
+  Brain,
+  ChartBar,
+  Check,
+  CheckCircle,
+  ChevronDown,
+  ChevronRight,
+  CircleAlert,
+  CircleSlash,
+  CircleStop,
+  Copy,
+  Database,
+  Ellipsis,
+  Eye,
+  FileCode,
+  FilePen,
+  Flame,
+  Folder,
+  FolderOpen,
+  Gauge,
+  GitBranch,
+  Globe,
+  History,
+  House,
+  Keyboard,
+  Layers,
+  List,
+  ListChecks,
+  LoaderCircle,
+  LogOut,
+  MessageSquare,
+  MessageSquarePlus,
+  Mic,
+  Minus,
+  Moon,
+  PanelLeft,
+  PanelRight,
+  Paperclip,
+  Pencil,
+  Plus,
+  Puzzle,
+  RefreshCw,
+  Search,
+  Settings,
+  Sparkles,
+  Square,
+  SquareStop,
+  Sun,
+  Terminal,
+  Trash2,
+  TriangleAlert,
+  Users,
+  UserPlus,
+  Wrench,
+  X,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 
 /**
- * App icons — VS Code codicons (the same icon set Cursor ships, designed
- * specifically for IDE chrome), rendered as font glyphs so every size stays
- * crisp and `color` inherits from the parent like the old SVG set did.
+ * App icons — lucide (the same set ZCode renders), as stroked SVGs.
  *
  * The component names and the `size` prop are kept from the previous icon
- * module, so every call site stays untouched: `<XIcon size={13} />`.
- * `strokeWidth` is accepted and ignored — font glyphs have no stroke.
+ * module, so every call site stays untouched: `<XIcon size={13} />`. Stroke
+ * width is honoured now that the icons actually have one.
+ *
+ * The `size` default of 14 matches the UI's base text; ZCode's usages cluster
+ * on 12–16, which this default sits inside.
  */
 
-type IconProps = HTMLAttributes<HTMLElement> & {
+type IconProps = Omit<HTMLAttributes<SVGSVGElement>, "name"> & {
   size?: number;
-  /** accepted for compatibility with the old SVG set — font glyphs have no stroke */
   strokeWidth?: number;
 };
 
-function Icon({ size = 14, name, className = "", style, strokeWidth, ...props }: IconProps & { name: string }) {
-  void strokeWidth;
-  return (
-    <i
-      aria-hidden="true"
-      className={`codicon codicon-${name} ${className}`}
-      style={{ fontSize: size, lineHeight: 1, display: "inline-block", fontStyle: "normal", ...style }}
-      {...props}
-    />
-  );
+function wrap(Icon: LucideIcon, defaults?: { strokeWidth?: number }) {
+  return function Lucide({
+    size = 14,
+    strokeWidth = defaults?.strokeWidth ?? 2,
+    className = "",
+    style,
+    ...props
+  }: IconProps & { name?: string }) {
+    void props.name;
+    return (
+      <Icon
+        size={size}
+        strokeWidth={strokeWidth}
+        aria-hidden="true"
+        className={className}
+        style={style as CSSProperties}
+        {...props}
+      />
+    );
+  };
 }
 
-const make = (name: string) =>
-  function Codicon(props: IconProps) {
-    return <Icon name={name} {...props} />;
-  };
-
-export const SearchIcon = make("search");
-export const PlusIcon = make("add");
-export const SunIcon = make("color-mode");
-export const MoonIcon = make("color-mode");
-export const MinusIcon = make("chrome-minimize");
-export const SquareIcon = make("chrome-maximize");
-export const XIcon = make("close");
-export const CheckIcon = make("check");
-export const LoaderIcon = make("loading");
-export const ChevronDownIcon = make("chevron-down");
-export const SettingsIcon = make("gear");
-export const PaperclipIcon = make("attach");
-export const AtSignIcon = make("mention");
-export const SlashIcon = make("symbol-method");
-export const MicIcon = make("mic");
-export const ArrowUpIcon = make("arrow-up");
-export const TerminalIcon = make("terminal");
-export const FilePenIcon = make("file-text");
-export const GitBranchIcon = make("git-branch");
-export const EllipsisIcon = make("ellipsis");
-export const ArrowLeftIcon = make("arrow-left");
-export const FolderIcon = make("folder");
-export const SquareStopIcon = make("primitive-square");
-export const GaugeIcon = make("dashboard");
-export const PuzzleIcon = make("extensions");
-export const KeyboardIcon = make("keyboard");
-export const HookIcon = make("zap");
-export const LayersIcon = make("layers");
-export const ChartBarIcon = make("graph");
-export const DatabaseIcon = make("database");
-export const TrashIcon = make("trash");
-export const PowerIcon = make("debug-disconnect");
-export const FolderOpenIcon = make("folder-opened");
-export const RefreshIcon = make("refresh");
-export const PencilIcon = make("edit");
-export const ImageIcon = make("file-media");
-export const ClockIcon = make("history");
-export const BrainIcon = make("lightbulb");
-export const MessageIcon = make("comment");
-export const MessagePlusIcon = make("comment-add");
-export const FlameIcon = make("flame");
-export const HomeIcon = make("home");
-export const PanelRightIcon = make("layout-sidebar-right");
-export const PanelLeftIcon = make("layout-sidebar-left");
-export const LogOutIcon = make("sign-out");
-export const UserPlusIcon = make("account");
-export const UsersIcon = make("organization");
-export const SparkIcon = make("sparkle");
-export const StopCircleIcon = make("stop-circle");
-export const CheckCircleIcon = make("pass");
-export const AlertIcon = make("warning");
-export const EyeIcon = make("eye");
-export const WrenchIcon = make("wrench");
-export const ListIcon = make("list-unordered");
-export const EditIcon = make("edit");
-export const GlobeIcon = make("globe");
-export const CopyIcon = make("copy");
-export const CircleSlashIcon = make("circle-slash");
-export const ArchiveIcon = make("archive");
-export const CodeIcon = make("file-code");
-export const ListChecksIcon = make("checklist");
+export const SearchIcon = wrap(Search);
+export const PlusIcon = wrap(Plus);
+export const SunIcon = wrap(Sun);
+export const MoonIcon = wrap(Moon);
+export const MinusIcon = wrap(Minus);
+export const SquareIcon = wrap(Square);
+export const XIcon = wrap(X);
+export const CheckIcon = wrap(Check);
+export const LoaderIcon = wrap(LoaderCircle);
+export const ChevronDownIcon = wrap(ChevronDown);
+export const ChevronRightIcon = wrap(ChevronRight);
+export const SettingsIcon = wrap(Settings);
+export const PaperclipIcon = wrap(Paperclip);
+export const AtSignIcon = wrap(AtSign);
+export const SlashIcon = wrap(Pencil, { strokeWidth: 2 });
+export const MicIcon = wrap(Mic);
+export const ArrowUpIcon = wrap(ArrowUp);
+export const TerminalIcon = wrap(Terminal);
+export const FilePenIcon = wrap(FilePen);
+export const GitBranchIcon = wrap(GitBranch);
+export const EllipsisIcon = wrap(Ellipsis);
+export const ArrowLeftIcon = wrap(ArrowLeft);
+export const FolderIcon = wrap(Folder);
+export const SquareStopIcon = wrap(SquareStop);
+export const GaugeIcon = wrap(Gauge);
+export const PuzzleIcon = wrap(Puzzle);
+export const KeyboardIcon = wrap(Keyboard);
+export const HookIcon = wrap(Zap);
+export const LayersIcon = wrap(Layers);
+export const ChartBarIcon = wrap(ChartBar);
+export const DatabaseIcon = wrap(Database);
+export const TrashIcon = wrap(Trash2);
+export const PowerIcon = wrap(LogOut);
+export const FolderOpenIcon = wrap(FolderOpen);
+export const RefreshIcon = wrap(RefreshCw);
+export const PencilIcon = wrap(Pencil);
+export const ImageIcon = wrap(Paperclip);
+export const ClockIcon = wrap(History);
+export const BrainIcon = wrap(Brain);
+export const MessageIcon = wrap(MessageSquare);
+export const MessagePlusIcon = wrap(MessageSquarePlus);
+export const FlameIcon = wrap(Flame);
+export const HomeIcon = wrap(House);
+export const PanelRightIcon = wrap(PanelRight);
+export const PanelLeftIcon = wrap(PanelLeft);
+export const LogOutIcon = wrap(LogOut);
+export const UserPlusIcon = wrap(UserPlus);
+export const UsersIcon = wrap(Users);
+export const SparkIcon = wrap(Sparkles);
+export const StopCircleIcon = wrap(CircleStop);
+export const CheckCircleIcon = wrap(CheckCircle);
+export const AlertIcon = wrap(CircleAlert);
+export const EyeIcon = wrap(Eye);
+export const WrenchIcon = wrap(Wrench);
+export const ListIcon = wrap(List);
+export const EditIcon = wrap(Pencil);
+export const GlobeIcon = wrap(Globe);
+export const CopyIcon = wrap(Copy);
+export const CircleSlashIcon = wrap(CircleSlash);
+export const ArchiveIcon = wrap(Archive);
+export const CodeIcon = wrap(FileCode);
+export const ListChecksIcon = wrap(ListChecks);
+/* the alert glyph that carries a warning's triangular read */
+export const WarningIcon = wrap(TriangleAlert);

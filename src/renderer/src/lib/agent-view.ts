@@ -9,6 +9,20 @@ import { getLocale, t, tf, type Locale } from "./i18n";
  * chips, an answer split into prose and code, and cited sources.
  * ───────────────────────────────────────────────────────── */
 
+/**
+ * The conversation column, ported from ZCode's conversationLayout: not a fixed
+ * width but the area minus fixed margins — 6rem each side up to 864px of
+ * container, capped at 4xl; 24rem of margin past 1280px, capped at 6xl, with
+ * the status-panel lean riding the same breakpoint. The timeline and the
+ * composer dock MUST render this same class — two different widths would put
+ * the prompt bar out of line with the text it answers.
+ */
+export const CONVERSATION_COLUMN =
+  "mx-auto w-full shrink-0 transition-[width,max-width,transform] duration-150 ease-out " +
+  "@min-[864px]/conversation:w-[calc(100%_-_6rem)] @min-[864px]/conversation:max-w-4xl " +
+  "@min-[1280px]/conversation:w-[calc(100%_-_24rem)] @min-[1280px]/conversation:max-w-6xl " +
+  "@min-[1280px]/conversation:-translate-x-44";
+
 export type TextSegment =
   | { kind: "text"; text: string }
   | { kind: "code"; lang: string; code: string };
@@ -94,6 +108,15 @@ export interface TurnView {
   timestamp: number;
   /** user prompt */
   prompt?: string;
+  /**
+   * A boundary an extension drew, and the sentence it drew it with.
+   *
+   * Plan mode's build is a task of its own: the plan's turn ends when the plan
+   * is on screen, and the build's turn opens with this instead of a user
+   * prompt. It is not a prompt — there is nothing for the user to edit or fork
+   * back to — so it rides along as its own row rather than pretending to be one.
+   */
+  boundary?: string;
   /** assistant plain text, aggregated across the turn — panels summarise this */
   fullText: string;
   toolRuns: ToolRun[];
@@ -110,6 +133,16 @@ export interface TurnView {
   error?: boolean;
   notes: { text: string; tone: "compaction" | "branch" }[];
 }
+
+/**
+ * The custom message that opens a new task without a user prompt.
+ *
+ * Plan mode sends it when the build starts (`resources/extensions/plan-mode`),
+ * so the window can show the plan and the build as the two tasks they are. It
+ * is the extension's own type name, not a shape the window invented: the plugin
+ * matches on it too, and a second spelling would drift.
+ */
+const TASK_BOUNDARY = "plan-mode-build";
 
 const SEARCH_TOOLS = new Set(["web_search", "browser_search", "search", "browser_find", "web_fetch"]);
 const READ_TOOLS = new Set(["read", "grep", "find", "ls", "browser_snapshot", "browser_open"]);
@@ -292,7 +325,7 @@ export function buildToolRun(
     case "shell":
     case "powershell": {
       run.label = t("Terminal");
-      run.chip = target ? truncate(target) : "command";
+      run.chip = target ? truncate(target) : t("command");
       run.detailMono = true;
       /* the whole point of clicking a run open is seeing what it printed:
        * keep the output (bounded) instead of a four-line teaser */
@@ -350,6 +383,40 @@ export function buildLiveToolRun(activity: ToolActivity): ToolRun {
   );
 }
 
+/**
+ * The working label for the beat the transcript itself cannot show.
+ *
+ * A running tool speaks for itself — its row carries the spinner, the verb and
+ * the command/file chip — so this answers `null` while one is running and the
+ * line stays out of the way. What is left is the gap *after* a result lands and
+ * before the model speaks again: nothing in the transcript moves there, and
+ * without this the run looks finished. `null` also covers the beats that signal
+ * themselves (a streaming answer has its caret, an open trace shimmers).
+ */
+export function liveStatusLabel(turn: TurnView, live: boolean): string | null {
+  if (!live) return null;
+  const last = turn.items.at(-1);
+  if (!last) return null; // the loader below the thread owns the pre-first-token beat
+  if (last.kind === "text" || last.kind === "thinking") return null;
+  if (last.runs.some((run) => run.status === "running")) return null;
+  return t("Thinking");
+}
+
+/**
+ * The detail lines a call row shows when it is expanded.
+ *
+ * A live call with nothing to show yet gets no child rows at all: its row
+ * already carries the spinner, the verb and the argument chip, and a generic
+ * `running…` under it only repeated the row in weaker words. A *settled* call
+ * with nothing to show still needs its outcome, or opening it presents an
+ * empty box.
+ */
+export function toolDetailLines(run: ToolRun): ToolRun["detail"] {
+  if (run.detail.length) return run.detail;
+  if (run.status === "running") return [];
+  return [{ text: run.status === "error" ? t("failed") : t("done") }];
+}
+
 /** `${count} files` — the count carries the key, so each language can order it. */
 const plural = (count: number, one: string, many = `${one}s`) =>
   tf(`{count} ${count === 1 ? one : many}`, { count });
@@ -361,6 +428,31 @@ function bucketOf(run: ToolRun): ToolBucket {
     return "explore";
   }
   return "other";
+}
+
+/**
+ * One tally for a whole run segment, the collapsed-summary row's numbers:
+ * reads, searches, terminals and edits counted separately — ZCode keeps a
+ * terminal and an edit as their own kinds even when one turn fires several.
+ */
+export function summarizeWork(runs: ToolRun[]): {
+  reads: number;
+  searches: number;
+  commands: number;
+  edits: number;
+  calls: number;
+} {
+  let reads = 0;
+  let searches = 0;
+  let commands = 0;
+  let edits = 0;
+  for (const run of runs) {
+    if (WRITE_TOOLS.has(run.toolName)) edits += 1;
+    else if (COMMAND_TOOLS.has(run.toolName)) commands += 1;
+    else if (SEARCH_TOOLS.has(run.toolName)) searches += 1;
+    else if (READ_TOOLS.has(run.toolName)) reads += 1;
+  }
+  return { reads, searches, commands, edits, calls: runs.length };
 }
 
 /**
@@ -426,21 +518,23 @@ function groupLabel(group: ToolGroupView): string {
   const { runs, bucket } = group;
 
   // one call explains itself without a count
-  if (runs.length === 1) {
-    const run = runs[0];
-    return run.chip && !run.label.includes(run.chip) ? `${run.label} ${run.chip}` : run.label;
-  }
+  if (runs.length === 1) return rowText(runs[0]);
 
-  /* Cursor switches tense while the group is live — "Running 2 commands"
-   * becomes "Ran 2 commands" the moment the last result lands */
-  const live = group.running;
+  /* A live group collapses to the call it is on right now — ZCode's explore
+   * block shows the latest child and its action kind while running, and the
+   * counts only once the run stops changing. The header's call count still
+   * says how many are in flight. Edits keep their file-and-count tense
+   * ("Editing app.tsx ×3"), which is already the concrete thing. */
+  const live = latestRunning(runs);
+  if (live && bucket !== "edit") return rowText(live);
 
   if (bucket === "edit") {
+    const editing = group.running;
     if (group.files === 1) {
       const name = (runs.find((run) => run.path)?.path ?? "").replace(/[\\/]+$/, "").split(/[\\/]/).pop();
-      if (name) return tf(live ? "Editing {name} ×{count}" : "Edited {name} ×{count}", { name, count: runs.length });
+      if (name) return tf(editing ? "Editing {name} ×{count}" : "Edited {name} ×{count}", { name, count: runs.length });
     }
-    return `${t(live ? "Editing" : "Edited")} ${plural(group.files || runs.length, "file")}`;
+    return `${t(editing ? "Editing" : "Edited")} ${plural(group.files || runs.length, "file")}`;
   }
 
   if (bucket === "other") return plural(runs.length, "call");
@@ -448,12 +542,22 @@ function groupLabel(group: ToolGroupView): string {
   const parts: string[] = [];
   if (group.files) parts.push(plural(group.files, "file"));
   if (group.searches) parts.push(plural(group.searches, "search", "searches"));
-  if (group.commands) parts.push(`${t(live ? "running" : "ran")} ${plural(group.commands, "command")}`);
-  if (!parts.length) return t(live ? "Exploring" : "Explored");
-  if (!group.files && !group.searches) {
-    return `${t(live ? "Running" : "Ran")} ${plural(group.commands, "command")}`;
+  if (group.commands) parts.push(`${t("ran")} ${plural(group.commands, "command")}`);
+  if (!parts.length) return t("Explored");
+  return `${t("Explored")} · ${parts.join(", ")}`;
+}
+
+/** The row text one call would render on its own — "Terminal npm test". */
+function rowText(run: ToolRun): string {
+  return run.chip && !run.label.includes(run.chip) ? `${run.label} ${run.chip}` : run.label;
+}
+
+/** The newest call still in flight — what a live group's summary is about. */
+function latestRunning(runs: ToolRun[]): ToolRun | undefined {
+  for (let index = runs.length - 1; index >= 0; index -= 1) {
+    if (runs[index].status === "running") return runs[index];
   }
-  return `${t(live ? "Exploring" : "Explored")} · ${parts.join(", ")}`;
+  return undefined;
 }
 
 const FENCE = /```([a-zA-Z0-9+-]*)\n([\s\S]*?)(?:```|$)/g;
@@ -677,6 +781,29 @@ function buildTurnsUncached(messages: ChatMessage[], live: ToolActivity[]): Turn
       continue;
     }
 
+    if (message.role === "custom" && message.customType === TASK_BOUNDARY) {
+      /* Start the next task here. `promptCount` deliberately does not move: the
+       * boundary is not a prompt, so fork/rewind addresses stay the ones the
+       * user's own turns have always had. */
+      current = {
+        key: message.key,
+        userIndex: Math.max(0, promptCount - 1),
+        timestamp: message.timestamp,
+        boundary: message.text,
+        fullText: "",
+        toolRuns: [],
+        items: [],
+        lead: "",
+        endedAt: message.timestamp,
+        sources: [],
+        followUps: [],
+        streaming: false,
+        notes: [],
+      };
+      turns.push(current);
+      continue;
+    }
+
     if (message.role === "compaction" || message.role === "branch") {
       const turn = ensure(message.timestamp, message.key);
       turn.notes.push({ text: message.text, tone: message.role });
@@ -718,7 +845,14 @@ function buildTurnsUncached(messages: ChatMessage[], live: ToolActivity[]): Turn
     if (message.role === "bashExecution") {
       const turn = ensure(message.timestamp, message.key);
       turn.endedAt = message.timestamp;
-      const run = buildToolRun("bash", undefined, message.text, undefined, "done", message.key);
+      /* The command goes in where the arguments go, so the row's chip is the
+         command and its detail is what it printed. Both halves used to arrive
+         fused in `message.text`, which put `$ ls -la …` in the summary chip and
+         left the literal English word "command" in its place. */
+      const meta = (message.toolDetails ?? {}) as { command?: string; output?: string };
+      const command = meta.command ?? "";
+      const output = meta.output ?? message.text.replace(/^\$ [^\n]*\n?/, "");
+      const run = buildToolRun("bash", command ? { command } : undefined, output, undefined, "done", message.key);
       turn.toolRuns.push(run);
       appendItem(turn, { kind: "tools", key: run.toolCallId, runs: [run], at: message.timestamp });
       continue;
@@ -764,12 +898,15 @@ function buildTurnsUncached(messages: ChatMessage[], live: ToolActivity[]): Turn
     if (message.usage) turn.usage = message.usage;
   }
 
-  // live tools that have not reached the transcript yet
+  // live tools that have not reached the transcript yet. The id check is
+  // global, not per-turn: a finished activity that lingers in the host's
+  // activity table must never be re-attached to the turn that follows it.
   if (live.length) {
     const turn =
       current ??
       ensure(Date.now(), `live-${live[0].toolCallId}`);
     for (const activity of live) {
+      if (runsById.has(activity.toolCallId)) continue;
       if (turn.toolRuns.some((run) => run.toolCallId === activity.toolCallId)) continue;
       const run = buildLiveToolRun(activity);
       turn.toolRuns.push(run);

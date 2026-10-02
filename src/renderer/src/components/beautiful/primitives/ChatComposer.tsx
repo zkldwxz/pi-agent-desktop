@@ -67,16 +67,16 @@ function Section({
         filter: resolving ? "blur(0.5px)" : "blur(0)",
         transform: resolving ? "scale(0.985)" : "scale(1)",
         transformOrigin: "top left",
-        transitionTimingFunction: "cubic-bezier(0.23, 1, 0.32, 1)",
-        animation: "fade-up 400ms cubic-bezier(0.23,1,0.32,1) both",
+        transitionTimingFunction: "var(--ease-out-strong-css)",
+        animation: "fade-up 400ms var(--ease-out-strong-css) both",
       }}
     >
-      <div className="flex items-center gap-1 text-[12px] leading-[1.3]">
+      <div className="flex items-center gap-1 text-ui-caption leading-[1.3]">
         <span className="font-medium text-ink">{label}</span>
         <span className="text-ink-2">{sub}</span>
         <span className="text-ink">for {time}</span>
       </div>
-      <p className="text-[13px] leading-normal text-ink">{body}</p>
+      <p className="text-ui-base leading-normal text-ink">{body}</p>
     </div>
   );
 }
@@ -126,7 +126,7 @@ export default function ChatComposer({
   };
 
   return (
-    <div className="flex h-[288px] w-full max-w-95 flex-col self-start overflow-hidden rounded-[14px] bg-surface shadow-card">
+    <div className="flex h-[288px] w-full max-w-95 flex-col self-start overflow-hidden rounded-window bg-surface shadow-card">
       {/* header — tabs + actions */}
       <div className="flex shrink-0 items-center justify-between border-b border-line p-1.5">
         <div className="flex items-center">
@@ -136,7 +136,7 @@ export default function ChatComposer({
               type="button"
               aria-pressed={tab === item}
               onClick={() => setTab(item)}
-              className={`rounded-[6px] px-2 py-[3px] text-[13px] text-ink transition-[background-color,opacity] duration-100 ${tab === item ? "bg-field" : "opacity-50 hover:opacity-75"}`}
+              className={`rounded-chip px-2 py-[3px] text-ui-base text-ink transition-[background-color,opacity] duration-100 ${tab === item ? "bg-field" : "opacity-50 hover:opacity-75"}`}
             >
               {item}
             </button>
@@ -152,7 +152,7 @@ export default function ChatComposer({
               key={i}
               type="button"
               aria-label="Action"
-              className="flex size-6 items-center justify-center rounded-[6px] text-ink-3
+              className="flex size-6 items-center justify-center rounded-chip text-ink-3
                 transition-colors duration-100 hover:bg-hover hover:text-ink-2"
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -168,12 +168,12 @@ export default function ChatComposer({
         {/* user bubble — right aligned, soft block */}
         <div className="flex justify-end pl-14">
           <div
-            className="rounded-xl bg-field px-3 py-1.5 text-[13px] leading-[1.4] text-ink
+            className="rounded-xl bg-field px-3 py-1.5 text-ui-base leading-[1.4] text-ink
               transition-[opacity,transform] duration-300"
             style={{
               opacity: sent ? 1 : 0,
               transform: sent ? "translateY(0)" : "translateY(10px)",
-              transitionTimingFunction: "cubic-bezier(0.23, 1, 0.32, 1)",
+              transitionTimingFunction: "var(--ease-out-strong-css)",
             }}
           >
             {submitted}
@@ -215,7 +215,7 @@ export default function ChatComposer({
             }}
             placeholder={l.placeholder}
             aria-label="Chat prompt"
-            className="min-h-4.5 bg-transparent text-[13px] leading-[1.4] text-ink outline-none placeholder:text-ink-3"
+            className="min-h-4.5 bg-transparent text-ui-base leading-[1.4] text-ink outline-none placeholder:text-ink-4"
           />
           <div className="flex items-center justify-end">
             <button
@@ -223,7 +223,7 @@ export default function ChatComposer({
               aria-label="Send"
               disabled={!canSend}
               onClick={send}
-              className="flex size-7 items-center justify-center rounded-[8px]
+              className="flex size-7 items-center justify-center rounded-control
                 transition-[background-color,color,transform] duration-200 enabled:active:scale-[0.96]"
               style={{
                 background: canSend ? "var(--ink)" : "var(--line-strong)",

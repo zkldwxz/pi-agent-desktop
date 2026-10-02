@@ -90,7 +90,7 @@ export default function LoadingState({
 
   const labelEl = (
     <span
-      className="bg-clip-text text-[13px] font-medium text-transparent"
+      className="bg-clip-text text-ui-base font-medium text-transparent"
       style={{
         backgroundImage:
           "linear-gradient(90deg, var(--ink-3) 35%, var(--ink) 50%, var(--ink-3) 65%)",
@@ -101,7 +101,7 @@ export default function LoadingState({
       {resolvedLabel}
     </span>
   );
-  const elapsedEl = <span className="font-mono text-[12px] text-ink-3 tabular-nums">{elapsed}</span>;
+  const elapsedEl = <span className="font-mono text-ui-caption text-ink-3 tabular-nums">{elapsed}</span>;
 
   if (surfer) {
     return (
@@ -114,8 +114,8 @@ export default function LoadingState({
 
         {/* the context card follows the status text it is illustrating */}
         <div
-          className="mt-2 w-56 overflow-hidden rounded-[10px] shadow-overlay"
-          style={{ animation: "pop-in 200ms cubic-bezier(0.16,1,0.3,1) both", transformOrigin: "top left" }}
+          className="mt-2 w-56 overflow-hidden rounded-card shadow-overlay"
+          style={{ animation: "pop-in 200ms var(--ease-link-css) both", transformOrigin: "top left" }}
         >
           <div className="relative aspect-video w-full" style={{ background: "var(--tooltip-bg)" }}>
             {videoOk ? (
@@ -131,7 +131,7 @@ export default function LoadingState({
             ) : (
               <div className="flex h-full w-full flex-col items-center justify-center gap-1.5">
                 <LoaderGrid {...PATTERNS.Drive} />
-                <span className="px-3 text-center font-mono text-[10px]" style={{ color: "var(--tooltip-muted)" }}>
+                <span className="px-3 text-center font-mono text-ui-xs" style={{ color: "var(--tooltip-muted)" }}>
                   Video unavailable
                 </span>
               </div>

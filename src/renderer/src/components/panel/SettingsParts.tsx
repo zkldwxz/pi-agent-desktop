@@ -25,7 +25,7 @@ export function Section({
   return (
     <Card index={index} className="overflow-hidden">
       <div className="flex items-center gap-3 border-b border-line px-4 py-3">
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">{title}</span>
+        <span className="min-w-0 flex-1 truncate text-ui-base font-medium text-ink">{title}</span>
         {actions}
       </div>
       <GlideList rowSelector="[data-row]" highlightClassName="bg-hover" radius={6}>
@@ -53,10 +53,10 @@ export function Row({
       className="relative z-10 flex items-center gap-3 border-b border-line px-4 py-3 last:border-0"
     >
       <div className="min-w-0 flex-1">
-        <div className={cn("text-[12.5px] leading-snug text-ink", mono && "font-mono text-[11.5px]")}>{title}</div>
+        <div className={cn("text-ui-caption leading-snug text-ink", mono && "font-mono text-ui-sm")}>{title}</div>
         {/* hints wrap instead of truncating: a cut sentence in a settings row
             reads like a bug, and two lines still fit the rhythm */}
-        {hint ? <div className="mt-1 text-[11px] leading-snug text-ink-3">{hint}</div> : null}
+        {hint ? <div className="mt-1 text-ui-sm leading-snug text-ink-3">{hint}</div> : null}
       </div>
       <div className="flex shrink-0 items-center gap-2">{children}</div>
     </div>
@@ -76,7 +76,7 @@ export function Switch({ on, onClick }: { on: boolean; onClick: () => void }) {
         className="absolute left-[2px] top-[2px] size-[14px] rounded-full bg-white shadow"
         style={{
           transform: on ? "translateX(14px)" : "translateX(0)",
-          transition: "transform 240ms cubic-bezier(0.23,1,0.32,1)",
+          transition: "transform 240ms var(--ease-out-strong-css)",
         }}
       />
     </button>
@@ -107,8 +107,8 @@ export function Select({
       title={title}
       onChange={(event) => onChange(event.target.value)}
       className={cn(
-        "h-7 min-w-[72px] rounded-control bg-field px-2 text-[11.5px] text-ink outline-none transition-shadow duration-150 focus:shadow-[0_0_0_3px_var(--accent-tint)]",
-        mono && "font-mono text-[11px]",
+        "h-7 min-w-[72px] rounded-control bg-field px-2 text-ui-sm text-ink outline-none transition-shadow duration-150 focus:shadow-[0_0_0_3px_var(--accent-tint)]",
+        mono && "font-mono text-ui-sm",
         disabled && "cursor-default text-ink-3",
       )}
     >

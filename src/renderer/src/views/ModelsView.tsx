@@ -6,8 +6,8 @@ import { t, tf } from "../lib/i18n";
 import { BrainIcon, CheckIcon, ImageIcon, PlusIcon, RefreshIcon, SearchIcon, TrashIcon } from "../components/icons";
 import { Card, Chip, EmptyState, Skeleton, ViewHeader } from "../components/ui";
 import { stagger } from "../components/motion";
+import { THINKING_LEVELS } from "@shared/thinking";
 
-const LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 /** the sentinel `selectedKey` for a model that does not exist yet */
 const NEW_KEY = "__new__";
@@ -39,9 +39,9 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[11.5px] font-medium text-ink-2">{label}</span>
+      <span className="text-ui-sm font-medium text-ink-2">{label}</span>
       {children}
-      {hint ? <span className="text-[10.5px] text-ink-3">{hint}</span> : null}
+      {hint ? <span className="text-ui-xs text-ink-3">{hint}</span> : null}
     </label>
   );
 }
@@ -54,7 +54,7 @@ function NumberInput({ value, onChange }: { value: number; onChange: (value: num
       min={0}
       step={1000}
       onChange={(event) => onChange(Number(event.target.value) || 0)}
-      className="h-7 w-full rounded-control bg-field px-2 font-mono text-[12px] text-ink tabular-nums outline-none"
+      className="h-7 w-full rounded-control bg-field px-2 font-mono text-ui-caption text-ink tabular-nums outline-none"
     />
   );
 }
@@ -89,11 +89,11 @@ function Check({
         aria-checked={checked}
         onClick={() => onChange(!checked)}
         title={hint ?? label}
-        className="pressable flex h-7 shrink-0 items-center gap-1.5 rounded-control bg-field px-2 text-[11.5px] text-ink-2 hover:bg-hover-2"
+        className="pressable flex h-7 shrink-0 items-center gap-1.5 rounded-control bg-field px-2 text-ui-sm text-ink-2 hover:bg-hover-2"
       >
         <span
           className={cn(
-            "flex size-3.5 shrink-0 items-center justify-center rounded-[4px] border",
+            "flex size-3.5 shrink-0 items-center justify-center rounded-tiny border",
             checked ? "border-ink bg-ink text-canvas" : "border-line-strong bg-surface",
           )}
         >
@@ -113,15 +113,15 @@ function Check({
     >
       <span
         className={cn(
-          "flex size-4 shrink-0 items-center justify-center rounded-[5px] border",
+          "flex size-4 shrink-0 items-center justify-center rounded-chip border",
           checked ? "border-ink bg-ink text-canvas" : "border-line-strong bg-field",
         )}
       >
         {checked ? <CheckIcon size={11} strokeWidth={3} /> : null}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[12px] text-ink">{label}</span>
-        {hint ? <span className="block text-[10.5px] text-ink-3">{hint}</span> : null}
+        <span className="block text-ui-caption text-ink">{label}</span>
+        {hint ? <span className="block text-ui-xs text-ink-3">{hint}</span> : null}
       </span>
     </button>
   );
@@ -205,7 +205,7 @@ export function ModelsView({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={t("Filter")}
-                className="w-24 bg-transparent text-[11.5px] text-ink outline-none placeholder:text-ink-3"
+                className="w-24 bg-transparent text-ui-sm text-ink outline-none placeholder:text-ink-4"
               />
             </div>
             <Chip onClick={onRefresh} title={t("Reload models.json")}>
@@ -258,37 +258,37 @@ export function ModelsView({
                     )}
                   >
                     <div className="flex w-full items-center gap-2">
-                      <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">{model.name}</span>
+                      <span className="min-w-0 flex-1 truncate text-ui-caption font-medium text-ink">{model.name}</span>
                       {inUse ? (
-                        <span className="inline-flex h-5 items-center gap-1 rounded-chip bg-green-tint px-1.5 text-[10.5px] text-green">
+                        <span className="inline-flex h-5 items-center gap-1 rounded-chip bg-green-tint px-1.5 text-ui-xs text-green">
                           <CheckIcon size={10} />
                           {t("in use")}
                         </span>
                       ) : null}
                     </div>
                     <div className="flex flex-wrap items-center gap-1">
-                      <span className="inline-flex h-5 items-center rounded-chip bg-field px-1.5 font-mono text-[10px] text-ink-2">
+                      <span className="inline-flex h-5 items-center rounded-chip bg-field px-1.5 font-mono text-ui-xs text-ink-2">
                         {model.provider}
                       </span>
                       {model.reasoning ? (
-                        <span className="inline-flex h-5 items-center gap-1 rounded-chip bg-field px-1.5 text-[10px] text-ink-2">
+                        <span className="inline-flex h-5 items-center gap-1 rounded-chip bg-field px-1.5 text-ui-xs text-ink-2">
                           <BrainIcon size={10} />
                           {t("reasoning")}
                         </span>
                       ) : null}
                       {model.supportsImages ? (
-                        <span className="inline-flex h-5 items-center gap-1 rounded-chip bg-field px-1.5 text-[10px] text-ink-2">
+                        <span className="inline-flex h-5 items-center gap-1 rounded-chip bg-field px-1.5 text-ui-xs text-ink-2">
                           <ImageIcon size={10} />
                           {t("vision")}
                         </span>
                       ) : null}
                       {model.source === "models.json" ? (
-                        <span className="inline-flex h-5 items-center rounded-chip bg-orange-tint px-1.5 text-[10px] text-orange">
+                        <span className="inline-flex h-5 items-center rounded-chip bg-orange-tint px-1.5 text-ui-xs text-orange">
                           {t("overridden")}
                         </span>
                       ) : null}
                     </div>
-                    <div className="flex items-center gap-3 font-mono text-[10.5px] text-ink-3 tabular-nums">
+                    <div className="flex items-center gap-3 font-mono text-ui-xs text-ink-3 tabular-nums">
                       <span>ctx {formatContext(model.contextWindow)}</span>
                       <span>max {formatContext(model.maxTokens)}</span>
                       <span>
@@ -312,10 +312,10 @@ export function ModelsView({
           {state.providers.length ? (
             <div className="px-4 pb-4">
               <Card index={2} className="overflow-hidden">
-                <div className="border-b border-line px-3 py-2 text-[12.5px] font-medium text-ink">{t("Channels")}</div>
-                <table className="w-full border-collapse text-[12px]">
+                <div className="border-b border-line px-3 py-2 text-ui-caption font-medium text-ink">{t("Channels")}</div>
+                <table className="w-full border-collapse text-ui-caption">
                   <thead>
-                    <tr className="border-b border-line text-left text-[11px] text-ink-3">
+                    <tr className="border-b border-line text-left text-ui-sm text-ink-3">
                       <th className="px-3 py-2 font-medium">{t("Provider")}</th>
                       <th className="px-3 py-2 font-medium">{t("API")}</th>
                       <th className="px-3 py-2 text-right font-medium">{t("Models")}</th>
@@ -328,21 +328,21 @@ export function ModelsView({
                       <tr key={row.id} className="border-b border-line last:border-0 hover:bg-hover">
                         <td className="px-3 py-2 text-ink">
                           {row.name}
-                          <span className="ml-1.5 font-mono text-[10.5px] text-ink-3">{row.id}</span>
+                          <span className="ml-1.5 font-mono text-ui-xs text-ink-3">{row.id}</span>
                         </td>
-                        <td className="px-3 py-2 font-mono text-[11px] text-ink-3">{row.api}</td>
+                        <td className="px-3 py-2 font-mono text-ui-sm text-ink-3">{row.api}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-ink-2">{row.modelCount}</td>
                         <td className="px-3 py-2">
                           <span
                             className={cn(
-                              "inline-flex h-5 items-center rounded-chip px-1.5 text-[10.5px]",
+                              "inline-flex h-5 items-center rounded-chip px-1.5 text-ui-xs",
                               row.hasAuth ? "bg-green-tint text-green" : "bg-red-tint text-red",
                             )}
                           >
                             {row.hasAuth ? t("configured") : t("missing")}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-[11px] text-ink-3">
+                        <td className="px-3 py-2 text-ui-sm text-ink-3">
                           {row.editable ? "models.json" : t("built-in")}
                         </td>
                       </tr>
@@ -361,17 +361,17 @@ export function ModelsView({
           >
             <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[12.5px] font-medium text-ink">
+                <div className="truncate text-ui-caption font-medium text-ink">
                   {isNew ? t("New model") : draft.id}
                 </div>
-                <div className="font-mono text-[10.5px] text-ink-3">
+                <div className="font-mono text-ui-xs text-ink-3">
                   {isNew ? t("written to models.json") : draft.provider}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedKey(null)}
-                className="pressable rounded-[5px] px-1.5 py-0.5 text-[11.5px] text-ink-3 hover:bg-hover hover:text-ink"
+                className="pressable rounded-chip px-1.5 py-0.5 text-ui-sm text-ink-3 hover:bg-hover hover:text-ink"
               >
                 {t("Close")}
               </button>
@@ -386,7 +386,7 @@ export function ModelsView({
                       value={draft.provider}
                       onChange={(event) => setDraft({ ...draft, provider: event.target.value })}
                       placeholder="anthropic"
-                      className="h-7 w-full rounded-control bg-field px-2 font-mono text-[12px] text-ink outline-none"
+                      className="h-7 w-full rounded-control bg-field px-2 font-mono text-ui-caption text-ink outline-none"
                     />
                   </Field>
                   <Field label={t("Model id")} hint={t("as the provider spells it")}>
@@ -394,7 +394,7 @@ export function ModelsView({
                       value={draft.id}
                       onChange={(event) => setDraft({ ...draft, id: event.target.value })}
                       placeholder="claude-sonnet-4-5"
-                      className="h-7 w-full rounded-control bg-field px-2 font-mono text-[12px] text-ink outline-none"
+                      className="h-7 w-full rounded-control bg-field px-2 font-mono text-ui-caption text-ink outline-none"
                     />
                   </Field>
                   <datalist id="pi-provider-ids">
@@ -409,14 +409,14 @@ export function ModelsView({
                 <input
                   value={draft.name}
                   onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-                  className="h-7 w-full rounded-control bg-field px-2 text-[12px] text-ink outline-none"
+                  className="h-7 w-full rounded-control bg-field px-2 text-ui-caption text-ink outline-none"
                 />
               </Field>
 
               <div className="flex items-center justify-between rounded-control bg-surface px-2.5 py-2 shadow-hairline">
                 <div>
-                  <div className="text-[12px] text-ink">{t("Reasoning model")}</div>
-                  <div className="text-[10.5px] text-ink-3">{t("enables thinking levels")}</div>
+                  <div className="text-ui-caption text-ink">{t("Reasoning model")}</div>
+                  <div className="text-ui-xs text-ink-3">{t("enables thinking levels")}</div>
                 </div>
                 <button
                   type="button"
@@ -428,7 +428,7 @@ export function ModelsView({
                     className="absolute left-[2px] top-[2px] size-[14px] rounded-full bg-white shadow"
                     style={{
                       transform: draft.reasoning ? "translateX(14px)" : "translateX(0)",
-                      transition: "transform 240ms cubic-bezier(0.23,1,0.32,1)",
+                      transition: "transform 240ms var(--ease-out-strong-css)",
                     }}
                   />
                 </button>
@@ -467,16 +467,16 @@ export function ModelsView({
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <span className="text-[11.5px] font-medium text-ink-2">{t("Thinking level map")}</span>
-                <span className="text-[10.5px] text-ink-3">
+                <span className="text-ui-sm font-medium text-ink-2">{t("Thinking level map")}</span>
+                <span className="text-ui-xs text-ink-3">
                   {t("Map each Pi level to a provider value. Set to “— unsupported” to hide it.")}
                 </span>
-                {LEVELS.map((level) => {
+                {THINKING_LEVELS.map((level) => {
                   const value = draft.thinkingLevelMap?.[level] ?? "";
                   const supported = draft.reasoning && value !== null;
                   return (
                     <div key={level} className="flex items-center gap-2">
-                      <span className="w-16 font-mono text-[11px] text-ink-2">{level}</span>
+                      <span className="w-16 font-mono text-ui-sm text-ink-2">{level}</span>
                       <select
                         disabled={!draft.reasoning}
                         value={value === null ? "__unsupported" : value}
@@ -491,13 +491,13 @@ export function ModelsView({
                           });
                         }}
                         className={cn(
-                          "h-7 min-w-0 flex-1 rounded-control bg-field px-2 text-[11.5px] outline-none",
+                          "h-7 min-w-0 flex-1 rounded-control bg-field px-2 text-ui-sm outline-none",
                           supported ? "text-ink" : "text-ink-3",
                           !draft.reasoning && "opacity-50",
                         )}
                       >
                         <option value="">{t("default")}</option>
-                        {LEVELS.filter((candidate) => candidate !== "off").map((candidate) => (
+                        {THINKING_LEVELS.filter((candidate) => candidate !== "off").map((candidate) => (
                           <option key={candidate} value={candidate}>
                             {candidate}
                           </option>
@@ -516,7 +516,7 @@ export function ModelsView({
                   onClick={() => {
                     onUseModel(draft.provider, draft.id);
                   }}
-                  className="pressable-soft pressable h-7 rounded-control bg-ink text-[12px] font-medium text-canvas disabled:opacity-40"
+                  className="pressable-soft pressable h-7 rounded-control bg-ink text-ui-caption font-medium text-canvas disabled:opacity-40"
                 >
                   {t("Use in this session")}
                 </button>
@@ -524,7 +524,7 @@ export function ModelsView({
                   type="button"
                   disabled={isNew}
                   onClick={() => onSetDefault(draft.provider, draft.id)}
-                  className="pressable-soft pressable h-7 rounded-control bg-surface text-[12px] text-ink shadow-btn hover:bg-inset disabled:opacity-40"
+                  className="pressable-soft pressable h-7 rounded-control bg-surface text-ui-caption text-ink shadow-btn hover:bg-inset disabled:opacity-40"
                 >
                   {t("Set as startup default")}
                 </button>
@@ -535,7 +535,7 @@ export function ModelsView({
                     onSave({ ...draft, name: draft.name.trim() || draft.id });
                     setSelectedKey(`${draft.provider}/${draft.id}`);
                   }}
-                  className="pressable-soft pressable h-7 rounded-control bg-surface text-[12px] text-ink shadow-btn hover:bg-inset disabled:opacity-40"
+                  className="pressable-soft pressable h-7 rounded-control bg-surface text-ui-caption text-ink shadow-btn hover:bg-inset disabled:opacity-40"
                 >
                   {isNew ? t("Add to models.json") : t("Save to models.json")}
                 </button>
@@ -543,14 +543,14 @@ export function ModelsView({
                   type="button"
                   disabled={state.models.find((item) => item.provider === draft.provider && item.id === draft.id)?.source !== "models.json"}
                   onClick={() => onDeleteOverride(draft.provider, draft.id)}
-                  className="pressable-soft pressable flex h-7 items-center justify-center gap-1.5 rounded-control bg-surface text-[12px] text-red shadow-btn hover:bg-red-tint disabled:opacity-40"
+                  className="pressable-soft pressable flex h-7 items-center justify-center gap-1.5 rounded-control bg-surface text-ui-caption text-red shadow-btn hover:bg-red-tint disabled:opacity-40"
                 >
                   <TrashIcon size={12} />
                   {t("Remove override")}
                 </button>
               </div>
 
-              <div className="rounded-control bg-inset px-2.5 py-2 font-mono text-[10.5px] leading-relaxed text-ink-3">
+              <div className="rounded-control bg-inset px-2.5 py-2 font-mono text-ui-xs leading-relaxed text-ink-3">
                 {draft.provider}/{draft.id}
                 <br />
                 {t("thinking:")}{" "}
@@ -562,7 +562,7 @@ export function ModelsView({
           </aside>
         ) : (
           <aside className="w-[320px] shrink-0 border-l border-line bg-canvas p-4">
-            <Skeleton className="h-[120px]" />            <div className="mt-3 text-[11.5px] text-ink-3">
+            <Skeleton className="h-[120px]" />            <div className="mt-3 text-ui-sm text-ink-3">
               {t("Pick a model to configure thinking depth, image input, context window, and output limits. Changes are written to")}{" "}
               <span className="font-mono">~/.pi/agent/models.json</span> {t("and picked up by the Pi CLI too.")}
             </div>

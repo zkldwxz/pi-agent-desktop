@@ -2,6 +2,7 @@ import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import type { AppOpener } from "@shared/workspace";
 import { ChevronDownIcon, FolderIcon } from "../icons";
 import { openerName, t } from "../../lib/i18n";
+import { IS_MAC } from "../../lib/platform";
 
 /** the last opener the user picked — the main button wears its mark */
 const LAST_OPENER_KEY = "pi-last-folder-opener";
@@ -15,10 +16,22 @@ function lastOpener(): string | null {
 }
 
 /**
- * The file manager's own mark — the blue-front yellow folder Explorer shows.
- * The real icon comes from `Explorer.exe` (see `main/openers.ts`); this is what
- * is drawn while that is still being read, and on platforms without it.
+ * The file manager's own mark, drawn for the platform whose file manager it is.
+ *
+ * The real icon comes from the application itself — `Explorer.exe` on Windows,
+ * `Finder.app` on macOS (see `main/openers.ts`) — and these glyphs are the
+ * stand-in drawn while that read is still in flight.
+ *
+ * The distinction has to be drawn here and not in the main process because the
+ * fallback renders on the very first frame, before any IPC round trip. It was
+ * Explorer's mark on both platforms, which is why macOS showed a stranger's
+ * folder; the platform check is the whole point of the component.
  */
+export function FileManagerGlyph({ size = 16 }: { size?: number }) {
+  return IS_MAC ? <FinderGlyph size={size} /> : <ExplorerGlyph size={size} />;
+}
+
+/** Explorer's blue-front yellow folder, as Windows draws it. */
 export function ExplorerGlyph({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
@@ -40,12 +53,35 @@ export function ExplorerGlyph({ size = 16 }: { size?: number }) {
 }
 
 /**
+ * Finder's mark: the blue face with the white half, which is what a Mac user
+ * reads as "open the file manager".
+ *
+ * Drawn rather than fetched so the button has a picture on its first frame — the
+ * real icon comes out of `Finder.app`'s `.icns` (see `iconForOpeners` in
+ * `main/openers.ts`) and replaces this the moment `listOpeners` answers. It is a
+ * stand-in for that icon, so it follows it: the same rounded blue tile, the same
+ * half-and-half face, dark eyes and smile.
+ */
+export function FinderGlyph({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
+      <rect x="3" y="3" width="26" height="26" rx="6.5" fill="#1E9BF0" />
+      <rect x="3" y="3" width="26" height="13" rx="6.5" fill="#2CA5F2" />
+      {/* the right half of the face is washed out, as the real mark's is */}
+      <path d="M16 8h4.5A4.5 4.5 0 0 1 25 12.5v11A4.5 4.5 0 0 1 20.5 28H16V8Z" fill="#F4FBFF" />
+      <path d="M11.4 12.6v3.6M20.6 12.6v3.6" stroke="#123C5C" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M9.8 19.6c3.4 3.1 9 3.1 12.4 0" stroke="#123C5C" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+    </svg>
+  );
+}
+
+/**
  * The titlebar's folder control: a split button.
  *
  * The main face is the file browser — the panel is where you actually look at
  * files, and reaching it should not take a menu first. It wears the mark of the
- * application folders are opened with: the file manager until the user picks
- * another, and whatever they picked after that. The chevron is the escape hatch
+ * application folders are opened with: the platform's file manager until the
+ * user picks another, and whatever they picked after that. The chevron is the escape hatch
  * to the outside: every application the OS has registered for folders (see
  * `main/openers.ts`), and picking one remembers it.
  */
@@ -116,19 +152,19 @@ export function FolderOpener({ cwd, onBrowse }: { cwd: string; onBrowse: () => v
     <div ref={wrapper} className="relative flex items-center">
       {/* one capsule: the folder opens the file browser, the chevron picks the
           app — the two read as a single control, like the reference */}
-      <div className="flex h-7 items-center rounded-[8px] bg-field shadow-hairline">
+      <div className="flex h-7 items-center rounded-control bg-field shadow-hairline">
         <button
           type="button"
           aria-label={t("Browse files")}
           title={mainTitle}
           disabled={!cwd}
           onClick={onBrowse}
-          className="pressable flex h-full w-7 items-center justify-center rounded-l-[8px] text-ink-2 hover:text-ink disabled:opacity-40"
+          className="pressable flex h-full w-7 items-center justify-center rounded-l-control text-ink-2 hover:text-ink disabled:opacity-40"
         >
           {active?.icon ? (
-            <img src={active.icon} alt="" className="size-[15px] rounded-[3px]" />
+            <img src={active.icon} alt="" className="size-[15px] rounded-tiny" />
           ) : active?.kind === "reveal" ? (
-            <ExplorerGlyph size={15} />
+            <FileManagerGlyph size={15} />
           ) : (
             <FolderIcon size={13} />
           )}
@@ -147,7 +183,7 @@ export function FolderOpener({ cwd, onBrowse }: { cwd: string; onBrowse: () => v
              * minute ago should be in it */
             if (next) load();
           }}
-          className="pressable flex h-full w-5.5 items-center justify-center rounded-r-[8px] text-ink-3 hover:text-ink disabled:opacity-40"
+          className="pressable flex h-full w-5.5 items-center justify-center rounded-r-control text-ink-3 hover:text-ink disabled:opacity-40"
         >
           <ChevronDownIcon size={10} />
         </button>
@@ -155,11 +191,11 @@ export function FolderOpener({ cwd, onBrowse }: { cwd: string; onBrowse: () => v
 
       {open ? (
         <div
-          className="absolute right-0 top-full z-40 mt-1.5 w-60 overflow-hidden rounded-[10px] bg-surface py-1 shadow-overlay"
-          style={{ animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "top right" }}
+          className="absolute right-0 top-full z-40 mt-1.5 w-60 overflow-hidden rounded-control bg-surface py-1 shadow-overlay"
+          style={{ animation: "pop-in 180ms var(--ease-out-strong-css) both", transformOrigin: "top right" }}
         >
           {openers === null ? (
-            <div className="px-2.5 py-2 text-[11.5px] text-ink-3">{t("Looking up apps…")}</div>
+            <div className="px-2.5 py-2 text-ui-sm text-ink-3">{t("Looking up apps…")}</div>
           ) : (
             openers.map((opener) => (
               <button
@@ -171,14 +207,14 @@ export function FolderOpener({ cwd, onBrowse }: { cwd: string; onBrowse: () => v
               >
                 <span className="flex size-4 shrink-0 items-center justify-center">
                   {opener.icon ? (
-                    <img src={opener.icon} alt="" className="size-4 rounded-[3px]" />
+                    <img src={opener.icon} alt="" className="size-4 rounded-tiny" />
                   ) : opener.kind === "reveal" ? (
-                    <ExplorerGlyph size={15} />
+                    <FileManagerGlyph size={15} />
                   ) : (
                     <span className="size-1.5 rounded-full bg-line-strong" />
                   )}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink">{openerName(opener)}</span>
+                <span className="min-w-0 flex-1 truncate text-ui-caption text-ink">{openerName(opener)}</span>
                 {picked === opener.id ? <span className="size-1.5 shrink-0 rounded-full bg-accent" /> : null}
               </button>
             ))

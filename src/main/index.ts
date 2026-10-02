@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, shell } from "electron";
 import { existsSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, userInfo } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { PiHost } from "./pi-host";
 import { BrowserHost } from "./browser";
@@ -8,20 +8,24 @@ import { PtyHost } from "./pty";
 import { listDir, readFileForView, searchFiles } from "./fs-browser";
 import { listOpeners, openWith } from "./openers";
 import { gitBranches, gitCheckout, gitCommit, gitCreateBranch, gitDeleteBranch, gitPush, gitStatus, noRepoBranches, noRepoState } from "./git";
-import { applyCatalog, catalog, markOnboardingDone, readConfig } from "./install";
+import { applyCatalog, bundledExtensionName, catalog, markOnboardingDone, readConfig, syncBundledExtensions, writeConfig } from "./install";
 import { discoverTerminalShells, resolveTerminalShell } from "./shells";
 import { pluginRoots } from "./plugins";
 import type { UiAnswer } from "@shared/ui";
 import { collectUsage } from "./usage";
-import type { ModelEdit, PlanAction, PluginInfo, PluginRoots, PromptPayload, RuntimeSettings } from "@shared/types";
+import type { ChannelEdit, ModelEdit, PlanAction, PluginInfo, PluginRoots, PromptPayload, RuntimeSettings } from "@shared/types";
 import type { BrowserBounds, DesignPick } from "@shared/browser";
 
 app.setName("Pi Agent Desktop");
 
+const IS_MAC = process.platform === "darwin";
+
 function defaultCwd(): string {
   const stored = process.env.PI_DESKTOP_CWD;
   if (stored && existsSync(stored)) return stored;
-  const projects = "F:/Projects";
+  // Each platform's developer keeps projects under a different root, and neither
+  // guess exists on the other — the probe is what makes one binary behave on both.
+  const projects = IS_MAC ? join(homedir(), "Projects") : "F:/Projects";
   if (existsSync(projects)) return projects;
   return process.cwd();
 }
@@ -53,10 +57,12 @@ function reportError(error: unknown): void {
     state: {
       ...(host?.snapshot() ?? {
         cwd: defaultCwd(),
+        homeDir: homedir(),
         connected: false,
         sessions: [],
         models: [],
         providers: [],
+        channels: [],
         commands: [],
         settings: null,
         snapshot: null,
@@ -86,9 +92,14 @@ async function createWindow(): Promise<void> {
     show: false,
     backgroundColor: dark ? "#16181c" : "#FAFAFB",
     title: "Pi Agent Desktop",
-    frame: false,
+    // `frame: false` on macOS drops the traffic lights along with the title bar,
+    // and trafficLightPosition is then ignored — the native frame stays and only
+    // the title bar is hidden, so the renderer's drag region takes its place.
+    frame: !IS_MAC,
     titleBarStyle: "hidden",
-    trafficLightPosition: { x: 16, y: 12 },
+    /* the lights are ~12px tall and the renderer's title bar is 40px, so y=14
+     * puts them on the bar's centre line instead of floating at its top edge */
+    trafficLightPosition: { x: 20, y: 14 },
     webPreferences: {
       preload: join(__dirname, "../preload/index.mjs"),
       sandbox: false,
@@ -143,10 +154,12 @@ function registerIpc(): void {
       return {
         state: {
           cwd: defaultCwd(),
+          homeDir: homedir(),
           connected: false,
           sessions: [],
           models: [],
           providers: [],
+          channels: [],
           commands: [],
           settings: null,
           snapshot: null,
@@ -251,6 +264,44 @@ function registerIpc(): void {
     }
   });
 
+  /* ── channels: one endpoint, one provider entry per key ───────────────── */
+
+  ipcMain.handle("pi:createChannel", async (_event, edit: ChannelEdit) => {
+    try {
+      return (await host?.createChannel(edit)) ?? [];
+    } catch (error) {
+      reportError(error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle("pi:removeChannel", async (_event, channelId: string) => {
+    try {
+      await host?.removeChannel(channelId);
+    } catch (error) {
+      reportError(error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle("pi:addChannelKey", async (_event, channelId: string, key: string) => {
+    try {
+      return (await host?.addKeyToChannel(channelId, key)) ?? undefined;
+    } catch (error) {
+      reportError(error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle("pi:removeChannelKey", async (_event, providerId: string) => {
+    try {
+      await host?.removeKeyFromChannel(providerId);
+    } catch (error) {
+      reportError(error);
+      throw error;
+    }
+  });
+
   ipcMain.handle("pi:listAllSessions", async () => (await host?.allSessions()) ?? []);
   ipcMain.handle("pi:deleteWorkspace", async (_event, cwd: string) => {
     await host?.deleteWorkspace(cwd);
@@ -270,11 +321,18 @@ function registerIpc(): void {
     host?.setQueueMode(kind, mode),
   );
 
-  ipcMain.handle("pi:forkTargets", () => host?.forkTargets() ?? []);
-
   ipcMain.handle("pi:forkAt", async (_event, index: number) => {
     try {
       return (await host?.forkAt(index)) ?? { cancelled: true };
+    } catch (error) {
+      reportError(error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle("pi:rewindTo", async (_event, index: number) => {
+    try {
+      return (await host?.rewindTo(index)) ?? { text: "", cancelled: true };
     } catch (error) {
       reportError(error);
       throw error;
@@ -285,7 +343,20 @@ function registerIpc(): void {
     host?.ui.answer(answer);
   });
 
-  ipcMain.handle("desktop:getConfig", () => readConfig());
+  /* The account row needs a name on day one, before any onboarding ran — the
+   * OS user is the honest default, and onboarding may replace it. */
+  ipcMain.handle("desktop:getConfig", async () => {
+    const config = await readConfig();
+    if (config.userName) return config;
+    try {
+      return { ...config, userName: userInfo().username };
+    } catch {
+      return config;
+    }
+  });
+  ipcMain.handle("desktop:setUserName", (_event, name: string) =>
+    writeConfig({ userName: String(name ?? "") }),
+  );
   ipcMain.handle("desktop:catalog", () => catalog());
   ipcMain.handle("desktop:applyCatalog", async (_event, ids: string[]) => {
     const result = await applyCatalog(ids);
@@ -315,7 +386,18 @@ function registerIpc(): void {
 
   ipcMain.handle("pi:deletePlugin", async (_event, path: string, kind: PluginInfo["kind"]) => {
     try {
-      return (await host?.deletePlugin(path, kind)) ?? [];
+      const result = (await host?.deletePlugin(path, kind)) ?? [];
+      // A deleted bundled extension is a decision, not an accident — record it
+      // so the startup sync does not reinstall it behind the user's back.
+      const bundled = bundledExtensionName(path);
+      if (bundled) {
+        const config = await readConfig();
+        const removed = config.removedBundledExtensions ?? [];
+        if (!removed.includes(bundled)) {
+          await writeConfig({ removedBundledExtensions: [...removed, bundled] });
+        }
+      }
+      return result;
     } catch (error) {
       reportError(error);
       throw error;
@@ -352,7 +434,7 @@ function registerIpc(): void {
       properties: ["openDirectory"],
     });
     const next = result.filePaths[0];
-    if (!next) return host?.getCwd();
+    if (!next) return undefined;
     await host?.setCwd(next);
     return next;
   });
@@ -570,6 +652,15 @@ app.whenReady().then(async () => {
     return;
   }
   host = new PiHost(defaultCwd(), () => browser);
+  // Bundled extensions (plan mode, agent team) only ever installed from the
+  // onboarding checklist — a machine onboarded before they shipped would never
+  // see /plan work. Install what is missing before the runtime loads plugins.
+  try {
+    const synced = await syncBundledExtensions();
+    if (synced.length) console.log(`[pi-desktop] installed bundled extensions: ${synced.join(", ")}`);
+  } catch (error) {
+    console.error("[pi-desktop] bundled extension sync failed:", error);
+  }
   host.onChange((payload) => {
     window?.webContents.send("pi:update", payload);
   });

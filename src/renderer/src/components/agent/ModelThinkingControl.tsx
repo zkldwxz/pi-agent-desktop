@@ -5,7 +5,7 @@ import { formatContext } from "../../lib/format";
 import { t, tf } from "../../lib/i18n";
 import { GlideList, Popover } from "../motion";
 import { ThinkingTrack, ThinkingTrackEnds, thinkingBadgeClass, thinkingLevelClass } from "../ThinkingTrack";
-import { ArrowLeftIcon, ChevronDownIcon, GlobeIcon, RefreshIcon } from "../icons";
+import { ArrowLeftIcon, CheckIcon, ChevronDownIcon, ImageIcon, RefreshIcon } from "../icons";
 
 /**
  * The one composer chip that qualifies a prompt: which model reads it, and how
@@ -86,10 +86,12 @@ export function ModelThinkingControl({
     [onSetThinking],
   );
 
-  /* Before the host reports a model, fall back to the levels it says the session
-     can take; after it does, the list belongs to that model — otherwise the chip
-     offers depths the new model will refuse. */
-  const levels = current?.thinkingLevels ?? state.snapshot?.thinkingLevels ?? ["off"];
+  /* The ramp comes from the session, not from the model row. The catalogue's own
+     list is derived in `thinkingLevelsFor`, which hands every reasoning model the
+     full seven steps unless its entry declares a `thinkingLevelMap` — so a proxy
+     that stops at `high` got offered `max` and Ultra, and the host then refused
+     both, which read as the chip snapping back on its own. */
+  const levels = state.snapshot?.thinkingLevels ?? current?.thinkingLevels ?? ["off"];
   const canThink = levels.length > 1;
   /* the track is told what is committed, never what the pointer is hovering —
      otherwise a release would compare against its own preview and skip the write */
@@ -135,15 +137,15 @@ export function ModelThinkingControl({
         className={cn(
           /* 28px like the attach / dictation / send buttons beside it — the whole
              row shares one height and one bottom line */
-          "pressable inline-flex h-7 min-w-0 items-center gap-1.5 rounded-[8px] py-0 pl-2 pr-1.5",
+          "pressable inline-flex h-7 min-w-0 items-center gap-1.5 rounded-control py-0 pl-2 pr-1.5",
           open ? "bg-field text-ink" : "text-ink-2 hover:bg-hover-2",
         )}
       >
-        <span className="min-w-0 truncate text-[12.5px]">{short}</span>
+        <span className="min-w-0 truncate text-ui-caption">{short}</span>
         {canThink ? (
           <span
             className={cn(
-              "shrink-0 rounded-[5px] px-1 py-px text-[10.5px] leading-[15px] transition-colors duration-300",
+              "shrink-0 rounded-chip px-1 py-px text-ui-xs leading-[15px] transition-colors duration-300",
               thinkingBadgeClass(shown),
             )}
           >
@@ -165,7 +167,7 @@ export function ModelThinkingControl({
           setSlideLevel(null);
         }}
         anchor="bottom-right"
-        className="w-72"
+        className="w-80"
       >
         {view === "card" ? (
           <div className="px-3 pb-2 pt-1.5">
@@ -173,7 +175,7 @@ export function ModelThinkingControl({
             <div className="flex items-center gap-2">
               <span
                 className={cn(
-                  "min-w-0 flex-1 truncate text-[13px] font-medium transition-colors duration-300",
+                  "min-w-0 flex-1 truncate text-ui-base font-medium transition-colors duration-300",
                   thinkingLevelClass(shown),
                 )}
               >
@@ -185,7 +187,7 @@ export function ModelThinkingControl({
                   onClick={() => commitLevel(resetTo)}
                   title={resetLabel}
                   aria-label={resetLabel}
-                  className="pressable shrink-0 rounded-[5px] p-1 text-ink-3 transition-colors hover:bg-hover-2 hover:text-ink"
+                  className="pressable shrink-0 rounded-chip p-1 text-ink-3 transition-colors hover:bg-hover-2 hover:text-ink"
                 >
                   <RefreshIcon size={12} />
                 </button>
@@ -197,11 +199,14 @@ export function ModelThinkingControl({
               onClick={() => setView("list")}
               title={t("Switch model")}
               className={cn(
-                "-mx-1.5 mt-1 flex w-[calc(100%+12px)] items-center gap-1.5 rounded-[6px] px-1.5 py-1 text-left",
-                "text-ink-2 transition-colors hover:bg-hover-2",
+                "-mx-1.5 mt-1 flex w-[calc(100%+12px)] items-center gap-1.5 rounded-chip px-1.5 py-1 text-left",
+                "text-ink transition-colors hover:bg-hover-2",
               )}
             >
-              <span className="min-w-0 flex-1 truncate text-[11.5px]">{current?.name ?? t("No model")}</span>
+              <span className="min-w-0 flex-1 truncate text-ui-sm">
+                <span className="text-ink-3">{current?.providerName ?? ""} · </span>
+                {current?.name ?? t("No model")}
+              </span>
               <ChevronDownIcon
                 size={11}
                 className="shrink-0 text-ink-3"
@@ -225,12 +230,12 @@ export function ModelThinkingControl({
                   onClick={() => setView("card")}
                   aria-label={t("Back to depth")}
                   title={t("Back to depth")}
-                  className="pressable -ml-0.5 shrink-0 rounded-[5px] p-1 text-ink-3 transition-colors hover:bg-hover-2 hover:text-ink"
+                  className="pressable -ml-0.5 shrink-0 rounded-chip p-1 text-ink-3 transition-colors hover:bg-hover-2 hover:text-ink"
                 >
                   <ArrowLeftIcon size={12} />
                 </button>
               ) : null}
-              <span className="text-[10px] tracking-[0.4px] text-ink-3">{t("MODEL")}</span>
+              <span className="text-ui-xs tracking-[0.4px] text-ink-3">{t("MODEL")}</span>
             </div>
             <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 pb-2">
               {/* Memoised: the glide highlight moves on every pointer move, and
@@ -245,6 +250,10 @@ export function ModelThinkingControl({
   );
 }
 
+/** A model row's right-hand marker. Small enough to sit on the 4px radius floor. */
+const MODEL_BADGE =
+  "shrink-0 rounded-tiny bg-field px-1 py-px font-mono text-ui-2xs leading-[13px] text-ink-3";
+
 /** The models, grouped by channel. Split out so hover never re-renders it. */
 const ModelGroups = memo(function ModelGroups({
   grouped,
@@ -255,38 +264,63 @@ const ModelGroups = memo(function ModelGroups({
   currentKey: string;
   onPick: (provider: string, id: string) => void;
 }) {
+  const showsVision = useMemo(
+    () => grouped.some(([, models]) => models.some((model) => !model.supportsImages)),
+    [grouped],
+  );
+
   return (
     <>
       {grouped.map(([provider, models]) => (
-        <div key={provider} className="mb-1.5">
-          <div className="flex items-center gap-1.5 px-1 pb-0.5">
-            <GlobeIcon size={10} className="text-ink-3" />
-            <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-ink-3">{provider}</span>
-            <span className="font-mono text-[9.5px] tabular-nums text-ink-3">{models.length}</span>
+        <div key={provider} className="pb-1">
+          {/* Sticky, because with every channel in the catalogue the list is
+              long enough to lose track of which one you are inside. The count
+              it used to print is gone: the rows are right below it. */}
+          <div className="sticky top-0 z-10 -mx-2 bg-surface px-2 pb-1 pt-1.5">
+            <div className="truncate text-ui-2xs font-medium uppercase tracking-[0.5px] text-ink-3">
+              {models[0]?.providerName ?? provider}
+            </div>
           </div>
           <GlideList rowSelector="[data-row]" highlightClassName="bg-hover" radius={6}>
             {models.map((model) => {
-              const key = `${model.provider}/${model.id}`;
-              const active = currentKey === key;
+              const active = currentKey === `${model.provider}/${model.id}`;
+              const size = formatContext(model.contextWindow);
               return (
                 <button
                   key={model.id}
                   data-row
                   type="button"
                   onClick={() => onPick(model.provider, model.id)}
-                  className={cn(
-                    "glide-row pressable flex items-center gap-2 rounded-[6px] px-2 py-1 text-left",
-                    active && "bg-surface shadow-hairline",
-                  )}
+                  title={model.name}
+                  /* `pr-7` reserves the checkmark's column, and the mark is
+                     faded rather than removed when off: a list whose rows shift
+                     12px as you hover them is worse than one that never marks
+                     the hover at all. */
+                  className="glide-row pressable relative flex h-8 w-full items-center gap-1.5 rounded-chip py-0 pl-2 pr-7 text-left"
                 >
-                  <span className={cn("min-w-0 flex-1 truncate text-[11.5px]", active ? "text-ink" : "text-ink-2")}>
+                  <span
+                    className={cn(
+                      "min-w-0 flex-1 truncate text-ui-caption",
+                      active ? "font-medium text-ink" : "text-ink-2",
+                    )}
+                  >
                     {model.name}
                   </span>
-                  {/* 1000000 is a megabyte of context, not "1000K" */}
-                  <span className="shrink-0 font-mono text-[9.5px] text-ink-3">
-                    {formatContext(model.contextWindow)}
-                  </span>
-                  {active ? <span className="size-1.5 shrink-0 rounded-full bg-accent" /> : null}
+                  {/* A marker every row carries says nothing, so it is drawn
+                      only once something in the list lacks it. */}
+                  {showsVision && model.supportsImages ? (
+                    <ImageIcon size={10} className="shrink-0 text-ink-3" />
+                  ) : null}
+                  {/* Half the catalogue names its own window — "DeepSeek V4 Flash
+                      1M" does not need a second 1M sitting next to it. */}
+                  {model.name.includes(size) ? null : <span className={MODEL_BADGE}>{size}</span>}
+                  <CheckIcon
+                    size={12}
+                    className={cn(
+                      "absolute right-2 shrink-0 text-ink transition-opacity duration-150",
+                      active ? "opacity-100" : "opacity-0",
+                    )}
+                  />
                 </button>
               );
             })}

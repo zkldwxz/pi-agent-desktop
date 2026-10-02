@@ -107,7 +107,13 @@ export interface DesktopBridgeHooks {
 	onCommands: (commands: SlashCommand[]) => void;
 }
 
-export function registerDesktopBridge(pi: ExtensionAPI, hooks: DesktopBridgeHooks): void {
+export interface DesktopBridgeHandle {
+  /** re-run announce: re-report commands and ping the plugins for their state —
+   *  used when a parked runtime is promoted back to the active view */
+  reannounce: () => void;
+}
+
+export function registerDesktopBridge(pi: ExtensionAPI, hooks: DesktopBridgeHooks): DesktopBridgeHandle {
 	let unsubscribers: Array<() => void> = [];
 
 	const subscribe = () => {
@@ -154,10 +160,11 @@ export function registerDesktopBridge(pi: ExtensionAPI, hooks: DesktopBridgeHook
 	 * the case where the plugin published before this side was listening */
 	pi.on("resources_discover", async () => announce());
 	pi.on("agent_settled", async () => announce());
-	pi.on("session_shutdown", async () => {
-		unsubscribers.splice(0).forEach((off) => off());
-		hooks.onPlanState({ ...EMPTY_PLAN });
-		hooks.onFleetState([]);
-		hooks.onCommands([]);
-	});
+  pi.on("session_shutdown", async () => {
+    unsubscribers.splice(0).forEach((off) => off());
+    hooks.onPlanState({ ...EMPTY_PLAN });
+    hooks.onFleetState([]);
+    hooks.onCommands([]);
+  });
+  return { reannounce: announce };
 }

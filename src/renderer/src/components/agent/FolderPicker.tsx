@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckIcon, ChevronDownIcon, CircleSlashIcon, FolderIcon, FolderOpenIcon, GlobeIcon, SearchIcon } from "../icons";
+import { CheckIcon, ChevronDownIcon, FolderIcon, FolderOpenIcon, GlobeIcon, HomeIcon, SearchIcon } from "../icons";
 import { Popover } from "../motion";
 import { folderName } from "../../lib/format";
 import { t } from "../../lib/i18n";
@@ -11,14 +11,16 @@ import { t } from "../../lib/i18n";
  * in the greeting sentence is where it moves. Clicking it opens the switcher —
  * the recent-folder records first, never the OS dialog — and only "New
  * workspace" inside the menu brings up the system picker. While the menu is
- * open the rest of the greeting blurs (the host dims it via `onOpenChange`),
- * and everything comes back once a choice lands.
+ * open the host paints a soft vignette at the view's edges (`onOpenChange`) so
+ * the eye settles here; the menu itself stays above it, crisp and clickable.
  */
 export function FolderPicker({
   cwd,
+  homeDir,
   onOpenChange,
 }: {
   cwd: string;
+  homeDir: string;
   onOpenChange?: (open: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -46,35 +48,53 @@ export function FolderPicker({
           [...seen.entries()]
             .sort((a, b) => b[1] - a[1])
             .slice(0, 8)
-            .map(([path]) => path),
+            .map(([path]) => path)
+            .filter((path) => !sameFolder(path, homeDir)),
         );
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [homeDir, open]);
+
+  const sameFolder = (left: string, right: string) => {
+    if (!left || !right) return false;
+    const normalizedLeft = left.replace(/[\\/]+$/, "").replace(/\\/g, "/").toLowerCase();
+    const normalizedRight = right.replace(/[\\/]+$/, "").replace(/\\/g, "/").toLowerCase();
+    const normalizedHome = homeDir.replace(/[\\/]+$/, "").replace(/\\/g, "/").toLowerCase();
+    if (normalizedLeft === "~") return normalizedRight === normalizedHome;
+    if (normalizedRight === "~") return normalizedLeft === normalizedHome;
+    return normalizedLeft === normalizedRight;
+  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return folders;
     return folders.filter(
-      (path) => (folderName(path) || path).toLowerCase().includes(q) || path.toLowerCase().includes(q),
+      (path) =>
+        (sameFolder(path, homeDir) ? t("Home") : folderName(path) || path).toLowerCase().includes(q) ||
+        path.toLowerCase().includes(q),
     );
-  }, [folders, query]);
+  }, [folders, homeDir, query]);
 
   const close = () => {
     setOpen(false);
     setQuery("");
   };
 
-  const pick = (path?: string) => {
-    close();
-    if (!path || path === cwd) return;
-    void window.pi.setCwd(path).catch(() => undefined);
+  const startFreshAt = async (path: string) => {
+    await window.pi.setCwd(path);
+    await window.pi.newSession();
   };
 
-  const displayName = folderName(cwd) || cwd || t("No workspace");
+  const pick = (path?: string) => {
+    close();
+    if (!path) return;
+    void startFreshAt(path).catch(() => undefined);
+  };
+
+  const displayName = sameFolder(cwd, homeDir) ? t("Home") : folderName(cwd) || cwd || t("No workspace");
 
   return (
     <span className="relative inline-block" data-folder-picker>
@@ -84,7 +104,7 @@ export function FolderPicker({
         aria-expanded={open}
         aria-label={t("Change folder")}
         onClick={() => setOpen((value) => !value)}
-        className="mx-2 inline-flex items-baseline gap-[1px] rounded-[3px] font-semibold text-ink underline decoration-line-strong decoration-1 underline-offset-[3px] transition-colors duration-150 hover:decoration-ink-3"
+        className="mx-2 inline-flex items-baseline gap-[1px] rounded-tiny font-semibold text-ink underline decoration-line-strong decoration-1 underline-offset-[3px] transition-colors duration-150 hover:decoration-ink-3"
       >
         <span className="max-w-[240px] truncate">{displayName}</span>
         <ChevronDownIcon
@@ -95,7 +115,7 @@ export function FolderPicker({
       </button>
 
       <Popover open={open} onClose={close} anchor="bottom-left" className="w-72 p-1">
-        <div className="mb-1 flex h-8 items-center gap-1.5 rounded-[7px] bg-field px-2 text-ink-3 shadow-hairline">
+        <div className="mb-1 flex h-8 items-center gap-1.5 rounded-chip bg-field px-2 text-ink-3 shadow-hairline">
           <SearchIcon size={12} />
           <input
             autoFocus
@@ -109,13 +129,14 @@ export function FolderPicker({
             }}
             placeholder={t("Search folders…")}
             aria-label={t("Search folders")}
-            className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink outline-none placeholder:text-ink-3"
+            className="min-w-0 flex-1 bg-transparent text-ui-caption text-ink outline-none placeholder:text-ink-4"
           />
         </div>
 
         <div className="flex flex-col">
           {filtered.map((path) => {
-            const current = path === cwd;
+            const current = sameFolder(path, cwd);
+            const isHome = sameFolder(path, homeDir);
             return (
               <button
                 key={path}
@@ -123,18 +144,22 @@ export function FolderPicker({
                 data-row
                 onClick={() => pick(path)}
                 title={path}
-                className="glide-row pressable flex h-8 w-full items-center gap-2 rounded-[6px] px-2 text-left"
+                className="glide-row pressable flex h-8 w-full items-center gap-2 rounded-chip px-2 text-left"
               >
-                <FolderIcon size={13} className="shrink-0 text-ink-3" />
-                <span className={`min-w-0 flex-1 truncate text-[12.5px] ${current ? "text-ink" : "text-ink-2"}`}>
-                  {folderName(path) || path}
+                {isHome ? (
+                  <HomeIcon size={13} className="shrink-0 text-ink-3" />
+                ) : (
+                  <FolderIcon size={13} className="shrink-0 text-ink-3" />
+                )}
+                <span className={`min-w-0 flex-1 truncate text-ui-caption ${current ? "text-ink" : "text-ink-2"}`}>
+                  {isHome ? t("Home") : folderName(path) || path}
                 </span>
                 {current ? <CheckIcon size={13} className="shrink-0 text-ink" /> : null}
               </button>
             );
           })}
           {query.trim() && !filtered.length ? (
-            <div className="px-2 py-1.5 text-[11.5px] text-ink-3">{t("No folders found")}</div>
+            <div className="px-2 py-1.5 text-ui-sm text-ink-3">{t("No folders found")}</div>
           ) : null}
 
           <div className="my-1 border-t border-line" />
@@ -145,35 +170,38 @@ export function FolderPicker({
             data-row
             onClick={() => {
               close();
-              void window.pi.pickCwd();
+              void (async () => {
+                const next = await window.pi.pickCwd();
+                if (next) await window.pi.newSession();
+              })().catch(() => undefined);
             }}
-            className="glide-row pressable flex h-8 w-full items-center gap-2 rounded-[6px] px-2 text-left"
+            className="glide-row pressable flex h-8 w-full items-center gap-2 rounded-chip px-2 text-left"
           >
             <FolderOpenIcon size={13} className="shrink-0 text-ink-3" />
-            <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink">{t("New workspace")}</span>
+            <span className="min-w-0 flex-1 truncate text-ui-caption text-ink">{t("New workspace")}</span>
           </button>
           <button
             type="button"
             data-row
             disabled
             title={t("SSH connections are coming soon")}
-            className="glide-row flex h-8 w-full cursor-default items-center gap-2 rounded-[6px] px-2 text-left opacity-40"
+            className="glide-row flex h-8 w-full cursor-default items-center gap-2 rounded-chip px-2 text-left opacity-40"
           >
             <GlobeIcon size={13} className="shrink-0 text-ink-3" />
-            <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink">{t("New SSH connection")}</span>
-            <span className="shrink-0 font-mono text-[9.5px] text-ink-3">soon</span>
+            <span className="min-w-0 flex-1 truncate text-ui-caption text-ink">{t("New SSH connection")}</span>
+            <span className="shrink-0 font-mono text-ui-xs text-ink-3">soon</span>
           </button>
           <button
             type="button"
             data-row
             onClick={() => {
               close();
-              void window.pi.setCwd("~").catch(() => undefined);
+              void startFreshAt(homeDir).catch(() => undefined);
             }}
-            className="glide-row pressable flex h-8 w-full items-center gap-2 rounded-[6px] px-2 text-left"
+            className="glide-row pressable flex h-8 w-full items-center gap-2 rounded-chip px-2 text-left"
           >
-            <CircleSlashIcon size={13} className="shrink-0 text-ink-3" />
-            <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink">{t("No workspace")}</span>
+            <HomeIcon size={13} className="shrink-0 text-ink-3" />
+            <span className="min-w-0 flex-1 truncate text-ui-caption text-ink">{t("Home")}</span>
           </button>
         </div>
       </Popover>

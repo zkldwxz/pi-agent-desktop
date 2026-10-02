@@ -151,6 +151,9 @@ function AgentShell({ cwd }: { cwd: string }) {
   const [lines, setLines] = useState<Line[]>([]);
   const [draft, setDraft] = useState("");
   const [running, setRunning] = useState(false);
+  /* the command itself is the status — "running…" said nothing the spinner above
+     it did not, while the line the user just submitted said everything */
+  const [runningCommand, setRunningCommand] = useState<string | null>(null);
   const [past, setPast] = useState<string[]>([]);
   const [pastIndex, setPastIndex] = useState(-1);
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -176,6 +179,7 @@ function AgentShell({ cwd }: { cwd: string }) {
     setDraft("");
     setLines((current) => [...current, { id: nextLineId++, kind: "prompt", text: command }]);
     setRunning(true);
+    setRunningCommand(command);
     try {
       const result = await window.pi.runBash(command);
       if (result.exitCode !== 0 && result.exitCode !== undefined) {
@@ -188,6 +192,7 @@ function AgentShell({ cwd }: { cwd: string }) {
       ]);
     } finally {
       setRunning(false);
+      setRunningCommand(null);
       inputRef.current?.focus();
     }
   };
@@ -196,15 +201,15 @@ function AgentShell({ cwd }: { cwd: string }) {
     <>
       <div
         ref={scrollerRef}
-        className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-3 py-2 font-mono text-[12.5px] leading-[1.65]"
+        className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-[12px] py-[8px] font-mono text-ui-caption leading-[1.65]"
       >
         {lines.length === 0 ? (
           <div className="flex flex-col gap-1.5 py-2 text-ink-3">
             <span>{t("Runs through the agent's own bash tool.")}</span>
-            <span className="text-[11.5px]">
+            <span className="text-ui-sm">
               {t("Same shell the model uses, and the output is recorded in the session so the next prompt can see it.")}
             </span>
-            <span className="mt-1 text-[11.5px]">
+            <span className="mt-1 text-ui-sm">
               {t("Try")} <span className="text-ink-2">git status</span> {t("or")} <span className="text-ink-2">ls -la</span>
             </span>
           </div>
@@ -218,22 +223,24 @@ function AgentShell({ cwd }: { cwd: string }) {
                 line.kind === "out" && "text-ink-2",
                 line.kind === "error" && "text-red",
               )}
-              style={line.kind === "prompt" ? { animation: "fade-up 200ms cubic-bezier(0.23,1,0.32,1) both" } : undefined}
+              style={line.kind === "prompt" ? { animation: "fade-up 200ms var(--ease-out-strong-css) both" } : undefined}
             >
               {line.kind === "prompt" ? `❯ ${line.text}` : line.text}
             </div>
           ))
         )}
         {running ? (
-          <div className="flex items-center gap-2 pt-1 text-ink-3" style={{ animation: "fade-in 200ms ease-out both" }}>
-            <span className="spin-fast size-2.5 rounded-full border-[1.5px] border-line-strong border-t-accent" />
-            {t("running…")}
+          <div className="flex min-w-0 items-center gap-2 pt-1 text-ink-3" style={{ animation: "fade-in 200ms ease-out both" }}>
+            <span className="spin-fast size-2.5 shrink-0 rounded-full border-[1.5px] border-line-strong border-t-accent" />
+            <span className="min-w-0 truncate font-mono text-ui-sm text-ink-2">
+              {runningCommand ?? t("Running")}
+            </span>
           </div>
         ) : null}
       </div>
 
-      <div className="flex shrink-0 items-center gap-2 border-t border-line px-3 py-2">
-        <span className="font-mono text-[12.5px] text-ink-3">❯</span>
+      <div className="flex shrink-0 items-center gap-[8px] border-t border-line px-[12px] py-[8px]">
+        <span className="font-mono text-ui-caption text-ink-3">❯</span>
         <input
           ref={inputRef}
           value={draft}
@@ -258,16 +265,16 @@ function AgentShell({ cwd }: { cwd: string }) {
               setDraft(next < 0 ? "" : past[next]);
             }
           }}
-          placeholder={running ? t("running…") : t("Enter to run — output joins the conversation")}
+          placeholder={t("Enter to run — output joins the conversation")}
           disabled={running}
-          className="min-w-0 flex-1 bg-transparent font-mono text-[12.5px] text-ink outline-none placeholder:text-ink-3 disabled:opacity-60"
+          className="min-w-0 flex-1 bg-transparent font-mono text-ui-caption text-ink outline-none placeholder:text-ink-4 disabled:opacity-60"
         />
         <button
           type="button"
           onClick={() => void submit()}
           disabled={running || !draft.trim()}
           aria-label={t("Run command")}
-          className="pressable flex size-6 items-center justify-center rounded-[6px] bg-ink text-canvas disabled:bg-line-strong disabled:text-ink-3"
+          className="pressable flex size-6 items-center justify-center rounded-chip bg-ink text-canvas disabled:bg-line-strong disabled:text-ink-3"
         >
           <ArrowUpIcon size={13} />
         </button>
@@ -387,7 +394,7 @@ export function TerminalPanel({ cwd }: { cwd: string }) {
               <div
                 key={session.id}
                 className={cn(
-                  "group/tab flex h-6 shrink-0 items-center gap-1 rounded-chip pr-1 pl-2 text-[11.5px]",
+                  "group/tab flex h-6 shrink-0 items-center gap-1 rounded-chip pr-1 pl-2 text-ui-sm",
                   selected ? "bg-field text-ink" : "text-ink-3 hover:bg-hover",
                 )}
               >
@@ -400,14 +407,14 @@ export function TerminalPanel({ cwd }: { cwd: string }) {
                   {session.status === "exited" ? (
                     <span className="size-1.5 rounded-full bg-orange" title={tf("exited {code}", { code: session.exitCode ?? "" })} />
                   ) : null}
-                  <span className="font-mono text-[10px] tabular-nums opacity-60">{index + 1}</span>
+                  <span className="font-mono text-ui-xs tabular-nums opacity-60">{index + 1}</span>
                   <span className="max-w-24 truncate">{session.title}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => close(session.id)}
                   aria-label={tf("Close {name}", { name: session.title })}
-                  className="pressable flex size-4 items-center justify-center rounded-[4px] opacity-0 group-hover/tab:opacity-100 hover:bg-hover-2"
+                  className="pressable flex size-4 items-center justify-center rounded-tiny opacity-0 group-hover/tab:opacity-100 hover:bg-hover-2"
                 >
                   <XIcon size={9} />
                 </button>
@@ -420,7 +427,7 @@ export function TerminalPanel({ cwd }: { cwd: string }) {
               onClick={() => void open()}
               aria-label={t("New terminal")}
               title={t("New terminal in this folder")}
-              className="pressable flex size-6 items-center justify-center rounded-[6px] text-ink-3 hover:bg-hover hover:text-ink"
+              className="pressable flex size-6 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
             >
               <PlusIcon size={12} />
             </button>
@@ -431,7 +438,7 @@ export function TerminalPanel({ cwd }: { cwd: string }) {
               aria-label={t("New terminal in a specific shell")}
               title={t("Pick a shell for the new terminal")}
               className={cn(
-                "pressable flex size-4 items-center justify-center rounded-[4px] text-ink-3 hover:bg-hover hover:text-ink",
+                "pressable flex size-4 items-center justify-center rounded-tiny text-ink-3 hover:bg-hover hover:text-ink",
                 shellMenuOpen && "bg-hover text-ink",
               )}
             >
@@ -444,7 +451,7 @@ export function TerminalPanel({ cwd }: { cwd: string }) {
               className="z-40 w-64 rounded-card border border-line bg-surface shadow-card"
             >
               <div className="flex flex-col gap-0.5 p-1">
-                <span className="px-2 pt-1 pb-0.5 text-[10.5px] tracking-[0.4px] text-ink-3 uppercase">
+                <span className="px-2 pt-1 pb-0.5 text-ui-xs tracking-[0.4px] text-ink-3 uppercase">
                   {t("Shell for the new terminal")}
                 </span>
                 {(shellChoices ?? []).map((shell) => (
@@ -455,19 +462,19 @@ export function TerminalPanel({ cwd }: { cwd: string }) {
                       setShellMenuOpen(false);
                       void open(shell.id);
                     }}
-                    className="pressable flex flex-col gap-0.5 rounded-[6px] px-2 py-1.5 text-left hover:bg-hover"
+                    className="pressable flex flex-col gap-0.5 rounded-chip px-2 py-1.5 text-left hover:bg-hover"
                   >
-                    <span className="text-[12px] text-ink">{shell.name}</span>
-                    <span className="truncate font-mono text-[10px] text-ink-3">
+                    <span className="text-ui-caption text-ink">{shell.name}</span>
+                    <span className="truncate font-mono text-ui-xs text-ink-3">
                       {shell.args.length ? `${shell.path} ${shell.args.join(" ")}` : shell.path}
                     </span>
                   </button>
                 ))}
                 {!shellChoices ? (
-                  <span className="px-2 py-2 text-[11.5px] text-ink-3">{t("Detecting shells…")}</span>
+                  <span className="px-2 py-2 text-ui-sm text-ink-3">{t("Detecting shells…")}</span>
                 ) : null}
                 {shellChoices && !shellChoices.length ? (
-                  <span className="px-2 py-2 text-[11.5px] text-ink-3">{t("No shell was found on PATH.")}</span>
+                  <span className="px-2 py-2 text-ui-sm text-ink-3">{t("No shell was found on PATH.")}</span>
                 ) : null}
               </div>
             </Popover>
@@ -481,7 +488,7 @@ export function TerminalPanel({ cwd }: { cwd: string }) {
             aria-label={t("Terminal")}
             title={t("Terminal — a real shell in this folder")}
             className={cn(
-              "pressable flex size-5 items-center justify-center rounded-[5px]",
+              "pressable flex size-5 items-center justify-center rounded-chip",
               mode === "terminal" ? "bg-surface text-ink shadow-hairline" : "text-ink-3 hover:text-ink",
             )}
           >
@@ -493,7 +500,7 @@ export function TerminalPanel({ cwd }: { cwd: string }) {
             aria-label={t("Agent shell")}
             title={t("Agent shell — output is recorded in the conversation")}
             className={cn(
-              "pressable flex size-5 items-center justify-center rounded-[5px]",
+              "pressable flex size-5 items-center justify-center rounded-chip",
               mode === "agent" ? "bg-surface text-ink shadow-hairline" : "text-ink-3 hover:text-ink",
             )}
           >
@@ -505,18 +512,18 @@ export function TerminalPanel({ cwd }: { cwd: string }) {
       {mode === "agent" ? (
         <AgentShell cwd={cwd} />
       ) : error ? (
-        <div className="m-3 rounded-card bg-red-tint px-3 py-2.5 text-[11.5px] leading-relaxed text-red">
+        <div className="m-3 rounded-card bg-red-tint px-3 py-2.5 text-ui-sm leading-relaxed text-red">
           {tf("No shell could start: {error}", { error })}
         </div>
       ) : active ? (
         <PtyTerminal key={active.id} id={active.id} />
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center">
-          <p className="text-[12px] text-ink-3">{t("No terminal in this folder.")}</p>
+          <p className="text-ui-caption text-ink-3">{t("No terminal in this folder.")}</p>
           <button
             type="button"
             onClick={() => void open()}
-            className="pressable inline-flex h-7 items-center gap-1.5 rounded-chip bg-field px-2.5 text-[11.5px] text-ink-2 hover:bg-hover-2"
+            className="pressable inline-flex h-7 items-center gap-1.5 rounded-chip bg-field px-2.5 text-ui-sm text-ink-2 hover:bg-hover-2"
           >
             <PlusIcon size={11} />
             {t("New terminal")}
@@ -526,14 +533,14 @@ export function TerminalPanel({ cwd }: { cwd: string }) {
 
       {mode === "terminal" && active ? (
         <div className="flex shrink-0 items-center gap-1.5 border-t border-line px-3 py-1.5">
-          <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-ink-3" title={active.cwd}>
+          <span className="min-w-0 flex-1 truncate font-mono text-ui-xs text-ink-3" title={active.cwd}>
             {active.cwd}
           </span>
           {active.status === "running" ? (
             <button
               type="button"
               onClick={() => close(active.id)}
-              className="pressable inline-flex h-6 items-center gap-1.5 rounded-chip px-2 text-[11px] text-ink-3 hover:bg-hover hover:text-ink-2"
+              className="pressable inline-flex h-6 items-center gap-1.5 rounded-chip px-2 text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
             >
               <SquareStopIcon size={9} />
               {t("Kill")}
@@ -542,7 +549,7 @@ export function TerminalPanel({ cwd }: { cwd: string }) {
             <button
               type="button"
               onClick={() => void open()}
-              className="pressable inline-flex h-6 items-center rounded-chip px-2 text-[11px] text-ink-3 hover:bg-hover hover:text-ink-2"
+              className="pressable inline-flex h-6 items-center rounded-chip px-2 text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
             >
               {t("Restart")}
             </button>

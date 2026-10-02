@@ -13,7 +13,7 @@
  *   - `dist/bundle/` — the pi CLI bundled for Node and Bun. It is a second copy
  *     of the whole agent, and app code imports the source modules through
  *     `dist/index.js`, never the bundle.
- *   - other platforms' native prebuilds (this build ships win32-x64).
+ *   - other platforms' native prebuilds (an installer only ships the host's).
  *   - `docs`, `examples`, maps, TypeScript declarations, test directories.
  *   - `@fontsource` families the app does not import (only Geist is used).
  *
@@ -40,8 +40,8 @@ const DROP_ANYWHERE = new Set(["bundle"]);
 /** @fontsource families nothing imports: the app uses Geist and Geist Mono. */
 const DROP_FONTS = new Set(["inter", "jetbrains-mono"]);
 
-/** Native prebuilds for other platforms. */
-const KEEP_NATIVE = "win32-x64";
+/** Native prebuilds for other platforms — the installer ships the host's. */
+const KEEP_NATIVE = `${process.platform}-${process.arch}`;
 
 let freed = 0;
 

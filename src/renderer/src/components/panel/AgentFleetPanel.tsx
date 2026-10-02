@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FleetAgent } from "@shared/types";
 import { cn } from "../../lib/cn";
 import { t, useLocale } from "../../lib/i18n";
+import { Markdown } from "../Markdown";
 import { EmptyState } from "../ui";
 import { CheckIcon, ChevronDownIcon, LoaderIcon, UsersIcon, XIcon } from "../icons";
 
@@ -58,19 +59,19 @@ function AgentRow({ agent, onInterrupt }: { agent: FleetAgent; onInterrupt: (nam
   return (
     <div
       className="rounded-card bg-surface shadow-hairline"
-      style={{ animation: "row-enter 240ms cubic-bezier(0.23,1,0.32,1) both" }}
+      style={{ animation: "row-enter 240ms var(--ease-out-strong-css) both" }}
     >
-      <button type="button" onClick={() => setOpen((value) => !value)} className="flex w-full items-start gap-2 px-3 py-2.5 text-left">
+      <button type="button" onClick={() => setOpen((value) => !value)} className="flex w-full items-start gap-[8px] px-[12px] py-[10px] text-left">
         <span className="mt-[3px]">
           <StatusMark status={agent.status} />
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-baseline gap-2">
-            <span className="truncate font-mono text-[12.5px] font-medium text-ink">{agent.name}</span>
-            <span className="shrink-0 text-[10.5px] uppercase tracking-wide text-ink-3">{t(STATUS_LABEL[agent.status])}</span>
+            <span className="truncate font-mono text-ui-base font-medium text-ink">{agent.name}</span>
+            <span className="shrink-0 text-ui-xs uppercase tracking-wide text-ink-3">{t(STATUS_LABEL[agent.status])}</span>
           </span>
-          <span className="mt-0.5 block truncate text-[12px] leading-snug text-ink-2">{agent.task || "—"}</span>
-          <span className="mt-1 flex items-center gap-2 text-[11px] text-ink-3">
+          <span className="mt-0.5 block truncate text-ui-caption leading-snug text-ink-2">{agent.task || "—"}</span>
+          <span className="mt-1 flex items-center gap-2 text-ui-sm text-ink-3">
             {agent.model ? <span className="truncate">{agent.model}</span> : null}
             {meta ? <span className="shrink-0">{meta}</span> : null}
           </span>
@@ -91,7 +92,7 @@ function AgentRow({ agent, onInterrupt }: { agent: FleetAgent; onInterrupt: (nam
                 event.stopPropagation();
                 onInterrupt(agent.name);
               }}
-              className="pressable flex size-6 items-center justify-center rounded-[6px] text-ink-3 hover:bg-hover hover:text-red"
+              className="pressable flex size-6 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-red"
             >
               <XIcon size={12} />
             </span>
@@ -102,7 +103,12 @@ function AgentRow({ agent, onInterrupt }: { agent: FleetAgent; onInterrupt: (nam
         </span>
       </button>
       {open && agent.summary ? (
-        <div className="border-t border-line px-3 py-2 text-[12px] leading-relaxed whitespace-pre-wrap text-ink-2">{agent.summary}</div>
+        /* the summary is the sub-agent's own answer, and an answer is markdown —
+           it used to be laid down as pre-wrapped text, so `##`, `**` and fences
+           arrived as their own source */
+        <div className="border-t border-line px-[12px] py-[8px]">
+          <Markdown variant="panel">{agent.summary}</Markdown>
+        </div>
       ) : null}
     </div>
   );
@@ -114,7 +120,7 @@ export function AgentFleetPanel({ fleet, onInterrupt }: { fleet: FleetAgent[]; o
 
   if (!fleet.length) {
     return (
-      <div className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
+      <div className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto p-[12px]">
         <div className="my-auto">
           <EmptyState
             title={t("No sub-agents")}
@@ -127,10 +133,10 @@ export function AgentFleetPanel({ fleet, onInterrupt }: { fleet: FleetAgent[]; o
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex h-[42px] shrink-0 items-center gap-2 border-b border-line px-3">
+      <header className="flex h-[40px] shrink-0 items-center gap-2 border-b border-line px-[12px]">
         <UsersIcon size={14} className="text-ink-3" />
-        <span className="text-[12.5px] font-medium text-ink">{t("Agent team")}</span>
-        <span className="text-[11px] text-ink-3">
+        <span className="text-ui-base font-medium text-ink">{t("Agent team")}</span>
+        <span className="text-ui-sm text-ink-3">
           {running}/{fleet.length}
         </span>
         <span className="flex-1" />
@@ -139,13 +145,13 @@ export function AgentFleetPanel({ fleet, onInterrupt }: { fleet: FleetAgent[]; o
             type="button"
             title={t("Interrupt all")}
             onClick={() => onInterrupt()}
-            className="pressable rounded-[6px] px-2 py-1 text-[11px] text-ink-3 hover:bg-hover hover:text-red"
+            className="pressable rounded-chip px-2 py-1 text-ui-sm text-ink-3 hover:bg-hover hover:text-red"
           >
             {t("Interrupt all")}
           </button>
         ) : null}
       </header>
-      <div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
+      <div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-[8px] overflow-y-auto p-[12px]">
         {[...fleet].reverse().map((agent) => (
           <AgentRow key={agent.name} agent={agent} onInterrupt={(name) => onInterrupt(name)} />
         ))}

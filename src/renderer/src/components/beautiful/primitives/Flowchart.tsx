@@ -145,22 +145,22 @@ function Menu({
   return (
     <div
       onMouseLeave={() => setHovered(null)}
-      className={`absolute bottom-full z-20 mb-1.5 rounded-[10px] bg-surface p-1 shadow-raised ${width}
+      className={`absolute bottom-full z-20 mb-1.5 rounded-card bg-surface p-1 shadow-raised ${width}
         ${align === "right" ? "right-0" : "left-0"}`}
       style={{
-        animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both",
+        animation: "pop-in 180ms var(--ease-out-strong-css) both",
         transformOrigin: align === "right" ? "bottom right" : "bottom left",
       }}
     >
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-x-1 rounded-[6px] bg-hover"
+        className="pointer-events-none absolute inset-x-1 rounded-chip bg-hover"
         style={{
           top: box?.top ?? 0,
           height: box?.height ?? 0,
           opacity: box && hovered !== null ? 1 : 0,
           transition:
-            "top 220ms cubic-bezier(0.23,1,0.32,1), height 220ms cubic-bezier(0.23,1,0.32,1), opacity 150ms ease",
+            "top 220ms var(--ease-out-strong-css), height 220ms var(--ease-out-strong-css), opacity 150ms ease",
         }}
       />
       {items.map((item, i) => (
@@ -172,10 +172,10 @@ function Menu({
           }}
           onMouseEnter={() => setHovered(i)}
           onClick={() => onPick(item.name)}
-          className="relative z-10 flex h-7.5 w-full cursor-pointer items-center gap-2 rounded-[6px] px-2 text-left"
+          className="relative z-10 flex h-7.5 w-full cursor-pointer items-center gap-2 rounded-chip px-2 text-left"
         >
-          <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">{item.name}</span>
-          {item.tag && <span className="shrink-0 text-[11px] text-ink-3">{item.tag}</span>}
+          <span className="min-w-0 flex-1 truncate text-ui-caption font-medium text-ink">{item.name}</span>
+          {item.tag && <span className="shrink-0 text-ui-sm text-ink-3">{item.tag}</span>}
           <span className={`shrink-0 text-ink ${item.name === value ? "" : "invisible"}`}>
             <CheckIcon />
           </span>
@@ -190,7 +190,7 @@ function SourceChip() {
   return (
     <span
       data-ui
-      className="inline-flex h-6 shrink-0 items-center gap-1 rounded-[6px] bg-surface px-1.5 text-[12px] font-medium text-ink shadow-btn"
+      className="inline-flex h-6 shrink-0 items-center gap-1 rounded-chip bg-surface px-1.5 text-ui-caption font-medium text-ink shadow-btn"
     >
       <span className="text-ink-2">
         <ConeIcon size={12} />
@@ -227,8 +227,8 @@ function SelectChip({
         type="button"
         aria-expanded={open}
         onClick={() => onToggle(id)}
-        className={`inline-flex h-6 min-w-0 cursor-pointer items-center gap-1 rounded-[6px] px-1.5
-          text-[12px] font-medium text-ink transition-colors duration-100
+        className={`inline-flex h-6 min-w-0 cursor-pointer items-center gap-1 rounded-chip px-1.5
+          text-ui-caption font-medium text-ink transition-colors duration-100
           ${open ? "bg-hover-2" : "bg-field hover:bg-hover-2"}`}
       >
         {dot && <span className="size-1.5 shrink-0 rounded-full" style={{ background: AMBER }} />}
@@ -290,18 +290,18 @@ function ConditionBody() {
     <div className="flex flex-col gap-1.5 px-3 py-2.5">
       <div className="flex min-w-0 items-center gap-1.5">
         <Handle />
-        <span className="w-7 text-[12.5px] text-ink-2">If</span>
+        <span className="w-7 text-ui-caption text-ink-2">If</span>
         <SourceChip />
         {chip("prop1", PROPERTIES.map((name) => ({ name })), "w-36")}
-        <span className="text-[12.5px] text-ink-2">is</span>
+        <span className="text-ui-caption text-ink-2">is</span>
         {chip("val1", FLAVORS, "w-44", { dot: true, align: "right" })}
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1.5">
         <Handle />
-        <span className="w-7 text-[12.5px] text-ink-2">and</span>
+        <span className="w-7 text-ui-caption text-ink-2">and</span>
         <SourceChip />
         {chip("prop2", PROPERTIES.map((name) => ({ name })), "w-36")}
-        <span className="text-[12.5px] text-ink-2">is</span>
+        <span className="text-ui-caption text-ink-2">is</span>
         <span className="max-w-full pl-[49px]">
           {chip("val2", TOPPINGS, "w-64", { dot: true })}
         </span>
@@ -318,7 +318,7 @@ function StepBody({ node }: { node: StepNode }) {
   return (
     <div className="flex items-center gap-2.5 p-2.5">
       <span
-        className="flex size-9 shrink-0 items-center justify-center rounded-[8px]"
+        className="flex size-9 shrink-0 items-center justify-center rounded-control"
         style={{
           background: mix(hue, 12),
           color: hue,
@@ -328,8 +328,8 @@ function StepBody({ node }: { node: StepNode }) {
         <ConeIcon />
       </span>
       <span className="min-w-0 text-left">
-        <span className="block truncate text-[13px] font-semibold leading-tight text-ink">{node.title}</span>
-        <span className="mt-0.5 block text-[12px] leading-snug text-ink-2">{node.caption}</span>
+        <span className="block truncate text-ui-base font-semibold leading-tight text-ink">{node.title}</span>
+        <span className="mt-0.5 block text-ui-caption leading-snug text-ink-2">{node.caption}</span>
       </span>
     </div>
   );
@@ -522,7 +522,7 @@ export default function Flowchart({
           >
             {node.kind && (
               <span
-                className="inline-flex h-6 items-center rounded-[6px] px-2 text-[11.5px] font-medium"
+                className="inline-flex h-6 items-center rounded-chip px-2 text-ui-sm font-medium"
                 style={{
                   background: mix(node.kind.hue, 14, "var(--page)"),
                   color: mix(node.kind.hue, 80, "var(--ink)"),

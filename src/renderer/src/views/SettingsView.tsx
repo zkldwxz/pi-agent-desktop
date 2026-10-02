@@ -1,8 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import type { HostState, ModelEdit, RuntimeSettings, UltraMode, UsageStats } from "@shared/types";
-import type { TerminalShell } from "@shared/terminal";
+import type { ChannelEdit, HostState, ModelEdit, RuntimeSettings, UltraMode, UsageStats } from "@shared/types";
 import { cn } from "../lib/cn";
 import { getCodeTheme, setCodeTheme, type CodeTheme } from "../lib/code-theme";
+import { setSoundsEnabled, soundsEnabled } from "../lib/sound";
 import {
   ArrowLeftIcon,
   BrainIcon,
@@ -15,6 +15,8 @@ import {
   KeyboardIcon,
   RefreshIcon,
   SearchIcon,
+  SparkIcon,
+  WarningIcon,
   SettingsIcon,
   SunIcon,
   TerminalIcon,
@@ -26,18 +28,26 @@ import { NavRow } from "../components/NavRow";
 import { TextRow } from "../components/beautiful/atoms/TextRow";
 import { AppearanceSection } from "../components/panel/AppearanceSection";
 import { HooksSection } from "../components/panel/HooksSection";
-import { ModelManagerSection } from "../components/panel/ModelManager";
+import { ModelManagerSection, SMART_KEY } from "../components/panel/ModelManager";
+import type { QueueBehavior } from "../components/agent/QueueBar";
 import { ShortcutsSection } from "../components/panel/ShortcutsSection";
 import { Row, Section, Select, Switch } from "../components/panel/SettingsParts";
 import { getLocale, setLocale, t, tf, type Locale } from "../lib/i18n";
+import { loadSidebarPrefs, saveSidebarPrefs, SIDEBAR_PREFS_DEFAULT } from "../lib/sidebar-prefs";
+import type { WorkspacePrefs } from "../components/agent/WorkspaceList";
 import { formatChord, useShortcuts } from "../lib/keybindings";
+import { IS_MAC, IS_WINDOWS } from "../lib/platform";
 import type { ColorMode } from "../lib/theme";
+import { THINKING_LEVELS } from "@shared/thinking";
 
 import { UsageView } from "./UsageView";
 
-const LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
-type SettingsCategory = "appearance" | "general" | "models" | "terminal" | "browser" | "tasks" | "hooks" | "keyboard" | "data" | "usage";
+/** A shell path the reader can actually go and find on this machine — the
+ *  placeholder is an example to copy, and a Git Bash drive letter is not one. */
+const SHELL_EXAMPLE = IS_WINDOWS ? "D:/Git/bin/bash.exe" : IS_MAC ? "/bin/zsh" : "/bin/bash";
+
+type SettingsCategory = "appearance" | "general" | "models" | "agent" | "browser" | "tasks" | "hooks" | "keyboard" | "data" | "usage";
 
 type SettingsRow = { key: SettingsCategory; label: string; icon: React.ReactNode };
 
@@ -58,9 +68,9 @@ const GROUPS: Array<{ label?: string; items: SettingsRow[] }> = [
   {
     label: "Agent",
     items: [
+      { key: "agent", label: "Agent", icon: <SparkIcon size={14} /> },
       { key: "models", label: "Models & thinking", icon: <BrainIcon size={14} /> },
       { key: "tasks", label: "Tasks", icon: <CheckCircleIcon size={14} /> },
-      { key: "terminal", label: "Terminal", icon: <TerminalIcon size={14} /> },
       { key: "hooks", label: "Hooks", icon: <HookIcon size={14} /> },
     ],
   },
@@ -87,7 +97,13 @@ export function SettingsView({
   onBack,
   onSaveModel,
   onDeleteModel,
+  onCreateChannel,
+  onRemoveChannel,
+  onAddChannelKey,
+  onRemoveChannelKey,
   onSetEnabledModels,
+  queueBehavior,
+  onQueueBehavior,
   dockToggle,
   usage,
   usageLoading,
@@ -108,8 +124,17 @@ export function SettingsView({
      shell's notice stack, so the caller owns the error handling */
   onSaveModel: (edit: ModelEdit) => Promise<void>;
   onDeleteModel: (provider: string, modelId: string) => Promise<void>;
+  /* channels are endpoints with keys on them; creating one answers with the
+     provider ids it wrote, which is what the model that came with it needs */
+  onCreateChannel: (edit: ChannelEdit) => Promise<string[]>;
+  onRemoveChannel: (channelId: string) => Promise<void>;
+  onAddChannelKey: (channelId: string, key: string) => Promise<void>;
+  onRemoveChannelKey: (providerId: string) => Promise<void>;
   /** the whole enabled-model whitelist, replacing `enabledModels` */
   onSetEnabledModels: (keys: string[]) => Promise<void>;
+  /** what a send does while the agent is working — a queue-behaviour setting */
+  queueBehavior: QueueBehavior;
+  onQueueBehavior: (behavior: QueueBehavior) => void;
   /** the right panel's trigger, positioned by the shell */
   dockToggle?: React.ReactNode;
   /* the usage dashboards used to be their own view; they are a section here */
@@ -136,33 +161,7 @@ export function SettingsView({
     setCodeThemeState(next);
   };
 
-  /* the terminal pane's shell choices, probed once when this view mounts */
-  const [shellChoices, setShellChoices] = useState<TerminalShell[] | null>(null);
-  const [resolvedShellId, setResolvedShellId] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    void window.pi
-      .listShells()
-      .then((result) => {
-        if (cancelled) return;
-        setShellChoices(result.shells);
-        setResolvedShellId(result.resolvedId);
-      })
-      .catch(() => setShellChoices([]));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const terminal = settings.terminal;
-  const pickShell = (preferred: string) => {
-    /* picking an entry means it is the one that runs — a custom path would
-     * outrank it, so the choice clears it rather than sitting behind it */
-    void window.pi
-      .updateSettings({ terminal: { preferred, customPath: undefined } })
-      .then(() => setResolvedShellId(preferred))
-      .catch(() => undefined);
-  };
   const setCustomShellPath = (customPath: string) => {
     const trimmed = customPath.trim();
     void window.pi
@@ -172,7 +171,6 @@ export function SettingsView({
           customPath: trimmed || undefined,
         },
       })
-      .then(() => setResolvedShellId(trimmed ? "custom" : null))
       .catch(() => undefined);
   };
   const [query, setQuery] = useState("");
@@ -180,14 +178,38 @@ export function SettingsView({
   /* desktop-only preferences live in localStorage rather than the pi settings
    * file — they are about this shell, not about the agent */
   const [soundOn, setSoundOn] = useState(() => localStorage.getItem("pi-sound-done") !== "off");
+  /* the click layer keeps its own key inside lib/sound, which is also the only
+     place that reads it at click time — the switch must not invent a second one */
+  const [clickOn, setClickOn] = useState(soundsEnabled);
   const [notifyOn, setNotifyOn] = useState(() => localStorage.getItem("pi-notify-done") !== "off");
+  const [sidebarGroup, setSidebarGroup] = useState(() => loadSidebarPrefs(SIDEBAR_PREFS_DEFAULT).group);
+  /* the id reader is the same kind of habit: some people want a form that fills
+     itself in, some want one that never guesses on their behalf */
+  const [smartMatch, setSmartMatch] = useState(() => localStorage.getItem(SMART_KEY) !== "off");
+  /* the Ultra explainer shows once per machine; dismissed it becomes the small
+     amber mark beside the model row instead of a banner on every model */
+  const [ultraHintOpen, setUltraHintOpen] = useState(() => localStorage.getItem("pi-ultra-hint-dismissed") !== "1");
+  const dismissUltraHint = () => {
+    setUltraHintOpen(false);
+    try {
+      localStorage.setItem("pi-ultra-hint-dismissed", "1");
+    } catch {}
+  };
   const toggleSound = (next: boolean) => {
     setSoundOn(next);
     localStorage.setItem("pi-sound-done", next ? "on" : "off");
   };
+  const toggleClick = (next: boolean) => {
+    setClickOn(next);
+    setSoundsEnabled(next);
+  };
   const toggleNotify = (next: boolean) => {
     setNotifyOn(next);
     localStorage.setItem("pi-notify-done", next ? "on" : "off");
+  };
+  const toggleSmartMatch = (next: boolean) => {
+    setSmartMatch(next);
+    localStorage.setItem(SMART_KEY, next ? "on" : "off");
   };
 
   const modelRows = state.models.map((model) => ({ key: `${model.provider}/${model.id}`, model }));
@@ -238,7 +260,7 @@ export function SettingsView({
           />
         </div>
         <div className="shrink-0 px-3 py-2">
-          <label className="flex h-8.5 items-center gap-2 rounded-[8px] bg-surface px-2.5 shadow-hairline transition-shadow duration-150 focus-within:shadow-btn">
+          <label className="flex h-8.5 items-center gap-2 rounded-control bg-surface px-2.5 shadow-hairline transition-shadow duration-150 focus-within:shadow-btn">
             <SearchIcon size={13} className="shrink-0 text-ink-3" />
             <input
               value={query}
@@ -248,14 +270,14 @@ export function SettingsView({
               }}
               placeholder={t("Search settings")}
               aria-label={t("Search settings")}
-              className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink outline-none placeholder:text-ink-3"
+              className="min-w-0 flex-1 bg-transparent text-ui-caption text-ink outline-none placeholder:text-ink-4"
             />
             {query ? (
               <button
                 type="button"
                 aria-label={t("Clear search")}
                 onClick={() => setQuery("")}
-                className="pressable flex size-4 shrink-0 items-center justify-center rounded-[4px] text-ink-3 hover:text-ink"
+                className="pressable flex size-4 shrink-0 items-center justify-center rounded-tiny text-ink-3 hover:text-ink"
               >
                   <XIcon size={11} />
                 </button>
@@ -267,7 +289,7 @@ export function SettingsView({
             {groups.map((group, groupIndex) => (
               <div key={group.label ?? "top"}>
                 {group.label ? (
-                  <div className="px-2 pt-4 pb-1.5 text-[10.5px] font-medium tracking-[0.4px] text-ink-3 uppercase">{t(group.label)}</div>
+                  <div className="px-2 pt-4 pb-1.5 text-ui-xs font-medium tracking-[0.4px] text-ink-3 uppercase">{t(group.label)}</div>
                 ) : (
                   groupIndex > 0 && <div className="pt-2" />
                 )}
@@ -292,7 +314,7 @@ export function SettingsView({
               </div>
             ))}
             {!groups.length ? (
-              <div className="px-2 py-3 text-[11.5px] text-ink-3">
+              <div className="px-2 py-3 text-ui-sm text-ink-3">
                 {tf("Nothing matches “{query}”. The list has {count} sections.", { query, count: ALL_ROWS.length })}
               </div>
             ) : null}
@@ -365,26 +387,36 @@ export function SettingsView({
               that has to exist first — depth overrides, budgets, delegation. */}
           <ModelManagerSection
             models={state.allModels ?? state.models}
+            channels={state.channels}
             enabledKeys={state.models.map((model) => `${model.provider}/${model.id}`)}
             currentKey={
               state.snapshot?.model ? `${state.snapshot.model.provider}/${state.snapshot.model.id}` : null
             }
             onSave={onSaveModel}
             onDelete={onDeleteModel}
+            onCreateChannel={onCreateChannel}
+            onRemoveChannel={onRemoveChannel}
+            onAddKey={onAddChannelKey}
+            onRemoveKey={onRemoveChannelKey}
             onSetEnabled={onSetEnabledModels}
           />
           <Section title={t("Models & thinking")} index={1}>
+            {/* the same switch the add-model dialog carries, so the default can be
+                set once instead of per form */}
+            <Row title={t("Smart model matching")} hint={t("read the context size and vision support from the model id")}>
+              <Switch on={smartMatch} onClick={() => toggleSmartMatch(!smartMatch)} />
+            </Row>
             <Row title={t("Startup thinking level")} hint={t("used when a session starts without a saved level")}>
               <Select
                 value={settings.defaultThinkingLevel ?? "medium"}
-                options={LEVELS}
+                options={THINKING_LEVELS}
                 onChange={(value) => onUpdate({ defaultThinkingLevel: value })}
               />
             </Row>
             {/* the per-model rows read as a catalogue: the key is the row, the
                 section label carries the explanation — eighteen repetitions of
                 "Default level ·" and "per-model override" said nothing */}
-            <div className="border-b border-line bg-canvas/40 px-4 py-1.5 text-[10.5px] tracking-[0.4px] text-ink-3 uppercase">
+            <div className="border-b border-line bg-canvas/40 px-4 py-1.5 text-ui-xs tracking-[0.4px] text-ink-3 uppercase">
               {t("Per-model overrides · inherit follows the startup level")}
             </div>
             {modelRows.map(({ key, model }) => {
@@ -414,11 +446,30 @@ export function SettingsView({
                       options={["off", "replace", "coexist"]}
                       onChange={(value) => setUltraMode(key, value)}
                     />
+                    {ultra?.mode && !ultraHintOpen ? (
+                      /* the explainer ran once; the amber mark is what remains —
+                         hover repeats it, right here where the mode was set */
+                      <span
+                        title={t("Ultra thinks at Max and hands work to other agents when it can. Long tasks finish sooner and read better; cache writes and cost go up.")}
+                        className="shrink-0 text-orange"
+                      >
+                        <WarningIcon size={12} />
+                      </span>
+                    ) : null}
                   </Row>
-                  {ultra?.mode ? (
-                    <div className="flex items-start gap-2 border-b border-line bg-ultra-tint px-4 py-2 text-[11px] leading-snug text-ink-2">
+                  {ultra?.mode && ultraHintOpen ? (
+                    <div className="flex items-start gap-2 border-b border-line bg-ultra-tint px-4 py-2 text-ui-sm leading-snug text-ink-2">
                       <span className="mt-[5px] size-1.5 shrink-0 rounded-full bg-ultra" />
-                      <span>{t("Ultra thinks at Max and hands work to other agents when it can. Long tasks finish sooner and read better; cache writes and cost go up.")}</span>
+                      <span className="min-w-0 flex-1">{t("Ultra thinks at Max and hands work to other agents when it can. Long tasks finish sooner and read better; cache writes and cost go up.")}</span>
+                      <button
+                        type="button"
+                        aria-label={t("Dismiss")}
+                        title={t("Dismiss")}
+                        onClick={dismissUltraHint}
+                        className="pressable flex size-4 shrink-0 items-center justify-center rounded-tiny text-ink-3 hover:bg-hover hover:text-ink"
+                      >
+                        <XIcon size={10} />
+                      </button>
                     </div>
                   ) : null}
                 </Fragment>
@@ -428,20 +479,20 @@ export function SettingsView({
               <div className="flex items-center gap-1.5">
                 {(["minimal", "low", "medium", "high"] as const).map((level) => (
                   <label key={level} className="flex items-center gap-1">
-                    <span className="font-mono text-[10.5px] text-ink-3">{level.slice(0, 3)}</span>
+                    <span className="font-mono text-ui-xs text-ink-3">{level.slice(0, 3)}</span>
                     <input
                       type="number"
                       step={512}
                       value={budgetDraft[level] ?? settings.thinkingBudgets?.[level] ?? 0}
                       onChange={(event) => setBudgetDraft({ ...budgetDraft, [level]: Number(event.target.value) || 0 })}
-                      className="h-7 w-20 rounded-control bg-field px-2 font-mono text-[11px] text-ink tabular-nums outline-none"
+                      className="h-7 w-20 rounded-control bg-field px-2 font-mono text-ui-sm text-ink tabular-nums outline-none"
                     />
                   </label>
                 ))}
                 <button
                   type="button"
                   onClick={() => onUpdate({ thinkingBudgets: budgetDraft as Record<string, number> })}
-                  className="pressable-soft pressable h-7 rounded-control bg-surface px-2 text-[11.5px] text-ink shadow-btn hover:bg-inset"
+                  className="pressable-soft pressable h-7 rounded-control bg-surface px-2 text-ui-sm text-ink shadow-btn hover:bg-inset"
                 >
                   {t("Apply")}
                 </button>
@@ -454,7 +505,7 @@ export function SettingsView({
               the bill that comes with it */}
           <Section title={t("Delegation")} index={2}>
             {!state.tools.includes("spawn_agent") ? (
-              <div className="border-b border-line bg-orange-tint px-4 py-2 text-[11.5px] leading-relaxed text-ink-2">
+              <div className="border-b border-line bg-orange-tint px-4 py-2 text-ui-sm leading-relaxed text-ink-2">
                 {t("Agent team is not loaded. Ultra uses Max reasoning until the extension is installed and enabled.")}
               </div>
             ) : null}
@@ -487,7 +538,7 @@ export function SettingsView({
               />
             </Row>
             {(settings.agents?.maxConcurrent ?? 3) >= 8 ? (
-              <div className="flex items-start gap-2 border-b border-line bg-ultra-tint px-4 py-2 text-[11px] leading-snug text-ink-2">
+              <div className="flex items-start gap-2 border-b border-line bg-ultra-tint px-4 py-2 text-ui-sm leading-snug text-ink-2">
                 <span className="mt-[5px] size-1.5 shrink-0 rounded-full bg-ultra" />
                 <span>{t("Eight or more concurrent sub-agents can increase usage quickly. Codex warns at this threshold too.")}</span>
               </div>
@@ -502,8 +553,22 @@ export function SettingsView({
             <Row title={t("Completion sound")} hint={t("a short chime when a run finishes")}>
               <Switch on={soundOn} onClick={() => toggleSound(!soundOn)} />
             </Row>
+            <Row title={t("Interface sounds")} hint={t("a quiet click on what you press, pitched to what it does")}>
+              <Switch on={clickOn} onClick={() => toggleClick(!clickOn)} />
+            </Row>
             <Row title={t("Windows notification")} hint={t("a toast when the run finishes while the window is in the background")}>
               <Switch on={notifyOn} onClick={() => toggleNotify(!notifyOn)} />
+            </Row>
+            <Row title={t("Sidebar grouping")} hint={t("workspaces follow folders; task groups lay every chat out flat")}>
+              <Select
+                value={sidebarGroup}
+                options={["workspace", "date", "status", "groups"]}
+                onChange={(value) => {
+                  const group = value as WorkspacePrefs["group"];
+                  setSidebarGroup(group);
+                  saveSidebarPrefs({ ...loadSidebarPrefs(SIDEBAR_PREFS_DEFAULT), group });
+                }}
+              />
             </Row>
           </Section>
 
@@ -536,81 +601,44 @@ export function SettingsView({
           </>
           ) : null}
 
-          {category === "terminal" ? (
+          {category === "agent" ? (
           <>
-          <Section
-            title={t("Default shell")}
-            index={0}
-            actions={
-              resolvedShellId ? (
-                <span className="font-mono text-[10.5px] text-ink-3">
-                  {shellChoices?.find((shell) => shell.id === resolvedShellId)?.name ?? resolvedShellId}
-                </span>
-              ) : undefined
-            }
-          >
-            <div className="border-b border-line bg-canvas/40 px-4 py-1.5 text-[10.5px] tracking-[0.4px] text-ink-3 uppercase">
-              {t("Discovered on this machine — the + button opens the default")}
-            </div>
-            <div data-row className="relative z-10 flex items-center gap-3 border-b border-line px-4 py-3">
-              <ShellRadio active={!terminal?.customPath && (terminal?.preferred ?? "auto") === "auto"} />
-              <div className="min-w-0 flex-1">
-                <div className="text-[12.5px] leading-snug text-ink">{t("Auto")}</div>
-                <div className="mt-1 text-[11px] leading-snug text-ink-3">{t("the first shell this machine offers")}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => pickShell("auto")}
-                className="pressable h-7 rounded-control bg-field px-2.5 text-[11.5px] text-ink-2 hover:text-ink"
-              >
-                {t("Use")}
-              </button>
-            </div>
-            {(shellChoices ?? []).map((shell) => {
-              const active = !terminal?.customPath && terminal?.preferred === shell.id;
-              return (
-                <div key={shell.id} data-row className="relative z-10 flex items-center gap-3 border-b border-line px-4 py-3">
-                  <ShellRadio active={active} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-[12.5px] leading-snug text-ink">{shell.name}</span>
-                      {shell.id === resolvedShellId && !terminal?.customPath ? (
-                        <span className="text-[10px] tracking-wide text-accent uppercase">{t("current")}</span>
-                      ) : null}
-                    </div>
-                    <div className="mt-1 font-mono text-[11px] leading-snug break-all text-ink-3">
-                      {shell.args.length ? `${shell.path} ${shell.args.join(" ")}` : shell.path}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => pickShell(shell.id)}
-                    className="pressable h-7 rounded-control bg-field px-2.5 text-[11.5px] text-ink-2 hover:text-ink"
-                  >
-                    {t("Use")}
-                  </button>
-                </div>
-              );
-            })}
-            {shellChoices && !shellChoices.length ? (
-              <div className="border-b border-line px-4 py-3 text-[11.5px] text-ink-3">{t("No shell was found on PATH — set a custom path below.")}</div>
-            ) : null}
-            <div data-row className="relative z-10 flex items-center gap-3 border-b border-line px-4 py-3 last:border-0">
-              <ShellRadio active={Boolean(terminal?.customPath)} />
-              <div className="min-w-0 flex-1">
-                <div className="text-[12.5px] leading-snug text-ink">{t("Custom path")}</div>
-                <div className="mt-1 text-[11px] leading-snug text-ink-3">{t("an absolute path to any shell executable")}</div>
-              </div>
+          <Section title={t("Agent")} index={0}>
+            <Row title={t("Message delivery")} hint={t("what happens to a message sent while the agent is working")}>
+              <Select
+                value={queueBehavior}
+                options={["steer", "followUp"]}
+                onChange={(value) => onQueueBehavior(value as QueueBehavior)}
+              />
+            </Row>
+          </Section>
+
+          <Section title={t("Terminal")} index={1}>
+            <Row title={t("Terminal shell")} hint={t("what the terminal pane and the agent's commands start in")}>
+              <Select
+                value={terminal?.customPath ? "custom" : (terminal?.preferred ?? "auto")}
+                options={IS_WINDOWS
+                  ? ["auto", "powershell", "gitbash", "cmd"]
+                  : ["auto", "path:/bin/zsh", "path:/bin/bash"]}
+                onChange={(value) => {
+                  if (value === "custom") return;
+                  void window.pi
+                    .updateSettings({ terminal: { preferred: value, customPath: undefined } })
+                    .catch(() => undefined);
+                }}
+              />
+            </Row>
+            <Row title={t("Custom path")} hint={t("an absolute path to any shell executable")}>
               <input
                 defaultValue={terminal?.customPath ?? ""}
                 onBlur={(event) => setCustomShellPath(event.target.value)}
-                placeholder="D:/Git/bin/bash.exe"
-                className="h-7 w-56 rounded-control bg-field px-2 font-mono text-[11px] text-ink outline-none"
+                placeholder={SHELL_EXAMPLE}
+                className="h-7 w-56 rounded-control bg-field px-2 font-mono text-ui-sm text-ink outline-none"
               />
-            </div>
+            </Row>
           </Section>
 
-          <Section title={t("Agent shell")} index={1}>
+          <Section title={t("Agent shell")} index={2}>
             <Row
               title={t("Agent shell path")}
               hint={t("the bash the agent's own commands run in — must be bash-compatible; the terminal pane's choice above is separate")}
@@ -618,8 +646,8 @@ export function SettingsView({
               <input
                 defaultValue={settings.shellPath ?? ""}
                 onBlur={(event) => onUpdate({ shellPath: event.target.value.trim() })}
-                placeholder="D:/Git/bin/bash.exe"
-                className="h-7 w-56 rounded-control bg-field px-2 font-mono text-[11px] text-ink outline-none"
+                placeholder={SHELL_EXAMPLE}
+                className="h-7 w-56 rounded-control bg-field px-2 font-mono text-ui-sm text-ink outline-none"
               />
             </Row>
             <Row title={t("Command prefix")} hint={t("prepended to every command the agent runs")}>
@@ -627,7 +655,7 @@ export function SettingsView({
                 defaultValue={settings.shellCommandPrefix ?? ""}
                 onBlur={(event) => onUpdate({ shellCommandPrefix: event.target.value.trim() })}
                 placeholder="shopt -s expand_aliases"
-                className="h-7 w-56 rounded-control bg-field px-2 font-mono text-[11px] text-ink outline-none"
+                className="h-7 w-56 rounded-control bg-field px-2 font-mono text-ui-sm text-ink outline-none"
               />
             </Row>
             <Row title={t("npm command")} hint={t("argv used for package lookups; comma separated")}>
@@ -642,11 +670,8 @@ export function SettingsView({
                   })
                 }
                 placeholder="npm"
-                className="h-7 w-56 rounded-control bg-field px-2 font-mono text-[11px] text-ink outline-none"
+                className="h-7 w-56 rounded-control bg-field px-2 font-mono text-ui-sm text-ink outline-none"
               />
-            </Row>
-            <Row title={t("Panel")} hint={t("the Shell panel runs through the agent's bash tool, so output joins the conversation")}>
-              <span className="font-mono text-[11px] text-ink-3">session.executeBash</span>
             </Row>
           </Section>
           </>
@@ -655,16 +680,16 @@ export function SettingsView({
           {category === "browser" ? (
           <Section title={t("Browser")} index={0}>
             <Row title={t("Embedded browser")} hint={t("an isolated Chromium session — site logins persist between runs")}>
-              <span className="font-mono text-[11px] text-ink-3">persist:pi-browser</span>
+              <span className="font-mono text-ui-sm text-ink-3">persist:pi-browser</span>
             </Row>
             <Row title={t("Design mode")} hint={tf("Press {chord} in the browser panel, or the pencil in its top bar", { chord: chords.designMode ? formatChord(chords.designMode) : t("Unassigned") })}>
-              <span className="font-mono text-[11px] text-ink-3">click to select · drag to draw</span>
+              <span className="font-mono text-ui-sm text-ink-3">click to select · drag to draw</span>
             </Row>
             <Row title={t("DevTools")} hint={t("the terminal button in the browser bar docks them on the right")}>
-              <span className="font-mono text-[11px] text-ink-3">openDevTools(right)</span>
+              <span className="font-mono text-ui-sm text-ink-3">openDevTools(right)</span>
             </Row>
             <Row title={t("Agent tools")} hint={t("registered as a pi extension — seven tools, no MCP layer")}>
-              <span className="font-mono text-[11px] text-ink-3">browser_*</span>
+              <span className="font-mono text-ui-sm text-ink-3">browser_*</span>
             </Row>
           </Section>
           ) : null}
@@ -672,10 +697,10 @@ export function SettingsView({
           {category === "tasks" ? (
           <Section title={t("Tasks")} index={0}>
             <Row title={t("Agent task list")} hint={t("the agent keeps it current through todo_write")}>
-              <span className="font-mono text-[11px] text-ink-3">{state.todos.length} {t("items")}</span>
+              <span className="font-mono text-ui-sm text-ink-3">{state.todos.length} {t("items")}</span>
             </Row>
             <Row title={t("Persistence")} hint={t("written into the session file, so it survives a restart and travels with the session")}>
-              <span className="font-mono text-[11px] text-ink-3">pi.appendEntry</span>
+              <span className="font-mono text-ui-sm text-ink-3">pi.appendEntry</span>
             </Row>
           </Section>
           ) : null}
@@ -742,7 +767,7 @@ export function SettingsView({
                   meta={t("this session")}
                 />
               </div>
-              <TextRow label={t("Directory")} value={<span className="font-mono text-[11px]">{state.cwd}</span>} meta={t("sessions")} />
+              <TextRow label={t("Directory")} value={<span className="font-mono text-ui-sm">{state.cwd}</span>} meta={t("sessions")} />
             </div>
           </Section>
           ) : null}
@@ -754,16 +779,3 @@ export function SettingsView({
 }
 
 /** The settings' own radio mark — a ring with a dot, matching the Switch's weight. */
-function ShellRadio({ active }: { active: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "flex size-3.5 shrink-0 items-center justify-center rounded-full border",
-        active ? "border-accent" : "border-line-strong",
-      )}
-    >
-      {active ? <span className="size-1.5 rounded-full bg-accent" /> : null}
-    </span>
-  );
-}

@@ -19,7 +19,7 @@ export function TextRow({
         <span className="text-sm font-medium text-ink tabular-nums">
           {value}
         </span>
-        {meta && <span className="text-[13px] text-ink-3">{meta}</span>}
+        {meta && <span className="text-ui-base text-ink-3">{meta}</span>}
       </span>
     </div>
   );

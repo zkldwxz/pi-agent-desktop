@@ -428,13 +428,16 @@ export default function PromptBar({
       setExpanded(needsFullWidth);
     }
 
-    const minHeight = 28;
-    const maxHeight = 100;
+    /* the tall shell promises a roomier input zone — the inline height would
+       otherwise clamp it back to the one-line 28px and defeat its own min-h.
+       The caps are ZCode's editable: min-h-10, max-h-40. */
+    const minHeight = tall ? 40 : 28;
+    const maxHeight = tall ? 160 : 100;
     input.style.height = "0px";
     const contentHeight = input.scrollHeight;
     input.style.height = `${Math.min(Math.max(contentHeight, minHeight), maxHeight)}px`;
     input.style.overflowY = contentHeight > maxHeight ? "auto" : "hidden";
-  }, [draft, expanded]);
+  }, [draft, expanded, tall]);
 
   /* clicking anywhere outside the composer closes the open menus */
   useEffect(() => {
@@ -526,19 +529,19 @@ export default function PromptBar({
       {menu && (
         <div
           onMouseLeave={() => setEngaged(false)}
-          className="absolute inset-x-0 bottom-full z-10 mb-2 max-h-[296px] overflow-y-auto rounded-[10px] bg-surface p-1 shadow-raised scrollbar-thin"
-          style={{ animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "bottom center" }}
+          className="absolute inset-x-0 bottom-full z-10 mb-2 max-h-[296px] overflow-y-auto rounded-card bg-surface p-1 shadow-raised scrollbar-thin"
+          style={{ animation: "pop-in 180ms var(--ease-out-strong-css) both", transformOrigin: "bottom center" }}
         >
           {/* single gliding highlight — appears once a row is hovered */}
           <span
             aria-hidden
-            className="pointer-events-none absolute inset-x-1 rounded-[6px] bg-hover"
+            className="pointer-events-none absolute inset-x-1 rounded-chip bg-hover"
             style={{
               top: rowBox?.top ?? 0,
               height: rowBox?.height ?? 0,
               opacity: rowBox && engaged && rows.length > 0 ? 1 : 0,
               transition:
-                "top 220ms cubic-bezier(0.23,1,0.32,1), height 220ms cubic-bezier(0.23,1,0.32,1), opacity 150ms ease",
+                "top 220ms var(--ease-out-strong-css), height 220ms var(--ease-out-strong-css), opacity 150ms ease",
             }}
           />
           {rows.map((row, i) => {
@@ -556,17 +559,17 @@ export default function PromptBar({
                   setEngaged(true);
                 }}
                 onClick={() => pick(row)}
-                className="relative z-10 flex h-9 w-full items-center gap-2.5 rounded-[6px] px-2 text-left"
+                className="relative z-10 flex h-9 w-full items-center gap-2.5 rounded-chip px-2 text-left"
               >
                 {source && (
                   <span className="flex size-5.5 shrink-0 items-center justify-center text-ink-2">
                     {source.brand ? BRANDS[source.brand] : <Icon size={15}>{GLYPHS[source.glyph ?? "clip"]}</Icon>}
                   </span>
                 )}
-                <span className="shrink-0 text-[12.5px] font-medium text-ink">
+                <span className="shrink-0 text-ui-caption font-medium text-ink">
                   {row.name}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-[12px] text-ink-3">{row.desc}</span>
+                <span className="min-w-0 flex-1 truncate text-ui-caption text-ink-3">{row.desc}</span>
                 {source?.connect && (
                   <span
                     role="button"
@@ -575,7 +578,7 @@ export default function PromptBar({
                       event.stopPropagation();
                       setConnected((current) => !current);
                     }}
-                    className={`shrink-0 text-[12px] font-medium transition-colors duration-100 ${
+                    className={`shrink-0 text-ui-caption font-medium transition-colors duration-100 ${
                       connected ? "text-green" : "text-accent-ink hover:underline"
                     }`}
                   >
@@ -586,11 +589,11 @@ export default function PromptBar({
             );
           })}
           {rows.length === 0 && (
-            <div className="flex h-9 items-center px-2 text-[12px] text-ink-3">
+            <div className="flex h-9 items-center px-2 text-ui-caption text-ink-3">
               {tf("No matches for “{query}”", { query })}
             </div>
           )}
-          <div className="mt-1 border-t border-line px-2 pt-1.5 pb-1 text-[11px] text-ink-3">
+          <div className="mt-1 border-t border-line px-2 pt-1.5 pb-1 text-ui-sm text-ink-3">
             {menu === "at" ? tr("Type to search sources & files") : tr("Type to search commands")}
           </div>
         </div>
@@ -600,18 +603,18 @@ export default function PromptBar({
       {modelOpen && (
         <div
           onMouseLeave={() => setModelHovered(null)}
-          className="absolute z-10 w-44 rounded-[10px] bg-surface p-1 shadow-raised"          style={{ left: modelMenuLeft, bottom: modelMenuBottom, animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "bottom left" }}
+          className="absolute z-10 w-44 rounded-card bg-surface p-1 shadow-raised"          style={{ left: modelMenuLeft, bottom: modelMenuBottom, animation: "pop-in 180ms var(--ease-out-strong-css) both", transformOrigin: "bottom left" }}
         >
           {/* single gliding highlight — floats to the hovered / selected row */}
           <span
             aria-hidden
-            className="pointer-events-none absolute inset-x-1 rounded-[6px] bg-hover"
+            className="pointer-events-none absolute inset-x-1 rounded-chip bg-hover"
             style={{
               top: modelBox?.top ?? 0,
               height: modelBox?.height ?? 0,
               opacity: modelBox && modelHovered !== null ? 1 : 0,
               transition:
-                "top 220ms cubic-bezier(0.23,1,0.32,1), height 220ms cubic-bezier(0.23,1,0.32,1), opacity 150ms ease",
+                "top 220ms var(--ease-out-strong-css), height 220ms var(--ease-out-strong-css), opacity 150ms ease",
             }}
           />
           {models.map((m, i) => (
@@ -627,10 +630,10 @@ export default function PromptBar({
                 selectModel(m);
                 inputRef.current?.focus();
               }}
-              className="relative z-10 flex h-7.5 w-full items-center gap-2 rounded-[6px] px-2 text-left"
+              className="relative z-10 flex h-7.5 w-full items-center gap-2 rounded-chip px-2 text-left"
             >
-              <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">{m.name}</span>
-              <span className="shrink-0 text-[11px] text-ink-3">{m.tag}</span>
+              <span className="min-w-0 flex-1 truncate text-ui-caption font-medium text-ink">{m.name}</span>
+              <span className="shrink-0 text-ui-sm text-ink-3">{m.tag}</span>
               <span className={`shrink-0 text-ink ${m.key === model.key ? "" : "invisible"}`}>
                 <Icon size={13} strokeWidth={2.5}><path d="M20 6L9 17l-5-5" /></Icon>
               </span>
@@ -651,7 +654,7 @@ export default function PromptBar({
         } ${
           tall ? "gap-2 p-3" : "gap-1.5 p-1.5"
         } ${
-          pill ? (attachments.length > 0 || wide ? "rounded-[24px]" : "rounded-full") : tall ? "rounded-[22px]" : "rounded-[14px]"
+          pill ? (attachments.length > 0 || wide ? "rounded-[24px]" : "rounded-full") : tall ? "rounded-[22px]" : "rounded-window"
         }`}
       >
         {/* rainbow glimm sweep — plays across the interior on model change.
@@ -666,7 +669,7 @@ export default function PromptBar({
         <span
           ref={measureRef}
           aria-hidden="true"
-          className="pointer-events-none absolute invisible whitespace-pre text-[13px] leading-[18px]"
+          className="pointer-events-none absolute invisible whitespace-pre text-ui-base leading-[18px]"
         >
           {draft}
         </span>
@@ -676,10 +679,10 @@ export default function PromptBar({
             {attachments.map((file, i) => (
               <span
                 key={`${file}-${i}`}
-                className={`flex h-6.5 items-center gap-1.5 bg-field py-1 pr-1 pl-1.5 text-[11.5px] text-ink-2 shadow-hairline ${
+                className={`flex h-6.5 items-center gap-1.5 bg-field py-1 pr-1 pl-1.5 text-ui-sm text-ink-2 shadow-hairline ${
                   pill ? "rounded-full" : "rounded-chip"
                 }`}
-                style={{ animation: "pop-in 200ms cubic-bezier(0.23,1,0.32,1) both" }}
+                style={{ animation: "pop-in 200ms var(--ease-out-strong-css) both" }}
               >
                 <Icon size={12}><g><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></g></Icon>
                 <span className="max-w-36 truncate">{file}</span>
@@ -688,7 +691,7 @@ export default function PromptBar({
                   aria-label={tf("Remove {name}", { name: file })}
                   onClick={() => setAttachments((current) => current.filter((_, j) => j !== i))}
                   className={`-my-1 flex size-6 items-center justify-center text-ink-3 transition-colors duration-100 hover:bg-line/70 hover:text-ink ${
-                    pill ? "rounded-full" : "rounded-[5px]"
+                    pill ? "rounded-full" : "rounded-chip"
                   }`}
                 >
                   <Icon size={10} strokeWidth={2.5}><path d="M18 6L6 18M6 6l12 12" /></Icon>
@@ -713,7 +716,7 @@ export default function PromptBar({
                 inputRef.current?.focus();
               }}
               className={`flex size-7 shrink-0 items-center justify-center text-ink-3 transition-[background-color,color,transform] duration-150 hover:bg-hover hover:text-ink active:scale-[0.94] ${
-                pill ? "rounded-full" : "rounded-[8px]"
+                pill ? "rounded-full" : "rounded-control"
               } ${plusOpen ? "bg-hover text-ink" : ""}`}
             >
               <Icon size={16} strokeWidth={2}><path d="M12 5v14M5 12h14" /></Icon>
@@ -767,7 +770,7 @@ export default function PromptBar({
             }}
             placeholder={listening ? tr("Listening…") : placeholder ?? tr("Write a message…")}
             aria-label={tr("Prompt")}
-            className={`${tall ? "min-h-[46px] px-2 py-1.5 text-[13.5px] leading-5" : "min-h-7 px-1 py-[5px] text-[13px] leading-[18px]"} min-w-0 w-full resize-none bg-transparent text-ink outline-none [overflow-wrap:anywhere] placeholder:text-ink-3 ${
+            className={`${tall ? "min-h-10 px-2 py-1.5 text-ui-base leading-5" : "min-h-7 px-1 py-[5px] text-ui-base leading-[18px]"} min-w-0 w-full resize-none bg-transparent text-ink outline-none [overflow-wrap:anywhere] placeholder:text-ink-4 ${
               wide ? "col-span-full col-start-1 row-start-1" : "col-start-2 row-start-1"
             }`}
           />
@@ -804,7 +807,7 @@ export default function PromptBar({
             aria-pressed={listening}
             onClick={() => setListening((current) => !current)}
             className={`flex size-7 shrink-0 items-center justify-center transition-[background-color,color,transform] duration-150 active:scale-[0.94] ${
-              pill ? "rounded-full" : "rounded-[8px]"
+              pill ? "rounded-full" : "rounded-control"
             } ${listening ? "bg-accent-tint text-accent-ink" : "text-ink-3 hover:bg-hover hover:text-ink"} ${wide ? "col-start-4 row-start-2" : "col-start-4 row-start-1"}`}
           >
             {listening ? (
@@ -830,7 +833,7 @@ export default function PromptBar({
             disabled={streaming ? false : !canSend}
             onClick={streaming ? () => onAbort?.() : send}
             className={`flex size-7 shrink-0 items-center justify-center transition-[background-color,color,transform] duration-200 enabled:active:scale-[0.94] ${
-              pill ? "rounded-full" : "rounded-[8px]"
+              pill ? "rounded-full" : "rounded-control"
             } ${wide ? "col-start-5 row-start-2" : "col-start-5 row-start-1"}`}
             style={{
               background: streaming || canSend ? "var(--ink)" : "var(--line-strong)",

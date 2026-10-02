@@ -174,7 +174,7 @@ export function MonitorPanel({
     >
       {/* ── the session ─────────────────────────────────── */}
       <header className="flex shrink-0 items-center gap-1.5 px-3 pb-1 pt-3">
-          <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">
+          <span className="min-w-0 flex-1 truncate text-ui-caption font-medium text-ink">
             {state.snapshot?.sessionName || t("New chat")}
           </span>
           <button
@@ -182,7 +182,7 @@ export function MonitorPanel({
             aria-label={t("Refresh")}
             title={t("Refresh")}
             onClick={refresh}
-            className="pressable flex size-6 shrink-0 items-center justify-center rounded-[6px] text-ink-3 hover:bg-hover hover:text-ink"
+            className="pressable flex size-6 shrink-0 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
           >
             <RefreshIcon size={12} />
           </button>
@@ -191,7 +191,7 @@ export function MonitorPanel({
             aria-label={t("Close")}
             title={t("Close")}
             onClick={onClose}
-            className="pressable flex size-6 shrink-0 items-center justify-center rounded-[6px] text-ink-3 hover:bg-hover hover:text-ink"
+            className="pressable flex size-6 shrink-0 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
           >
             <XIcon size={12} />
           </button>
@@ -199,12 +199,12 @@ export function MonitorPanel({
 
       <div className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pb-4">
         {summary ? (
-          <div className="mt-1 px-0.5 text-[10.5px] text-ink-3 tabular-nums">
+          <div className="mt-1 px-0.5 text-ui-xs text-ink-3 tabular-nums">
             {tf("Updated at {time}", { time: clockTime(summary.at) })}
           </div>
         ) : null}
         {summary ? (
-          <p className="mt-1.5 line-clamp-5 whitespace-pre-wrap break-words rounded-card bg-surface px-2.5 py-2 text-[11.5px] leading-relaxed text-ink-2 shadow-hairline">
+          <p className="mt-1.5 line-clamp-5 whitespace-pre-wrap break-words rounded-card bg-surface px-2.5 py-2 text-ui-sm leading-relaxed text-ink-2 shadow-hairline">
             {summary.text}
           </p>
         ) : null}
@@ -222,13 +222,13 @@ export function MonitorPanel({
                 className="pressable flex h-8 w-full items-center gap-2 px-2.5 text-left hover:bg-hover disabled:opacity-45 disabled:hover:bg-transparent"
               >
                 <FilePenIcon size={13} className="shrink-0 text-ink-3" />
-                <span className="min-w-0 flex-1 truncate text-[12px] text-ink-2">
+                <span className="min-w-0 flex-1 truncate text-ui-caption text-ink-2">
                   {changes.length
                     ? tf("{count} files changed", { count: changes.length })
                     : t("No changes yet")}
                 </span>
                 {changes.length ? (
-                  <span className="shrink-0 font-mono text-[10.5px] tabular-nums">
+                  <span className="shrink-0 font-mono text-ui-xs tabular-nums">
                     <span className="text-green">+{added.toLocaleString()}</span>{" "}
                     <span className="text-red">−{removed.toLocaleString()}</span>
                   </span>
@@ -238,7 +238,7 @@ export function MonitorPanel({
               {/* where the work lives */}
               <div className="flex h-8 items-center gap-2 border-t border-line px-2.5">
                 <HomeIcon size={13} className="shrink-0 text-ink-3" />
-                <span className="min-w-0 flex-1 truncate text-[12px] text-ink-2" title={state.cwd}>
+                <span className="min-w-0 flex-1 truncate text-ui-caption text-ink-2" title={state.cwd}>
                   {t("Local")} · {baseName(state.cwd)}
                 </span>
               </div>
@@ -255,19 +255,19 @@ export function MonitorPanel({
                     className="pressable flex h-8 w-full items-center gap-2 border-t border-line px-2.5 text-left hover:bg-hover"
                   >
                     <GitBranchIcon size={13} className="shrink-0 text-ink-3" />
-                    <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-ink-2">
+                    <span className="min-w-0 flex-1 truncate font-mono text-ui-sm text-ink-2">
                       {git?.branch ?? (git ? t("Detached") : "—")}
                     </span>
                     {git?.changed ? (
                       <span
                         title={tf("{count} files dirty", { count: git.changed })}
-                        className="shrink-0 font-mono text-[10.5px] text-orange tabular-nums"
+                        className="shrink-0 font-mono text-ui-xs text-orange tabular-nums"
                       >
                         ●{git.changed}
                       </span>
                     ) : null}
                     {git?.ahead ? (
-                      <span title={tf("{count} to push", { count: git.ahead })} className="shrink-0 font-mono text-[10.5px] text-ink-3 tabular-nums">
+                      <span title={tf("{count} to push", { count: git.ahead })} className="shrink-0 font-mono text-ui-xs text-ink-3 tabular-nums">
                         ↑{git.ahead}
                       </span>
                     ) : null}
@@ -289,7 +289,7 @@ export function MonitorPanel({
                     className="pressable flex h-8 w-full items-center gap-2 border-t border-line px-2.5 text-left hover:bg-hover"
                   >
                     <ArrowUpIcon size={13} className="shrink-0 text-ink-3" />
-                    <span className="min-w-0 flex-1 truncate text-[12px] text-ink-2">{t("Commit or push")}</span>
+                    <span className="min-w-0 flex-1 truncate text-ui-caption text-ink-2">{t("Commit or push")}</span>
                     <ChevronDownIcon
                       size={10}
                       className={cn("shrink-0 text-ink-3 transition-transform duration-200", commitOpen && "rotate-180")}
@@ -308,7 +308,7 @@ export function MonitorPanel({
                       {status ? (
                         <div
                           className={cn(
-                            "mt-1.5 max-h-14 overflow-y-auto whitespace-pre-wrap px-0.5 text-[10.5px] leading-snug",
+                            "mt-1.5 max-h-14 overflow-y-auto whitespace-pre-wrap px-0.5 text-ui-xs leading-snug",
                             status.tone === "ok" ? "text-green" : "text-red",
                           )}
                         >
@@ -329,10 +329,10 @@ export function MonitorPanel({
             <SectionLabel>{t("Tasks")}</SectionLabel>
             <div className="overflow-hidden rounded-card bg-surface shadow-hairline">
               <div className="flex items-center gap-2 px-2.5 py-2">
-                <span className="min-w-0 flex-1 truncate text-[12px] text-ink-2">
+                <span className="min-w-0 flex-1 truncate text-ui-caption text-ink-2">
                   {tf("{done} of {total} done", { done: doneTodos, total: todos.length })}
                 </span>
-                <span className="shrink-0 font-mono text-[10.5px] text-ink-3 tabular-nums">
+                <span className="shrink-0 font-mono text-ui-xs text-ink-3 tabular-nums">
                   {Math.round((doneTodos / todos.length) * 100)}%
                 </span>
               </div>
@@ -341,7 +341,7 @@ export function MonitorPanel({
                   className="h-full rounded-full bg-accent"
                   style={{
                     width: `${(doneTodos / todos.length) * 100}%`,
-                    transition: "width 300ms cubic-bezier(0.23,1,0.32,1)",
+                    transition: "width 300ms var(--ease-out-strong-css)",
                   }}
                 />
               </div>
@@ -355,14 +355,14 @@ export function MonitorPanel({
                     </span>
                     <span
                       className={cn(
-                        "min-w-0 flex-1 break-words text-[11.5px] leading-[16px]",
+                        "min-w-0 flex-1 break-words text-ui-sm leading-[16px]",
                         todo.status === "done" ? "text-ink-3" : todo.status === "running" ? "text-ink" : "text-ink-2",
                       )}
                     >
                       {todo.label}
                     </span>
                     {todo.amount ? (
-                      <span className="shrink-0 font-mono text-[10px] leading-[16px] text-ink-3">{todo.amount}</span>
+                      <span className="shrink-0 font-mono text-ui-xs leading-[16px] text-ink-3">{todo.amount}</span>
                     ) : null}
                   </div>
                 ))}
@@ -387,8 +387,8 @@ export function MonitorPanel({
                   )}
                 >
                   <CodeIcon size={13} className="shrink-0 text-ink-3" />
-                  <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-2">{baseName(change.file)}</span>
-                  <span className="shrink-0 font-mono text-[10px] tabular-nums">
+                  <span className="min-w-0 flex-1 truncate font-mono text-ui-sm text-ink-2">{baseName(change.file)}</span>
+                  <span className="shrink-0 font-mono text-ui-xs tabular-nums">
                     <span className="text-green">+{change.add}</span>
                     {change.del ? <span className="text-red"> −{change.del}</span> : null}
                   </span>
@@ -414,7 +414,7 @@ export function MonitorPanel({
                   )}
                 >
                   <EyeIcon size={13} className="shrink-0 text-ink-3" />
-                  <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-2" title={path}>
+                  <span className="min-w-0 flex-1 truncate font-mono text-ui-sm text-ink-2" title={path}>
                     {baseName(path)}
                   </span>
                 </button>
@@ -428,7 +428,7 @@ export function MonitorPanel({
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div className="mb-1.5 mt-4 px-0.5 text-[11px] tracking-[0.3px] text-ink-3">{children}</div>;
+  return <div className="mb-1.5 mt-4 px-0.5 text-ui-sm tracking-[0.3px] text-ink-3">{children}</div>;
 }
 
 /**
@@ -486,7 +486,7 @@ function BranchMenu({
     <div className="border-t border-line bg-field/40 px-1.5 py-1.5" style={{ animation: "fade-in 160ms ease-out both" }}>
       <div className="scrollbar-thin max-h-[168px] overflow-y-auto">
         {list === null ? (
-          <div className="px-1.5 py-1.5 text-[11px] text-ink-3">{t("Looking up branches…")}</div>
+          <div className="px-1.5 py-1.5 text-ui-sm text-ink-3">{t("Looking up branches…")}</div>
         ) : list.branches.length ? (
           list.branches.map((branch) => (
             <div key={branch.name} className="group/branch flex items-center gap-1">
@@ -498,12 +498,12 @@ function BranchMenu({
                   void run(() => window.pi.gitCheckout(branch.name));
                 }}
                 className={cn(
-                  "pressable flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-[6px] px-1.5 text-left",
+                  "pressable flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-chip px-1.5 text-left",
                   branch.current ? "text-ink" : "text-ink-2 hover:bg-hover hover:text-ink",
                 )}
               >
                 <CheckIcon size={11} className={cn("shrink-0", branch.current ? "text-accent" : "opacity-0")} />
-                <span className="min-w-0 flex-1 truncate font-mono text-[11.5px]">{branch.name}</span>
+                <span className="min-w-0 flex-1 truncate font-mono text-ui-sm">{branch.name}</span>
               </button>
               {branch.current ? null : (
                 <button
@@ -520,7 +520,7 @@ function BranchMenu({
                     void run(() => window.pi.gitDeleteBranch(branch.name));
                   }}
                   className={cn(
-                    "pressable flex size-6 shrink-0 items-center justify-center rounded-[5px] opacity-0 transition-opacity group-hover/branch:opacity-100",
+                    "pressable flex size-6 shrink-0 items-center justify-center rounded-chip opacity-0 transition-opacity group-hover/branch:opacity-100",
                     armed === branch.name ? "bg-hover text-red opacity-100" : "text-ink-3 hover:bg-hover hover:text-red",
                   )}
                 >
@@ -530,11 +530,11 @@ function BranchMenu({
             </div>
           ))
         ) : (
-          <div className="px-1.5 py-1.5 text-[11px] text-ink-3">{t("No branches")}</div>
+          <div className="px-1.5 py-1.5 text-ui-sm text-ink-3">{t("No branches")}</div>
         )}
       </div>
       {armed ? (
-        <div className="px-1.5 pb-1 text-[10.5px] text-red">{t("Click again to delete")}</div>
+        <div className="px-1.5 pb-1 text-ui-xs text-red">{t("Click again to delete")}</div>
       ) : null}
       {/* new branch: type it, Enter creates and switches */}
       <div className="mt-1 flex items-center gap-1 border-t border-line pt-1.5">
@@ -555,18 +555,18 @@ function BranchMenu({
           placeholder={t("New branch")}
           aria-label={t("New branch")}
           spellCheck={false}
-          className="h-7 min-w-0 flex-1 rounded-[6px] bg-surface px-1.5 font-mono text-[11.5px] text-ink outline-none placeholder:font-sans placeholder:text-ink-3"
+          className="h-7 min-w-0 flex-1 rounded-chip bg-surface px-1.5 font-mono text-ui-sm text-ink outline-none placeholder:font-sans placeholder:text-ink-4"
         />
         <button
           type="button"
           onClick={create}
           disabled={!creating.trim() || working}
-          className="pressable h-7 shrink-0 rounded-[6px] bg-ink px-2 text-[11px] font-medium text-canvas disabled:opacity-40"
+          className="pressable h-7 shrink-0 rounded-chip bg-ink px-2 text-ui-sm font-medium text-canvas disabled:opacity-40"
         >
           {t("Create")}
         </button>
       </div>
-      {error ? <div className="mt-1 max-h-12 overflow-y-auto whitespace-pre-wrap px-1.5 text-[10.5px] leading-snug text-red">{error}</div> : null}
+      {error ? <div className="mt-1 max-h-12 overflow-y-auto whitespace-pre-wrap px-1.5 text-ui-xs leading-snug text-red">{error}</div> : null}
     </div>
   );
 }
@@ -600,7 +600,7 @@ function CommitBox({
         }}
         placeholder={t("Commit message")}
         aria-label={t("Commit message")}
-        className="h-7 w-full rounded-[6px] bg-field px-2 text-[11.5px] text-ink outline-none placeholder:text-ink-3"
+        className="h-7 w-full rounded-chip bg-field px-2 text-ui-sm text-ink outline-none placeholder:text-ink-4"
       />
       <div className="mt-1.5 flex gap-1.5">
         <button
@@ -608,7 +608,7 @@ function CommitBox({
           onClick={onCommit}
           disabled={!value.trim() || busy !== null || !dirty}
           title={dirty ? undefined : t("Nothing to commit")}
-          className="pressable h-7 flex-1 rounded-[6px] bg-ink text-[11px] font-medium text-canvas disabled:opacity-40"
+          className="pressable h-7 flex-1 rounded-chip bg-ink text-ui-sm font-medium text-canvas disabled:opacity-40"
         >
           {busy === "commit" ? t("Committing…") : t("Commit")}
         </button>
@@ -616,7 +616,7 @@ function CommitBox({
           type="button"
           onClick={onPush}
           disabled={busy !== null}
-          className="pressable h-7 flex-1 rounded-[6px] bg-field text-[11px] font-medium text-ink-2 hover:bg-hover-2 hover:text-ink disabled:opacity-40"
+          className="pressable h-7 flex-1 rounded-chip bg-field text-ui-sm font-medium text-ink-2 hover:bg-hover-2 hover:text-ink disabled:opacity-40"
         >
           {busy === "push" ? t("Pushing…") : t("Push")}
         </button>

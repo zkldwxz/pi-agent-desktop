@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
-import { t } from "./i18n";
+import { getLocale, t } from "./i18n";
+import { IS_MAC } from "./platform";
 
 /**
  * The shell's keyboard shortcuts.
@@ -117,16 +118,19 @@ export function useShortcuts(): Record<string, Chord | null> {
 export function formatChord(chord: Chord | null): string {
   if (!chord) return "";
   const parts: string[] = [];
-  if (chord.mod) parts.push(navigator.platform?.startsWith("Mac") ? "⌘" : "Ctrl");
-  if (chord.alt) parts.push(navigator.platform?.startsWith("Mac") ? "⌥" : "Alt");
+  if (chord.mod) parts.push(IS_MAC ? "⌘" : "Ctrl");
+  if (chord.alt) parts.push(IS_MAC ? "⌥" : "Alt");
   if (chord.shift) parts.push("Shift");
   parts.push(prettyKey(chord.key));
-  return parts.join(navigator.platform?.startsWith("Mac") ? "" : "+");
+  // macOS sets its modifier glyphs adjacent, ⌘K; the Latin names need the separator
+  return parts.join(IS_MAC ? "" : "+");
 }
 
 function prettyKey(key: string): string {
   if (key === "escape") return "Esc";
-  if (key === "wheel") return navigator.platform?.startsWith("Mac") ? "滚轮" : "Scroll";
+  /* the wheel is the one key whose name is a word, so it follows the interface
+     language rather than the platform — a Chinese Windows box reads 滚轮 too */
+  if (key === "wheel") return getLocale() === "zh" ? "滚轮" : "Scroll";
   if (key === ",") return ",";
   if (key === "+") return "+";
   if (key === "-") return "-";

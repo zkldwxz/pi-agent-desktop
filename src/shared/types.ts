@@ -7,6 +7,10 @@ export interface ModelInfo {
   name: string;
   provider: string;
   providerName: string;
+  /** the wire protocol this model is actually reached over */
+  api?: string;
+  /** the endpoint this row stands for — several keys, one row; see ChannelInfo */
+  channelId?: string;
   contextWindow: number;
   maxTokens: number;
   reasoning: boolean;
@@ -89,6 +93,46 @@ export interface ProviderInfo {
   modelCount: number;
   hasAuth: boolean;
   editable: boolean;
+}
+
+/**
+ * The wire protocol a channel speaks.
+ *
+ * These are pi's own `api` literals for the three protocols the desktop offers a
+ * form for. A hand-written provider may name another one, so everywhere a
+ * protocol is *read* the field stays a plain string.
+ */
+export type ChannelApi = "openai-completions" | "anthropic-messages" | "google-generative-ai";
+
+/**
+ * One endpoint, seen the way the user sees it rather than the way pi stores it.
+ *
+ * pi keys credentials by provider id and holds exactly one key per provider, so
+ * a channel with several keys is written as several provider entries that share
+ * `api` and `baseUrl`. The channel is that group: `members` are the provider ids,
+ * and each member is one key.
+ */
+export interface ChannelInfo {
+  /** `${api}|${baseUrl}` for an endpoint the desktop wrote; otherwise the
+   *  built-in provider's own id, which keeps pi's shipped providers from
+   *  collapsing into one channel just because they share a host */
+  id: string;
+  name: string;
+  api: string;
+  baseUrl?: string;
+  /** the provider ids behind this endpoint — one per configured key */
+  members: string[];
+  modelCount: number;
+  /** false for the providers pi ships, whose key the desktop does not own */
+  custom: boolean;
+}
+
+/** What "new channel" collects: one endpoint and the keys allowed to use it. */
+export interface ChannelEdit {
+  name: string;
+  api: ChannelApi;
+  baseUrl: string;
+  keys: string[];
 }
 
 export interface SessionListItem {
@@ -250,6 +294,8 @@ export interface QueueState {
 
 export interface HostState {
   cwd: string;
+  /** The canonical OS home directory used by the Home/no-project workspace. */
+  homeDir: string;
   connected: boolean;
   error?: string;
   snapshot: SessionSnapshot | null;
@@ -260,6 +306,8 @@ export interface HostState {
    *  shows them greyed rather than hiding them */
   allModels?: ModelInfo[];
   providers: ProviderInfo[];
+  /** the providers folded back into endpoints: one channel, possibly several keys */
+  channels: ChannelInfo[];
   commands: SlashCommand[];
   settings: RuntimeSettings;
   /** the agent's task list, maintained through the todo_write tool */
@@ -434,6 +482,13 @@ export interface ChatMessage {
   timestamp: number;
   text: string;
   blocks: ChatBlock[];
+  /**
+   * The extension that wrote a `custom` message, verbatim. The transcript reads
+   * it to place a turn boundary: plan mode's build is a second task, and the
+   * only record of where the first one ended is the message the extension sent
+   * to start it. Dropped for every other role.
+   */
+  customType?: string;
   toolName?: string;
   toolCallId?: string;
   /** tool-specific metadata (edit diffs, read ranges, search hits) */
@@ -475,9 +530,26 @@ export interface HostUpdate {
   uiRequest?: UiRequest | null;
   notifications?: UiNotification[];
   state: HostState;
-  messages: ChatMessage[];
+  /**
+   * The transcript, in one of two shapes.
+   *
+   * `messages` replaces the whole list, and is sent whenever the settled part
+   * moved: a new turn, a session switch, a compaction, an edit. While an answer
+   * streams only its last message moves, so `tail` carries that one message and
+   * `at` says where it belongs. The transcript is the largest thing on this
+   * channel and it grows with the session — re-sending all of it every 16ms is
+   * the most expensive thing the shell does, and the cost scales with how long
+   * the conversation has been open, which is exactly the wrong direction.
+   */
+  messages?: ChatMessage[];
+  tail?: { at: number; messages: ChatMessage[] };
   tools: ToolActivity[];
 }
+
+/** What `getState` answers with. A renderer that has nothing to show yet is
+ *  never given a delta to apply to it, so the first payload always carries the
+ *  whole transcript. */
+export type HostSnapshot = HostUpdate & { messages: ChatMessage[] };
 
 /* ── desktop config + installable catalogue ─────────────── */
 
@@ -492,6 +564,11 @@ export interface DesktopConfig {
   agents: AgentsConfig;
   /** the terminal pane's shell choice, as shells.ts defines it */
   terminal: { preferred: string; customPath?: string };
+  /** bundled extensions the user deleted on purpose — the startup sync must
+   *  not reinstall them behind their back */
+  removedBundledExtensions?: string[];
+  /** the name the account row and avatar show; falls back to the OS user */
+  userName?: string;
 }
 
 /**

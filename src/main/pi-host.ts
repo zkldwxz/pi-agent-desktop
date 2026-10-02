@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { homedir } from "node:os";
 import { app } from "electron";
 import { dirname } from "node:path";
 import {
@@ -16,11 +17,14 @@ import {
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import type {
+  ChannelEdit,
+  ChannelInfo,
   ChatMessage,
   ContextBreakdown,
   ContextPart,
   FleetAgent,
   HostState,
+  HostUpdate,
   ModelEdit,
   ModelInfo,
   PlanAction,
@@ -35,9 +39,18 @@ import type {
   UltraSetting,
 } from "@shared/types";
 import type { TerminalResult } from "@shared/workspace";
-import { readModelsFile, removeModelFromFile, writeModelEdit } from "./model-config";
+import {
+  addChannelKey,
+  deleteChannel,
+  readModelsFile,
+  removeChannelKey,
+  removeModelFromFile,
+  writeChannel,
+  writeModelEdit,
+} from "./model-config";
+import { channelIdOf } from "../shared/channel.ts";
 import { deletePlugin, listPlugins, setPluginEnabled, createRule } from "./plugins";
-import { serializeMessage, serializeMessages, serializeModel, serializeSessionList, thinkingLevelsFor, withUltra } from "./serialize";
+import { serializeMessage, serializeMessages, serializeModel, serializeSessionList, textFromContent, thinkingLevelsFor, withUltra } from "./serialize";
 import { registerBrowserTools } from "./browser-extension";
 import { registerDesktopBridge } from "./desktop-bridge-extension";
 import { registerSubagentTools, type NamedExtensionFactory } from "./subagent-tools-extension";
@@ -51,15 +64,12 @@ import { UiBridge } from "./ui-bridge";
 import type { UiAnswer, UiNotification, UiRequest } from "@shared/ui";
 import type { BrowserHost } from "./browser";
 
-export type HostListener = (payload: {
-  state: HostState;
-  messages: ChatMessage[];
-  tools: ToolActivity[];
-  uiRequest?: UiRequest | null;
-  notifications?: UiNotification[];
-}) => void;
+export type HostListener = (payload: HostUpdate) => void;
 
-const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+/** Slash commands the desktop bundles extensions for. A typed command from
+ *  this set that no extension registered is a missing plugin, not prose —
+ *  the one place the host can say so without guessing at arbitrary input. */
+const BUNDLED_COMMANDS = new Set(["plan"]);
 
 interface ProviderLike {
   id: string;
@@ -99,12 +109,16 @@ export class PiHost {
   private unsubscribe: (() => void) | null = null;
   private listener: HostListener | null = null;
   private cwd: string;
+  private readonly homeDir = homedir();
   private agentDir = getAgentDir();
   private sessions: HostState["sessions"] = [];
   private models: ModelInfo[] = [];
   /** every model the runtime knows, disabled ones included — the settings
    *  list reads this; every picker reads the enabled `models` */
   private allModels: ModelInfo[] = [];
+  /** the endpoints the providers fold into, and which endpoint each provider is on */
+  private channels: ChannelInfo[] = [];
+  private channelByProvider = new Map<string, string>();
   private commands: SlashCommand[] = [];
   private tools = new Map<string, ToolActivity>();
   private connected = false;
@@ -120,7 +134,29 @@ export class PiHost {
   private teamBus: { emit(channel: string, data: unknown): void } | null = null;
   /** names of commands that extensions registered — they dispatch, never queue */
   private pluginCommands = new Set<string>();
+  /** true once the bridge has reported the command list for this session —
+   *  before that, an absent command means "not known yet", not "not installed" */
+  private pluginCommandsReady = false;
   private desktop: DesktopConfig | null = null;
+
+  /* ── parallel tasks ─────────────────────────────────────────────
+   * pi's runtime owns exactly one live session, and its switchSession
+   * aborts any turn in flight — which made opening a second task kill the
+   * first. Instead, switching away from a streaming session detaches the
+   * whole runtime into this pool, where the run continues uninterrupted;
+   * switching back re-promotes it (nothing is reloaded, nothing is lost),
+   * and a detached run that settles disposes itself. */
+  private detached = new Map<
+    string,
+    { runtime: AgentSessionRuntime; slotId: string; unsubscribe: () => void }
+  >();
+  /** session files with a detached turn in flight — the sidebar's spinner */
+  private detachedRunning = new Set<string>();
+  /** per-runtime identity for bridge gating: a detached runtime's plan,
+   *  fleet and command reports must not clobber the active view's */
+  private activeSlotId = "boot";
+  private slotSeq = 0;
+  private slotBridges = new Map<string, { reannounce: () => void; emit: (channel: string, data: unknown) => void }>();
   readonly ui = new UiBridge((request, notifications) => this.listener?.({ state: this.buildState(), messages: this.messages(), tools: this.toolActivity(), uiRequest: request, notifications }));
 
   constructor(cwd: string, private readonly getBrowser: () => BrowserHost | null = () => null) {
@@ -159,22 +195,32 @@ export class PiHost {
       await this.runtime.dispose();
       this.runtime = null;
     }
+    /* parallel tasks die with the host — their sessions are persisted turn by
+       turn, so nothing is lost that the run had not already written */
+    for (const slot of this.detached.values()) {
+      slot.unsubscribe();
+      await slot.runtime.dispose().catch(() => undefined);
+    }
+    this.detached.clear();
+    this.detachedRunning.clear();
+    this.slotBridges.clear();
     this.teamBus = null;
     this.connected = false;
   }
 
   async setCwd(cwd: string): Promise<void> {
-    if (cwd === this.cwd && this.runtime) return;
-    this.cwd = cwd;
+    const nextCwd = cwd === "~" ? this.homeDir : cwd;
+    if (nextCwd === this.cwd && this.runtime) return;
+    this.cwd = nextCwd;
     await this.dispose();
-    this.settingsManager = SettingsManager.create(cwd, this.agentDir);
+    this.settingsManager = SettingsManager.create(nextCwd, this.agentDir);
     try {
       await this.start();
     } catch (error) {
       /* switching folders is the New Agent menu's job; a boot failure there
        * must not die silently inside a void'd promise */
       const message = error instanceof Error ? error.message : String(error);
-      this.ui.context("host").notify(`Could not open ${cwd}: ${message}`, "error");
+      this.ui.context("host").notify(`Could not open ${nextCwd}: ${message}`, "error");
       throw error;
     }
   }
@@ -183,6 +229,16 @@ export class PiHost {
     const session = this.requireSession();
     const text = payload.text.trim();
     if (!text) return;
+    /* A bundled extension command typed while its plugin is missing or disabled
+     * would otherwise reach the model as literal text — "/plan" answered as a
+     * question about "/plan". Say what is wrong instead of guessing at it. */
+    const command = /^\/([a-z0-9:_-]+)/i.exec(text)?.[1]?.toLowerCase();
+    if (command && this.pluginCommandsReady && BUNDLED_COMMANDS.has(command) && !this.pluginCommands.has(command)) {
+      this.ui
+        .context("host")
+        .notify(`/${command} is not available — its extension is not installed or is disabled. Manage plugins in Customize.`, "warning");
+      return;
+    }
     const images = payload.images?.length ? (payload.images as never) : undefined;
     /* Plugin commands — `/plan`, `/todos`, anything an extension registers —
      * are dispatched by pi itself, immediately and even mid-stream, but only
@@ -268,6 +324,17 @@ export class PiHost {
   }
 
   async newSession(): Promise<void> {
+    /* A streaming task must survive "new chat": park it, then build a fresh
+     * runtime around a brand-new session in the same session dir. The SDK's
+     * own newSession aborts the current turn, so it is only safe when idle. */
+    const parked = this.parkActiveIfNeeded();
+    if (parked) {
+      const sessionManager = SessionManager.create(this.cwd, parked.sessionDir);
+      await this.openRuntimeFor(sessionManager, parked.previousFile, "new");
+      this.refreshSessionsInBackground();
+      return;
+    }
+
     let swapped: { cancelled: boolean };
     try {
       swapped = await this.requireRuntime().newSession();
@@ -298,7 +365,113 @@ export class PiHost {
     }
   }
 
+  /**
+   * Park the active runtime while its turn is still streaming: it keeps
+   * running as a detached task, feeding only session-status updates to the
+   * sidebar. Returns the parked session's file and dir, or null when the
+   * active runtime was idle (nothing to preserve — the caller may rebuild it
+   * through the SDK's own switch path, which aborts safely).
+   */
+  private parkActiveIfNeeded(): { previousFile: string; sessionDir: string } | null {
+    const active = this.requireRuntime();
+    if (!active.session.isStreaming) return null;
+    const previousFile = active.session.sessionFile;
+    if (!previousFile) return null;
+    const previousSlotId = this.activeSlotId;
+    // the main event pump stops for a parked runtime; a slim one takes over
+    // that only tracks completion for the sidebar's spinner
+    this.unsubscribe?.();
+    this.detachedRunning.add(previousFile);
+    this.detached.set(previousFile, {
+      runtime: active,
+      slotId: previousSlotId,
+      unsubscribe: active.session.subscribe((event) => this.onDetachedEvent(previousFile, event)),
+    });
+    return { previousFile, sessionDir: active.session.sessionManager.getSessionDir() };
+  }
+
+  /** Background-task events: completion is the only thing worth surfacing —
+   *  the run's transcript lands in its own session file, the sidebar spinner
+   *  clears, and the detached runtime disposes itself. */
+  private onDetachedEvent(sessionFile: string, event: AgentSessionEvent): void {
+    if (event.type !== "agent_settled") return;
+    const slot = this.detached.get(sessionFile);
+    if (slot) {
+      this.detached.delete(sessionFile);
+      slot.unsubscribe();
+      void slot.runtime.dispose().catch(() => undefined);
+    }
+    this.detachedRunning.delete(sessionFile);
+    void this.refreshSessions().then(() => this.emit()).catch(() => undefined);
+  }
+
+  /** Wire a runtime in as the active view: subscribe the full event pump,
+   *  reset the per-session mirrors, and have its bridge re-announce so plan,
+   *  fleet and commands reflect the session being returned to. */
+  private async activateRuntime(runtime: AgentSessionRuntime, slotId: string): Promise<void> {
+    this.runtime = runtime;
+    this.activeSlotId = slotId;
+    this.tools.clear();
+    this.restoreTodos();
+    this.commands = [];
+    this.pluginCommands = new Set();
+    this.pluginCommandsReady = false;
+    this.plan = EMPTY_PLAN;
+    this.fleet = [];
+    this.unsubscribe?.();
+    this.unsubscribe = runtime.session.subscribe((event) => this.onEvent(event));
+    this.slotBridges.get(slotId)?.reannounce();
+    this.refreshCommands();
+    await this.refreshModels();
+    this.emit();
+    this.refreshSessionsInBackground();
+  }
+
+  /** A fresh runtime bound to a specific session file — the parallel-task
+   *  path, where the SDK's in-place switch would abort the parked run. */
+  private async openRuntimeFor(
+    sessionManager: SessionManager,
+    previousFile?: string,
+    reason: "resume" | "new" = "resume",
+  ): Promise<void> {
+    const slotId = `slot-${++this.slotSeq}`;
+    this.activeSlotId = slotId;
+    const runtime = await createAgentSessionRuntime(this.makeRuntimeFactory(slotId, {
+      agentDir: this.agentDir,
+      settingsManager: this.settingsManager,
+    }), {
+      cwd: sessionManager.getCwd(),
+      agentDir: this.agentDir,
+      sessionManager,
+      sessionStartEvent: { type: "session_start", reason, previousSessionFile: previousFile },
+    });
+    await runtime.session.bindExtensions({ mode: "rpc", uiContext: this.ui.context("extension") });
+    await this.activateRuntime(runtime, slotId);
+  }
+
   async switchSession(sessionPath: string): Promise<void> {
+    const active = this.requireRuntime();
+    if (active.session.sessionFile === sessionPath) return;
+
+    const parked = this.parkActiveIfNeeded();
+    const target = this.detached.get(sessionPath);
+    if (target) {
+      // switching back to a task that is still running: re-promote its runtime
+      this.detached.delete(sessionPath);
+      this.detachedRunning.delete(sessionPath);
+      target.unsubscribe();
+      await this.activateRuntime(target.runtime, target.slotId);
+      return;
+    }
+    if (parked) {
+      // the previous task keeps running detached; the target needs its own
+      // runtime, because the SDK's in-place switch would tear down the parked one
+      await this.openRuntimeFor(SessionManager.open(sessionPath), parked.previousFile);
+      this.refreshSessionsInBackground();
+      return;
+    }
+
+    // idle: the SDK's own switch is safe — nothing is running to abort
     const result = await this.requireRuntime().switchSession(sessionPath);
     if (result.cancelled) return;
     this.restoreTodos();
@@ -312,14 +485,58 @@ export class PiHost {
   }
 
   /** The prompts this session can be branched from, oldest first. */
-  forkTargets(): { entryId: string; text: string }[] {
+  /**
+   * The prompts on the path actually being shown, oldest first.
+   *
+   * Walked from the session's leaf rather than taken from
+   * `getUserMessagesForForking()`, which reports every user entry in the file —
+   * including the ones a rewind abandoned. Those would shift every index, so
+   * the retry button would offer to branch from text that is no longer part of
+   * the conversation.
+   */
+  promptTargets(): { entryId: string; text: string }[] {
     try {
-      return this.requireSession()
-        .getUserMessagesForForking()
-        .map((item) => ({ entryId: item.entryId, text: item.text.slice(0, 120) }));
+      const session = this.requireSession();
+      return session.sessionManager
+        .getBranch()
+        .filter((entry) => entry.type === "message" && entry.message.role === "user")
+        .map((entry) => ({
+          entryId: entry.id,
+          text: textFromContent((entry as { message: { content?: unknown } }).message.content).slice(0, 120),
+        }));
     } catch {
       return [];
     }
+  }
+
+  /**
+   * Rewind the conversation to just before the prompt at `index` and hand its
+   * text back, so editing a sent prompt replaces that turn rather than piling a
+   * new one on top of it.
+   *
+   * pi keeps the session append-only: this moves the leaf pointer to the
+   * prompt's parent, so the abandoned turn stays in the file and nothing is
+   * rewritten or deleted — which is also why an edit can be undone by navigating
+   * back. `navigateTree` refuses to run mid-stream, so editing while the agent
+   * is still answering aborts the current response first; that is what
+   * "editable while running" has to mean here.
+   */
+  async rewindTo(index: number): Promise<{ text: string; cancelled: boolean }> {
+    const session = this.requireSession();
+    const target = this.promptTargets()[index];
+    if (!target) throw new Error("No prompt at that position.");
+    if (session.isStreaming) {
+      await session.abort();
+      await session.waitForIdle();
+    }
+    const result = await session.navigateTree(target.entryId, { summarize: false });
+    if (result.cancelled) return { text: "", cancelled: true };
+    /* The tool dock describes the turn that was just stepped back from, so it
+       goes with it; the todo list is the plan for the turn about to be re-run
+       and survives on purpose. */
+    this.tools.clear();
+    this.emit();
+    return { text: result.editorText ?? target.text, cancelled: false };
   }
 
   /**
@@ -329,7 +546,7 @@ export class PiHost {
    * the original transcript survives and the app switches to the branch.
    */
   async forkAt(index: number): Promise<{ cancelled: boolean }> {
-    const target = this.forkTargets()[index];
+    const target = this.promptTargets()[index];
     if (!target) throw new Error("No prompt to fork from at that position.");
     const result = await this.requireRuntime().fork(target.entryId);
     if (result.cancelled) return { cancelled: true };
@@ -422,8 +639,12 @@ export class PiHost {
        translated here rather than sent: the request is Max, and the delegation
        policy the composer adds is what makes the two differ. */
     const ultra = level === "ultra";
-    if (!withUltra(session.getAvailableThinkingLevels(), this.ultraMode(session)).includes(level)) {
-      throw new Error(`Thinking level is not available for this model: ${level}`);
+    const offered = withUltra(session.getAvailableThinkingLevels(), this.ultraMode(session));
+    if (!offered.includes(level)) {
+      /* name what the model does take: the refusal alone leaves the user with a
+         dead end, and this is the one message that can tell them the depth is
+         the channel's limit rather than a broken control */
+      throw new Error(`${level} is not one of this model's depths: ${offered.join(" / ")}`);
     }
     const wire = (ultra ? "max" : level) as never;
     session.setThinkingLevel(wire);
@@ -569,6 +790,40 @@ export class PiHost {
   }
 
   /**
+   * Channels: one endpoint, one provider entry per key.
+   *
+   * `model-config` owns that shape; each of these writes it and then re-reads
+   * the runtime, so a channel added here is pickable in this window without a
+   * restart. The names differ from the imported writers so a reader never has
+   * to wonder whether a call inside the method is recursion.
+   */
+  async createChannel(edit: ChannelEdit): Promise<string[]> {
+    const ids = writeChannel(edit);
+    await this.reloadModelsFromDisk();
+    this.emit();
+    return ids;
+  }
+
+  async removeChannel(channelId: string): Promise<void> {
+    deleteChannel(channelId);
+    await this.reloadModelsFromDisk();
+    this.emit();
+  }
+
+  async addKeyToChannel(channelId: string, key: string): Promise<string | undefined> {
+    const id = addChannelKey(channelId, key);
+    await this.reloadModelsFromDisk();
+    this.emit();
+    return id;
+  }
+
+  async removeKeyFromChannel(providerId: string): Promise<void> {
+    removeChannelKey(providerId);
+    await this.reloadModelsFromDisk();
+    this.emit();
+  }
+
+  /**
    * Re-read models.json into the live session, then recompute the list.
    *
    * `refreshModels` alone only re-reads the runtime's in-memory catalogue,
@@ -684,7 +939,17 @@ export class PiHost {
   async allSessions(): Promise<HostState["sessions"]> {
     try {
       const listed = await SessionManager.listAll();
-      return serializeSessionList(listed, this.runtime?.session?.sessionFile, false);
+      const rows = serializeSessionList(
+        listed,
+        this.runtime?.session?.sessionFile,
+        Boolean(this.runtime?.session?.isStreaming),
+      );
+      /* detached parallel tasks stream in runtimes the view is not on — mark
+         them running here, or the sidebar shows an unread dot for a live run */
+      for (const item of rows) {
+        if (this.detachedRunning.has(item.path)) item.status = "running";
+      }
+      return rows;
     } catch {
       return this.sessions;
     }
@@ -829,10 +1094,20 @@ export class PiHost {
   }
 
   private lastSerialized: { log: unknown; length: number; out: ChatMessage[] } | null = null;
+  /** the settled transcript the renderer was last given, compared by reference */
+  private sentSettled: ChatMessage[] | null = null;
 
-  messages(): ChatMessage[] {
+  /**
+   * The transcript, split into what has finished and what is still moving.
+   *
+   * `settled` is the cached array the renderer already holds; `all` is what it
+   * should show. When the two line up with the previous send, only the streaming
+   * message differs and `emit` ships that one message instead of the whole
+   * conversation.
+   */
+  private transcript(): { all: ChatMessage[]; settled: ChatMessage[] } {
     const session = this.runtime?.session;
-    if (!session) return [];
+    if (!session) return { all: [], settled: [] };
     /* The serialization cost of the whole log lives in this method, and the
      * host calls it on every emitted event — most of which change nothing in
      * the transcript. Cache on array identity *and length*: pi appends into
@@ -842,13 +1117,17 @@ export class PiHost {
     const stream = session.state.streamingMessage as unknown;
     const last = this.lastSerialized;
     if (last && last.log === log && last.length === log.length) {
-      if (!stream) return last.out;
-      return [...last.out, serializeMessage(stream, last.out.length, true)];
+      if (!stream) return { all: last.out, settled: last.out };
+      return { all: [...last.out, serializeMessage(stream, last.out.length, true)], settled: last.out };
     }
     const out = serializeMessages(log, undefined);
     this.lastSerialized = { log, length: log.length, out };
-    if (!stream) return out;
-    return [...out, serializeMessage(stream, out.length, true)];
+    if (!stream) return { all: out, settled: out };
+    return { all: [...out, serializeMessage(stream, out.length, true)], settled: out };
+  }
+
+  messages(): ChatMessage[] {
+    return this.transcript().all;
   }
 
   toolActivity(): ToolActivity[] {
@@ -862,11 +1141,37 @@ export class PiHost {
     const agentDir = this.agentDir;
     const settingsManager = this.settingsManager;
 
-    const createRuntime: CreateAgentSessionRuntimeFactory = async ({ cwd, sessionManager, sessionStartEvent }) => {
+    const createRuntime = this.makeRuntimeFactory("boot", { agentDir, settingsManager });
+
+    this.runtime = await createAgentSessionRuntime(createRuntime, {
+      cwd: this.cwd,
+      agentDir,
+      sessionManager: SessionManager.continueRecent(this.cwd),
+    });
+
+    this.connected = true;
+    await this.bindSession();
+    this.restoreTodos();
+    await this.refreshSessions();
+    await this.refreshModels();
+    this.emit();
+  }
+
+  /**
+   * The runtime factory, parameterized by slot: parallel tasks each build one
+   * through here, and every extension callback that feeds host-level UI state
+   * is gated on its own slot being the active one — a background task's plan,
+   * fleet or command report must never overwrite what the window is showing.
+   */
+  private makeRuntimeFactory(
+    slotId: string,
+    io: { agentDir: string; settingsManager: SettingsManager },
+  ): CreateAgentSessionRuntimeFactory {
+    return async ({ cwd, sessionManager, sessionStartEvent }) => {
       const services = await createAgentSessionServices({
         cwd,
-        agentDir,
-        settingsManager,
+        agentDir: io.agentDir,
+        settingsManager: io.settingsManager,
         // The browser tools are a pi extension, not an MCP server: the agent runs
         // in this process, so the tools call the embedded view directly.
         resourceLoaderOptions: {
@@ -897,6 +1202,7 @@ export class PiHost {
                       registerTodoTools(pi, {
                         initial: this.todos,
                         onChange: (state) => {
+                          if (slotId !== this.activeSlotId) return;
                           this.todos = state;
                           this.emit();
                         },
@@ -923,23 +1229,33 @@ export class PiHost {
             {
               name: "pi-desktop-bridge",
               factory: (pi: ExtensionAPI) => {
-                /* the shared bus, kept for the interrupts the window sends down */
-                this.teamBus = { emit: (channel: string, data: unknown) => pi.events.emit(channel, data) };
-                return registerDesktopBridge(pi, {
+                /* the shared bus, kept for the interrupts the window sends down —
+                   routed to whichever slot is active, not whoever built last */
+                const bridge = registerDesktopBridge(pi, {
                   onPlanState: (state) => {
+                    if (slotId !== this.activeSlotId) return;
                     this.plan = state;
                     this.emit();
                   },
                   onFleetState: (agents) => {
+                    if (slotId !== this.activeSlotId) return;
                     this.fleet = agents;
                     this.emit();
                   },
                   onCommands: (commands) => {
+                    if (slotId !== this.activeSlotId) return;
                     this.pluginCommands = new Set(commands.map((command) => command.name.toLowerCase()));
+                    this.pluginCommandsReady = true;
                     this.commands = commands;
                     this.emit();
                   },
                 });
+                this.slotBridges.set(slotId, {
+                  reannounce: () => bridge.reannounce(),
+                  emit: (channel: string, data: unknown) => pi.events.emit(channel, data),
+                });
+                this.syncTeamBus();
+                return bridge;
               },
             },
           ],
@@ -951,19 +1267,13 @@ export class PiHost {
         diagnostics: services.diagnostics,
       };
     };
+  }
 
-    this.runtime = await createAgentSessionRuntime(createRuntime, {
-      cwd: this.cwd,
-      agentDir,
-      sessionManager: SessionManager.continueRecent(this.cwd),
-    });
-
-    this.connected = true;
-    await this.bindSession();
-    this.restoreTodos();
-    await this.refreshSessions();
-    await this.refreshModels();
-    this.emit();
+  /** Interrupts and fleet pings always reach the runtime the window is on. */
+  private syncTeamBus(): void {
+    this.teamBus = {
+      emit: (channel: string, data: unknown) => this.slotBridges.get(this.activeSlotId)?.emit(channel, data),
+    };
   }
 
   private async bindSession(): Promise<void> {
@@ -973,6 +1283,7 @@ export class PiHost {
      * desktop bridge, which reports commands and plan state during binding. */
     this.commands = [];
     this.pluginCommands = new Set();
+    this.pluginCommandsReady = false;
     this.plan = EMPTY_PLAN;
     this.fleet = [];
     // The factory already supplied this session's bus before binding.
@@ -1022,6 +1333,11 @@ export class PiHost {
       for (const tool of this.tools.values()) {
         if (tool.status === "running") tool.status = "done";
       }
+      /* The activity table exists to show calls whose transcript row has not
+       * landed yet; once the turn settles every call is in the session log, so
+       * keeping the entries would only let them leak into the next turn's
+       * live-tool sweep as ghosts of commands already shown. */
+      this.tools.clear();
       // the sidebar reads this list — emit again once the scan lands
       void this.refreshSessions().then(() => this.emit()).catch(() => undefined);
     }
@@ -1046,6 +1362,11 @@ export class PiHost {
     if (cwd !== this.cwd) return;
     const session = this.runtime?.session;
     this.sessions = serializeSessionList(listed, session?.sessionFile, session?.isStreaming);
+    /* a detached run streams in a runtime the view is not on — its session
+       file only reports "running" from here, which is what the sidebar reads */
+    for (const item of this.sessions) {
+      if (this.detachedRunning.has(item.path)) item.status = "running";
+    }
   }
 
   /**
@@ -1101,7 +1422,8 @@ export class PiHost {
         source: fromFile ? "models.json" : "builtin",
       } satisfies ModelInfo;
     });
-    this.allModels = catalogue;
+    const rows = this.collapseToChannels(catalogue);
+    this.allModels = rows;
     /* Disabling is a desktop-level whitelist kept in pi's own `enabledModels`
        field, where an empty list means "all of them" — the same reading the
        CLI gives it. Every picker in the window draws from `models`, so a
@@ -1109,7 +1431,72 @@ export class PiHost {
        reads `allModels` and can show the row greyed out. Read once, not per
        row: the settings getter hands back a fresh clone every call. */
     const enabledModels = this.settingsManager.getGlobalSettings().enabledModels;
-    this.models = catalogue.filter((model) => this.patternAllows(enabledModels, model));
+    this.models = rows.filter((model) => this.patternAllows(enabledModels, model));
+  }
+
+  /**
+   * Fold the runtime's providers into endpoints, then into one row per model.
+   *
+   * pi holds exactly one key per provider, so a channel with three keys is
+   * stored as three providers carrying the same model list. Presenting that as
+   * three models would read as a catalogue three times over, so the list keeps
+   * one row per (endpoint, model). The row addresses whichever member actually
+   * serves it — the session's own model when there is one, so the row can still
+   * be marked current, and otherwise the first provider id, which is what the
+   * CLI reaches too.
+   */
+  private collapseToChannels(catalogue: ModelInfo[]): ModelInfo[] {
+    const session = this.runtime?.session;
+    this.channelByProvider.clear();
+    this.channels = [];
+    if (!session) return catalogue;
+
+    const groups = new Map<string, ChannelInfo>();
+    for (const provider of session.modelRuntime.getProviders() as unknown as ProviderLike[]) {
+      /* one endpoint, several keys: the same identity the writer uses, imported
+       * rather than restated, so the file and this list cannot disagree */
+      const id = channelIdOf(provider, provider.id);
+      this.channelByProvider.set(provider.id, id);
+      const existing = groups.get(id);
+      if (existing) existing.members.push(provider.id);
+      else
+        groups.set(id, {
+          id,
+          name: provider.name ?? provider.id,
+          api: provider.api ?? "unknown",
+          baseUrl: provider.baseUrl,
+          members: [provider.id],
+          modelCount: 0,
+          custom: this.editableProviders.has(provider.id),
+        });
+    }
+    this.channels = [...groups.values()];
+
+    const current = session.model as { provider?: string; id?: string } | undefined;
+    /** the member a row should address: the live one first, then the lowest id */
+    const rank = (entry: ModelInfo) =>
+      entry.provider === current?.provider && entry.id === current?.id ? 0 : 1;
+    const byRow = new Map<string, ModelInfo>();
+    for (const model of catalogue) {
+      const channelId = this.channelByProvider.get(model.provider) ?? model.provider;
+      const row: ModelInfo = { ...model, channelId };
+      const key = `${channelId}|${row.id}`;
+      const seen = byRow.get(key);
+      if (!seen) byRow.set(key, row);
+      else if (rank(row) < rank(seen)) byRow.set(key, row);
+      else if (rank(row) === rank(seen) && row.provider < seen.provider) byRow.set(key, row);
+    }
+
+    const counts = new Map<string, number>();
+    for (const row of byRow.values()) {
+      const id = row.channelId ?? "";
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    for (const group of this.channels) {
+      group.members.sort();
+      group.modelCount = counts.get(group.id) ?? 0;
+    }
+    return [...byRow.values()];
   }
 
   /** Does the enabled-model whitelist cover this model? A trailing `*` in a
@@ -1204,10 +1591,19 @@ export class PiHost {
     this.emitScheduled = true;
     setTimeout(() => {
       this.emitScheduled = false;
+      const { all: messages, settled } = this.transcript();
+      const moved = settled !== this.sentSettled;
+      this.sentSettled = settled;
+      const tail = messages.slice(settled.length);
+      /* Reference equality is the whole test. `settled` is the array handed to
+         the renderer last time, so if it has not been rebuilt, everything before
+         the streaming message is already on screen and this tick only needs the
+         message that moved — or nothing at all, which is the common case for the
+         tool and settings events that make up most of a session. */
       this.listener?.({
         state: this.buildState(),
-        messages: this.messages(),
         tools: this.toolActivity(),
+        ...(moved ? { messages } : tail.length ? { tail: { at: settled.length, messages: tail } } : {}),
       });
     }, 16);
   }
@@ -1216,12 +1612,14 @@ export class PiHost {
     const session = this.runtime?.session;
     return {
       cwd: this.cwd,
+      homeDir: this.homeDir,
       connected: this.connected,
       error: this.error ?? session?.state.errorMessage,
       sessions: this.sessions,
       models: this.models,
       allModels: this.allModels,
       providers: this.providerRows(),
+      channels: this.channels,
       commands: this.commands,
       settings: this.runtimeSettings(),
       todos: this.todos.items,

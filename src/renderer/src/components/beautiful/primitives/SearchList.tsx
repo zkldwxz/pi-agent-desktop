@@ -144,7 +144,7 @@ export default function SearchList({
             }}
             placeholder={labels.placeholder}
             aria-label={labels.ariaLabel}
-            className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-3"
+            className="min-w-0 flex-1 bg-transparent text-ui-base text-ink outline-none placeholder:text-ink-4"
           />
           {query ? (
             <button
@@ -162,7 +162,7 @@ export default function SearchList({
               </svg>
             </button>
           ) : (
-            <kbd className="shrink-0 rounded-[4px] bg-field px-1.5 py-px text-[10px] text-ink-3">Esc</kbd>
+            <kbd className="shrink-0 rounded-tiny bg-field px-1.5 py-px text-ui-xs text-ink-3">Esc</kbd>
           )}
         </div>
 
@@ -175,19 +175,19 @@ export default function SearchList({
                 <path d="M21 21l-4.3-4.3" />
               </svg>
             </span>
-            <span className="text-[13px] font-medium text-ink">{labels.emptyTitle}</span>
-            <span className="text-[12px] text-ink-3">{labels.emptyHint}</span>
+            <span className="text-ui-base font-medium text-ink">{labels.emptyTitle}</span>
+            <span className="text-ui-caption text-ink-3">{labels.emptyHint}</span>
           </div>
         ) : (
           <div className="scrollbar-thin max-h-[52vh] overflow-y-auto p-1">
-            <GlideMenu className="flex flex-col gap-px" highlightClassName="inset-x-0 rounded-[6px] bg-hover">
+            <GlideMenu className="flex flex-col gap-px" highlightClassName="inset-x-0 rounded-chip bg-hover">
               {results.map((entry, index) => {
                 const header = entry.group && entry.group !== lastGroup ? entry.group : null;
                 lastGroup = entry.group ?? lastGroup;
                 return (
                   <div key={entry.id}>
                     {header ? (
-                      <div className="px-2 pt-2 pb-1 text-[10.5px] font-medium tracking-[0.5px] text-ink-3">
+                      <div className="px-2 pt-2 pb-1 text-ui-xs font-medium tracking-[0.5px] text-ink-3">
                         {header.toUpperCase()}
                       </div>
                     ) : null}
@@ -198,11 +198,11 @@ export default function SearchList({
                       data-menu-row
                       type="button"
                       onClick={() => onSelect?.(entry)}
-                      className="relative z-10 flex h-8 w-full items-center gap-2 rounded-[6px] px-2 text-left"
+                      className="relative z-10 flex h-8 w-full items-center gap-2 rounded-chip px-2 text-left"
                     >
-                      <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{entry.label}</span>
+                      <span className="min-w-0 flex-1 truncate text-ui-base text-ink">{entry.label}</span>
                       {entry.hint ? (
-                        <span className="shrink-0 truncate font-mono text-[10.5px] text-ink-3">{entry.hint}</span>
+                        <span className="shrink-0 truncate font-mono text-ui-xs text-ink-3">{entry.hint}</span>
                       ) : null}
                     </button>
                   </div>
@@ -212,12 +212,12 @@ export default function SearchList({
           </div>
         )}
 
-        <div className="flex items-center gap-3 border-t border-line px-3 py-2 text-[10.5px] text-ink-3">
+        <div className="flex items-center gap-3 border-t border-line px-3 py-2 text-ui-xs text-ink-3">
           <span className="flex items-center gap-1">
-            <kbd className="rounded-[3px] bg-field px-1 py-px">↑↓</kbd> navigate
+            <kbd className="rounded-tiny bg-field px-1 py-px">↑↓</kbd> navigate
           </span>
           <span className="flex items-center gap-1">
-            <kbd className="rounded-[3px] bg-field px-1 py-px">↵</kbd> run
+            <kbd className="rounded-tiny bg-field px-1 py-px">↵</kbd> run
           </span>
           <span className="flex-1" />
           <span className="tabular-nums">{results.length} results</span>

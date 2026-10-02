@@ -292,6 +292,18 @@ check("kickoff triggers the turn", kickoff?.options?.triggerTurn === true);
 check("kickoff carries the step detail", /src\/thing\.ts/.test(String(kickoff?.content ?? "")));
 check("kickoff carries the plan path", String(kickoff?.content ?? "").includes(stray.state()?.path ?? "%%"));
 check("kickoff carries the plan notes", /Notes for a plan nobody asked/.test(String(kickoff?.content ?? "")));
+/* The build is a second task, and the window needs a seam to cut it on. The
+ * boundary has to arrive ahead of the kickoff, carry the type the transcript
+ * matches, and stay displayed — a hidden boundary would open the new task with
+ * nothing in it. */
+const boundaryIndex = stray.sent.findIndex((message) => message.customType === "plan-mode-build");
+const kickoffIndex = stray.sent.lastIndexOf(kickoff);
+const boundary = boundaryIndex >= 0 ? stray.sent[boundaryIndex] : undefined;
+check("the build opens with a task boundary", boundary?.kind === "custom", String(boundary?.kind));
+check("the boundary is displayed", boundary?.display === true, String(boundary?.display));
+check("the boundary names the plan", /Building the plan.*Stray plan/.test(String(boundary?.content ?? "")), String(boundary?.content ?? "").slice(0, 80));
+check("the boundary lands before the kickoff", boundaryIndex >= 0 && boundaryIndex < kickoffIndex, `${boundaryIndex} < ${kickoffIndex}`);
+check("the boundary does not start the turn itself", boundary?.options?.triggerTurn !== true, JSON.stringify(boundary?.options));
 
 /* ═══ 5. reminders leave the context with their phase ═══ */
 

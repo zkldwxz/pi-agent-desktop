@@ -1,0 +1,22 @@
+# Indentation is not enforced by any tool in this repo (no linter, no
+# formatter), so it drifts: `resources/extensions/*` and
+# `src/main/desktop-bridge-extension.ts` are tab-indented, everything else in
+# `src/` is two spaces. No file mixes the two — this records the split so an
+# editor does not add a third style, and so the next person who reformats one
+# of those files knows it is a deliberate conversion rather than a stray tab.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{ts,tsx,mjs,cjs,json,css,html}]
+indent_style = space
+indent_size = 2
+
+# pi loads these as standalone plugins from ~/.pi/agent/extensions, and they
+# are written in the pi CLI's own tab style. Keep them internally consistent.
+[resources/extensions/**.ts]
+indent_style = tab

@@ -55,7 +55,7 @@ const DEFAULT_LABELS: ApprovalLabels = {
 };
 
 const ROLL_MS = 400;
-const SLIDE = "360ms cubic-bezier(0.22, 1, 0.36, 1)";
+const SLIDE = "360ms var(--ease-out-strong-css)";
 
 /* odometer digits — each character that changes rolls up (or down) */
 function RollingDigits({ value }: { value: string }) {
@@ -118,7 +118,7 @@ function RollingDigits({ value }: { value: string }) {
               style={{
                 display: "flex",
                 flexDirection: "column",
-                transition: "transform 350ms cubic-bezier(0.4, 0, 0.2, 1)",
+                transition: "transform 350ms var(--ease-in-out-strong-css)",
                 transform: `translateY(${shifted ? restY : startY})`,
               }}
             >
@@ -250,7 +250,7 @@ export default function ApprovalCard({
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="rounded-control bg-surface px-3 py-2 text-[12.5px] font-medium text-ink shadow-btn transition-colors duration-150 hover:bg-hover">
+      <button type="button" onClick={() => setOpen(true)} className="rounded-control bg-surface px-3 py-2 text-ui-caption font-medium text-ink shadow-btn transition-colors duration-150 hover:bg-hover">
         {tr("Open approval")}
       </button>
     );
@@ -258,15 +258,15 @@ export default function ApprovalCard({
 
   if (sent) {
     return (
-      <div className="flex w-full max-w-80 items-center gap-3" style={{ animation: "pop-in 260ms cubic-bezier(0.23,1,0.32,1) both" }}>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-green-tint py-1 pr-2.5 pl-1 text-[12.5px] font-medium text-green">
+      <div className="flex w-full max-w-80 items-center gap-3" style={{ animation: "pop-in 260ms var(--ease-out-strong-css) both" }}>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-green-tint py-1 pr-2.5 pl-1 text-ui-caption font-medium text-green">
           <span className="flex size-4.5 items-center justify-center rounded-full bg-green text-white">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
           </span>
           {tr(t.sentMessage)}
         </span>
         {resettable && (
-          <button type="button" onClick={reset} className="text-[12px] font-medium text-ink-3 transition-colors duration-150 hover:text-ink">
+          <button type="button" onClick={reset} className="text-ui-caption font-medium text-ink-3 transition-colors duration-150 hover:text-ink">
             {tr("Start over")}
           </button>
         )}
@@ -276,7 +276,7 @@ export default function ApprovalCard({
 
   return (
     <div className="w-full max-w-80">
-      <div className="relative overflow-hidden rounded-card bg-surface shadow-card" style={{ animation: "fade-up 380ms cubic-bezier(0.23,1,0.32,1) both" }}>
+      <div className="relative overflow-hidden rounded-card bg-surface shadow-card" style={{ animation: "fade-up 380ms var(--ease-out-strong-css) both" }}>
         <button
           type="button"
           aria-label={tr("Dismiss")}
@@ -320,7 +320,7 @@ export default function ApprovalCard({
                     aria-hidden={active ? undefined : true}
                     style={questionStyle}
                   >
-                    <div className="pr-7 text-[14px] font-medium text-ink">{question.q}</div>
+                    <div className="pr-7 text-ui-lg font-medium text-ink">{question.q}</div>
                     <GlideMenu className="mt-2.5 flex flex-col gap-1" highlightClassName="inset-x-0 rounded-control bg-hover">
                       {question.options.map((option, i) => {
                         const on = picked.includes(i);
@@ -336,7 +336,7 @@ export default function ApprovalCard({
                           >
                             <span
                               className={`flex size-4 shrink-0 items-center justify-center transition-colors duration-200
-                                ${question.type === "radio" ? "rounded-full" : "rounded-[5px]"}
+                                ${question.type === "radio" ? "rounded-full" : "rounded-chip"}
                                 ${on ? "bg-ink text-canvas" : "shadow-[inset_0_0_0_1.5px_var(--line-strong)] text-transparent"}`}
                             >
                               {question.type === "radio" ? (
@@ -345,7 +345,7 @@ export default function ApprovalCard({
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
                               )}
                             </span>
-                            <span className={`text-[13px] leading-none transition-colors duration-200 ${on ? "text-ink" : "text-ink-2"}`}>
+                            <span className={`text-ui-base leading-none transition-colors duration-200 ${on ? "text-ink" : "text-ink-2"}`}>
                               {option}
                             </span>
                           </button>
@@ -368,7 +368,7 @@ export default function ApprovalCard({
                           }}
                           placeholder={tr(t.customPlaceholder)}
                           aria-label={tr("Custom answer")}
-                          className="min-w-0 flex-1 bg-transparent pl-1.5 text-[13px] text-ink outline-none placeholder:text-ink-3"
+                          className="min-w-0 flex-1 bg-transparent pl-1.5 text-ui-base text-ink outline-none placeholder:text-ink-4"
                         />
                       </label>
                     </GlideMenu>
@@ -387,11 +387,11 @@ export default function ApprovalCard({
               aria-label={tr("Previous question")}
               disabled={qi <= 0}
               onClick={() => goTo(qi - 1)}
-              className="flex size-[18px] items-center justify-center rounded-[5px] transition-colors duration-100 enabled:hover:text-ink disabled:opacity-30"
+              className="flex size-[18px] items-center justify-center rounded-chip transition-colors duration-100 enabled:hover:text-ink disabled:opacity-30"
             >
               <Ico size={14} path={<path d="M18 15l-6-6-6 6" />} />
             </button>
-            <span className="inline-flex items-center text-[12px] font-medium tabular-nums text-ink-3" style={{ letterSpacing: "-0.1px", lineHeight: 1 }}>
+            <span className="inline-flex items-center text-ui-caption font-medium tabular-nums text-ink-3" style={{ letterSpacing: "-0.1px", lineHeight: 1 }}>
               <RollingDigits value={`${qi + 1} / ${questions.length}`} />
             </span>
             <button
@@ -399,7 +399,7 @@ export default function ApprovalCard({
               aria-label={tr("Next question")}
               disabled={last}
               onClick={() => goTo(qi + 1)}
-              className="flex size-[18px] items-center justify-center rounded-[5px] transition-colors duration-100 enabled:hover:text-ink disabled:opacity-30"
+              className="flex size-[18px] items-center justify-center rounded-chip transition-colors duration-100 enabled:hover:text-ink disabled:opacity-30"
             >
               <Ico size={14} path={<path d="M6 9l6 6 6-6" />} />
             </button>

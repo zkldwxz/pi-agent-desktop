@@ -9,6 +9,7 @@ import {
   ArrowUpIcon,
   ChevronDownIcon,
   EyeIcon,
+  GlobeIcon,
   PencilIcon,
   RefreshIcon,
   SquareStopIcon,
@@ -141,13 +142,13 @@ export function BrowserPanel({
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-page">
       {/* top bar — nav · address · design · devtools */}
-      <div className="relative flex h-[42px] shrink-0 items-center gap-1 border-b border-line px-2">
+      <div className="relative flex h-[48px] shrink-0 items-center gap-[8px] border-b border-line px-[12px]">
         <button
           type="button"
           aria-label="Back"
           disabled={!state.canGoBack}
           onClick={() => void window.pi.browserBack()}
-          className="pressable flex size-7 items-center justify-center rounded-[6px] text-ink-2 hover:bg-hover disabled:opacity-35"
+          className="pressable flex size-[28px] shrink-0 items-center justify-center rounded-chip text-ink-2 hover:bg-hover disabled:opacity-35"
         >
           <ArrowUpIcon size={14} className="-rotate-90" />
         </button>
@@ -156,7 +157,7 @@ export function BrowserPanel({
           aria-label="Forward"
           disabled={!state.canGoForward}
           onClick={() => void window.pi.browserForward()}
-          className="pressable flex size-7 items-center justify-center rounded-[6px] text-ink-2 hover:bg-hover disabled:opacity-35"
+          className="pressable flex size-[28px] shrink-0 items-center justify-center rounded-chip text-ink-2 hover:bg-hover disabled:opacity-35"
         >
           <ArrowUpIcon size={14} className="rotate-90" />
         </button>
@@ -164,12 +165,12 @@ export function BrowserPanel({
           type="button"
           aria-label={state.loading ? t("Stop") : t("Reload")}
           onClick={() => (state.loading ? void window.pi.browserStop() : void window.pi.browserReload())}
-          className="pressable flex size-7 items-center justify-center rounded-[6px] text-ink-2 hover:bg-hover"
+          className="pressable flex size-[28px] shrink-0 items-center justify-center rounded-chip text-ink-2 hover:bg-hover"
         >
           {state.loading ? <SquareStopIcon size={12} /> : <RefreshIcon size={14} />}
         </button>
 
-        <div className="mx-1 flex h-[26px] min-w-0 flex-1 items-center gap-2 rounded-[7px] bg-field px-2.5 shadow-hairline">
+        <div className="mx-[4px] flex h-[28px] min-w-0 flex-1 items-center gap-[8px] rounded-chip bg-field px-[10px] shadow-hairline">
           <span
             className={cn("size-1.5 shrink-0 rounded-full", state.error ? "bg-red" : state.loading ? "pulse-dot bg-accent" : "bg-green")}
           />
@@ -190,19 +191,19 @@ export function BrowserPanel({
             }}
             placeholder="Enter a URL, or ask Pi to open one"
             spellCheck={false}
-            className="min-w-0 flex-1 bg-transparent font-mono text-[11.5px] text-ink outline-none placeholder:text-ink-3"
+            className="min-w-0 flex-1 bg-transparent font-mono text-ui-sm text-ink outline-none placeholder:text-ink-4"
           />
           {state.title ? (
-            <span className="hidden max-w-52 shrink-0 truncate text-[11px] text-ink-3 lg:inline">{state.title}</span>
+            <span className="hidden max-w-52 shrink-0 truncate text-ui-sm text-ink-3 lg:inline">{state.title}</span>
           ) : null}
         </div>
 
         {designPick ? (
           <div
             className="flex items-center gap-1.5 rounded-chip bg-accent-tint px-2 py-1"
-            style={{ animation: "pop-in 200ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "right center" }}
+            style={{ animation: "pop-in 200ms var(--ease-out-strong-css) both", transformOrigin: "right center" }}
           >
-            <span className="font-mono text-[10.5px] text-accent-ink">
+            <span className="font-mono text-ui-xs text-accent-ink">
               {designPick.component ? `${designPick.component} · ` : ""}
               {designPick.tag}
             </span>
@@ -210,7 +211,7 @@ export function BrowserPanel({
               type="button"
               onClick={() => onClearPick()}
               aria-label="Clear selection"
-              className="pressable flex size-4 items-center justify-center rounded-[4px] text-accent-ink hover:bg-accent/20"
+              className="pressable flex size-4 items-center justify-center rounded-tiny text-accent-ink hover:bg-accent/20"
             >
               <XIcon size={10} />
             </button>
@@ -225,7 +226,7 @@ export function BrowserPanel({
           })}
           onClick={() => void window.pi.setDesignMode(!state.designMode)}
           className={cn(
-            "pressable flex size-7 items-center justify-center rounded-[6px]",
+            "pressable flex size-[28px] shrink-0 items-center justify-center rounded-chip",
             state.designMode ? "bg-accent text-white" : "text-ink-2 hover:bg-hover",
           )}
         >
@@ -237,7 +238,7 @@ export function BrowserPanel({
           title="Toggle DevTools"
           onClick={() => void window.pi.toggleDevTools()}
           className={cn(
-            "pressable flex size-7 items-center justify-center rounded-[6px]",
+            "pressable flex size-[28px] shrink-0 items-center justify-center rounded-chip",
             state.devtoolsOpen ? "bg-field text-ink" : "text-ink-2 hover:bg-hover",
           )}
         >
@@ -248,7 +249,7 @@ export function BrowserPanel({
           aria-label={expanded ? t("Return to the dock") : t("Open fullscreen")}
           title={expanded ? t("Return to the dock") : t("Open fullscreen")}
           onClick={() => onExpandedChange(!expanded)}
-          className="pressable flex size-7 items-center justify-center rounded-[6px] text-ink-2 hover:bg-hover"
+          className="pressable flex size-[28px] shrink-0 items-center justify-center rounded-chip text-ink-2 hover:bg-hover"
         >
           <EyeIcon size={14} />
         </button>
@@ -258,7 +259,7 @@ export function BrowserPanel({
             aria-label={t("Close browser")}
             title={t("Close browser")}
             onClick={onClose}
-            className="pressable flex size-7 items-center justify-center rounded-[6px] text-ink-2 hover:bg-hover"
+            className="pressable flex size-[28px] shrink-0 items-center justify-center rounded-chip text-ink-2 hover:bg-hover"
           >
             <XIcon size={14} />
           </button>
@@ -275,18 +276,25 @@ export function BrowserPanel({
       </div>
 
       {state.error ? (
-        <div className="shrink-0 border-b border-red-tint bg-red-tint px-3 py-1.5 text-[11.5px] text-red">{state.error}</div>
+        <div className="shrink-0 border-b border-red-tint bg-red-tint px-3 py-1.5 text-ui-sm text-red">{state.error}</div>
       ) : null}
 
       {/* the native view is positioned over this box */}
       <div ref={placeholderRef} className="relative min-h-0 flex-1">
         {!state.url ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-            <div className="text-[13px] font-medium text-ink">{t("Nothing loaded")}</div>
-            <p className="max-w-sm text-[12px] text-ink-3">
-              Enter a URL above, or let Pi open one. The page renders in an embedded Chromium view — its own session, so site
-              logins persist between restarts.
-            </p>
+          /* The reference's boot/empty shell: one 64px glyph at 30% opacity, then
+             a title and a line of description, centred in a `max-w-sm` column
+             nudged up 40px. Two bare centred lines said the same thing but read
+             as an error state; the glyph is what makes it a state. */
+          <div className="flex h-full flex-col items-center justify-center px-[24px]">
+            <div className="flex max-w-sm flex-col items-center pb-[40px] text-center">
+              <GlobeIcon size={64} className="mb-[24px] text-ink opacity-30" strokeWidth={1} />
+              <div className="text-ui-base font-medium text-ink">{t("Nothing loaded")}</div>
+              <p className="mt-[8px] text-ui-base leading-[21px] text-ink-3">
+                Enter a URL above, or let Pi open one. The page renders in an embedded Chromium view — its own session, so site
+                logins persist between restarts.
+              </p>
+            </div>
           </div>
         ) : null}
 
@@ -302,7 +310,7 @@ export function BrowserPanel({
       </div>
 
       {!state.url ? (
-        <div className="flex shrink-0 items-center gap-2 border-t border-line px-3 py-2 text-[11px] text-ink-3">
+        <div className="flex shrink-0 items-center gap-[8px] border-t border-line px-[12px] py-[8px] text-ui-sm text-ink-3">
           <ChevronDownIcon size={11} className="-rotate-90" />
           {tf("{chord} for design mode · the >_ button docks DevTools on the right", {
             chord: chords.designMode ? formatChord(chords.designMode) : t("Unassigned"),

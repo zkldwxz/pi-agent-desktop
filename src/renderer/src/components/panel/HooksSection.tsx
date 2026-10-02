@@ -101,8 +101,8 @@ export function HooksSection() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-baseline justify-between gap-3 px-0.5">
-        <h2 className="text-[12.5px] font-medium text-ink">{t("Hooks")}</h2>
-        <span className="min-w-0 truncate text-[11px] text-ink-3">
+        <h2 className="text-ui-caption font-medium text-ink">{t("Hooks")}</h2>
+        <span className="min-w-0 truncate text-ui-sm text-ink-3">
           {t("Extensions subscribe to the agent's event stream with pi.on(event, handler)")}
         </span>
       </div>
@@ -141,11 +141,11 @@ export function HooksSection() {
             title={
               <span className="flex items-center gap-2">
                 <span className={cn("truncate", !plugin.enabled && "text-ink-3 line-through")}>{plugin.name}</span>
-                <span className="shrink-0 rounded-[4px] bg-hover-2 px-1 text-[10px] text-ink-3">
+                <span className="shrink-0 rounded-tiny bg-hover-2 px-1 text-ui-xs text-ink-3">
                   {t(SCOPE_LABEL[plugin.scope])}
                 </span>
                 {plugin.error ? (
-                  <span className="shrink-0 rounded-[4px] bg-red-tint px-1 text-[10px] text-red">
+                  <span className="shrink-0 rounded-tiny bg-red-tint px-1 text-ui-xs text-red">
                     {t(plugin.error)}
                   </span>
                 ) : null}
@@ -153,7 +153,7 @@ export function HooksSection() {
             }
             hint={plugin.description ?? plugin.path}
           >
-            <span className="font-mono text-[10.5px] text-ink-3">
+            <span className="font-mono text-ui-xs text-ink-3">
               {plugin.kind === "package" ? "package" : "pi.on(…)"}
             </span>
             <button
@@ -161,36 +161,36 @@ export function HooksSection() {
               aria-label={t("Reveal in explorer")}
               title={plugin.path}
               onClick={() => void window.pi.showItem(plugin.path)}
-              className="pressable flex size-6 items-center justify-center rounded-[6px] text-ink-3 hover:bg-hover-2 hover:text-ink"
+              className="pressable flex size-6 items-center justify-center rounded-chip text-ink-3 hover:bg-hover-2 hover:text-ink"
             >
               <FolderOpenIcon size={13} />
             </button>
             {plugin.toggleable ? (
               <Switch on={plugin.enabled} onClick={() => void toggle(plugin, !plugin.enabled)} />
             ) : (
-              <span className="text-[10.5px] text-ink-3">{t("not toggleable")}</span>
+              <span className="text-ui-xs text-ink-3">{t("not toggleable")}</span>
             )}
           </Row>
         ))}
       </Section>
 
       <Card index={1} className="overflow-hidden">
-        <div className="border-b border-line px-4 py-3 text-[13px] font-medium text-ink">{t("Hook events")}</div>
+        <div className="border-b border-line px-4 py-3 text-ui-base font-medium text-ink">{t("Hook events")}</div>
         <div className="flex flex-col gap-4 px-4 py-3.5">
           {EVENT_GROUPS.map((group) => (
             <div key={group.label}>
-              <div className="mb-1.5 text-[10.5px] font-medium uppercase tracking-[0.4px] text-ink-3">
+              <div className="mb-1.5 text-ui-xs font-medium uppercase tracking-[0.4px] text-ink-3">
                 {t(group.label)}
               </div>
               <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
                 {group.events.map((event) => (
                   <div key={event.name} className="flex items-baseline gap-2">
-                    <code className="shrink-0 font-mono text-[11px] text-ink">{event.name}</code>
-                    <span className="min-w-0 flex-1 truncate text-[11px] text-ink-3" title={t(event.hint)}>
+                    <code className="shrink-0 font-mono text-ui-sm text-ink">{event.name}</code>
+                    <span className="min-w-0 flex-1 truncate text-ui-sm text-ink-3" title={t(event.hint)}>
                       {t(event.hint)}
                     </span>
                     {event.block ? (
-                      <span className="shrink-0 rounded-[4px] bg-orange-tint px-1 text-[10px] text-orange">
+                      <span className="shrink-0 rounded-tiny bg-orange-tint px-1 text-ui-xs text-orange">
                         {t("Can block the call")}
                       </span>
                     ) : null}
@@ -202,7 +202,7 @@ export function HooksSection() {
         </div>
       </Card>
 
-      <p className="px-1 text-[11px] leading-relaxed text-ink-3">
+      <p className="px-1 text-ui-sm leading-relaxed text-ink-3">
         {roots
           ? tf("Hooks are loaded from {folders} and run with the agent's own permissions.", {
               folders: `${roots.globalExtensionsLabel} · ${roots.projectExtensionsLabel}`,

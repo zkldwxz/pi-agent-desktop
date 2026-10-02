@@ -13,7 +13,7 @@ type GlideMenuProps = {
 export default function GlideMenu({
   children,
   className = "",
-  highlightClassName = "inset-x-0 rounded-[8px] bg-hover",
+  highlightClassName = "inset-x-0 rounded-control bg-hover",
   rowSelector = "[data-menu-row]",
 }: GlideMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -50,7 +50,7 @@ export default function GlideMenu({
           height: box?.height ?? 0,
           opacity: box && visible ? 1 : 0,
           transition:
-            "top 220ms cubic-bezier(0.23,1,0.32,1), height 220ms cubic-bezier(0.23,1,0.32,1), opacity 150ms ease",
+            "top 220ms var(--ease-out-strong-css), height 220ms var(--ease-out-strong-css), opacity 150ms ease",
         }}
       />
       {children}

@@ -137,32 +137,32 @@ export function DesignPickBar({
   return (
     <div
       className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex items-end justify-center"
-      style={{ animation: "fade-up 260ms cubic-bezier(0.23,1,0.32,1) both" }}
+      style={{ animation: "fade-up 260ms var(--ease-out-strong-css) both" }}
     >
-      <div className="pointer-events-auto flex w-full max-w-[600px] flex-col gap-2 rounded-[12px] bg-surface p-2.5 shadow-overlay">
+      <div className="pointer-events-auto flex w-full max-w-[600px] flex-col gap-2 rounded-card bg-surface p-2.5 shadow-overlay">
         <div className="flex items-center gap-2">
           {pick.screenshot ? (
             <img
               src={pick.screenshot}
               alt=""
-              className="h-10 w-16 shrink-0 rounded-[6px] object-cover shadow-hairline"
-              style={{ animation: "pop-in 220ms cubic-bezier(0.23,1,0.32,1) both" }}
+              className="h-10 w-16 shrink-0 rounded-chip object-cover shadow-hairline"
+              style={{ animation: "pop-in 220ms var(--ease-out-strong-css) both" }}
             />
           ) : null}
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[12px] font-medium text-ink">
+            <div className="truncate text-ui-caption font-medium text-ink">
               {pick.component ? `${pick.component} · ` : ""}
               {pick.tag}
-              <span className="ml-1.5 font-mono text-[10.5px] text-ink-3">
+              <span className="ml-1.5 font-mono text-ui-xs text-ink-3">
                 {pick.rect.width}×{pick.rect.height}
               </span>
             </div>
-            <div className="truncate font-mono text-[10px] text-ink-3">{pick.selector}</div>
+            <div className="truncate font-mono text-ui-xs text-ink-3">{pick.selector}</div>
           </div>
           <button
             type="button"
             onClick={onDismiss}
-            className="pressable shrink-0 rounded-chip px-2 py-1 text-[11px] text-ink-3 hover:bg-hover hover:text-ink-2"
+            className="pressable shrink-0 rounded-chip px-2 py-1 text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
           >
             {t("Dismiss")}
           </button>

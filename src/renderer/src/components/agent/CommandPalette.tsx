@@ -150,7 +150,7 @@ export function CommandPalette({
       />
       <div
         className="relative w-full max-w-[560px]"
-        style={{ animation: "pop-in 220ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "top center" }}
+        style={{ animation: "pop-in 220ms var(--ease-out-strong-css) both", transformOrigin: "top center" }}
       >
         <SearchList
           entries={entries}

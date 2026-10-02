@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { highlightCode, languageFromFilename } from "../../../lib/highlight";
 
 /* ─────────────────────────────────────────────────────────
  * TOOL CHIPS
@@ -31,6 +32,9 @@ export type ToolStep = {
   mono: boolean;
   detailMono: boolean;
   detail: ToolDetailLine[];
+  /** the call's own state. Without it a running call inside an open group is
+   *  indistinguishable from a finished one until you read its detail text. */
+  status?: "running" | "done" | "error";
 };
 
 export type ToolDiff = { file: string; add: number; del: number };
@@ -193,7 +197,7 @@ export default function ToolChips({
           setManualOpen(next);
           onOpenChange?.(next);
         }}
-        className="-mx-1.5 flex w-fit items-center gap-2 rounded-control px-1.5 py-1 text-[13px] text-ink-2 transition-colors duration-100 hover:bg-hover-2"
+        className="-mx-1.5 flex w-fit items-center gap-2 rounded-control px-1.5 py-1 text-ui-base text-ink-2 transition-colors duration-100 hover:bg-hover-2"
       >
         <span className="flex size-4 shrink-0 items-center justify-center">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="transition-transform duration-200" style={{ transform: open ? "rotate(0deg)" : "rotate(-90deg)" }}>
@@ -211,34 +215,75 @@ export default function ToolChips({
           {steps.slice(0, instant ? steps.length : step).map((row) => {
             const rowKey = row.id ?? row.label;
             const rowOpen = openRows.has(rowKey);
+            /* a call with nothing to show is not a disclosure. Without this the
+               row still offered a chevron and opened onto an empty rule — the
+               shell of a detail pane with no detail in it. */
+            const hasDetail = row.detail.length > 0;
             return (
-            <div key={rowKey} style={{ animation: "fade-up 300ms cubic-bezier(0.23,1,0.32,1) both" }}>
+            <div key={rowKey} style={{ animation: "fade-up 300ms var(--ease-out-strong-css) both" }}>
               <button
                 type="button"
-                aria-expanded={rowOpen}
-                onClick={() => toggleRow(rowKey)}
+                aria-expanded={hasDetail ? rowOpen : undefined}
+                onClick={() => {
+                  if (hasDetail) toggleRow(rowKey);
+                }}
                 className="group/row flex h-7 w-full min-w-0 items-center gap-2 rounded-control px-1.5 text-left transition-colors duration-100 hover:bg-hover-2"
               >
                 <span className="relative flex size-3.5 shrink-0 items-center justify-center text-ink-3">
                   <svg
                     width="13" height="13" viewBox="0 0 24 24" fill={row.icon === "think" ? "currentColor" : "none"} stroke="currentColor"
-                    className={`transition-opacity duration-100 group-hover/row:opacity-0 ${rowOpen ? "opacity-0" : ""}`}
+                    className={`transition-opacity duration-100 group-hover/row:opacity-0 ${rowOpen ? "opacity-0" : ""} ${row.status === "running" ? "opacity-0" : ""}`}
                   >
                     {Icons[row.icon]}
                   </svg>
+                  {/* running: an arc in the tool icon's place. It yields to the
+                      chevron on hover like the icon does, so the affordance to
+                      open the row is never hidden behind a spinner. */}
+                  {row.status === "running" && (
+                    <svg
+                      width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"
+                      className="spin-fast absolute group-hover/row:opacity-0"
+                    >
+                      <path d="M12 3a9 9 0 1 0 9 9" />
+                    </svg>
+                  )}
+                  {/* the settle beat: the arc has just become a check, the check
+                      holds, then fades to leave the tool icon it was covering.
+                      One-shot and CSS-only — a timer per row is how a long run
+                      ends up with a hundred pending timeouts. */}
+                  {row.status === "done" && (
+                    <svg
+                      key="settle"
+                      width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"
+                      className="step-settle pointer-events-none absolute"
+                    >
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                  )}
+                  {row.status === "error" && (
+                    <svg
+                      width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+                      className="absolute text-red"
+                    >
+                      <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+                    </svg>
+                  )}
                   <svg
                     width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
-                    className={`absolute transition-[opacity,transform] duration-150 group-hover/row:opacity-100 ${rowOpen ? "opacity-100" : "opacity-0"}`}
+                    className={`absolute transition-[opacity,transform] duration-150 ${hasDetail ? "group-hover/row:opacity-100" : "hidden"} ${rowOpen ? "opacity-100" : "opacity-0"}`}
                     style={{ transform: rowOpen ? "rotate(0deg)" : "rotate(-90deg)" }}
                   >
                     <path d="M6 9l6 6 6-6" />
                   </svg>
                 </span>
-                <span className="shrink-0 text-[12.5px] font-medium text-ink">{row.label}</span>
+                {/* A fixed label column keeps every chip on the same x, so a
+                    column of Read/Terminal rows scans like a table instead of
+                    jagging with each label's length. */}
+                <span className="w-28 shrink-0 truncate text-ui-caption font-medium text-ink">{row.label}</span>
                 <span
-                  className={`inline-flex h-5.5 min-w-0 max-w-[420px] flex-1 cursor-pointer items-center truncate rounded-chip bg-field px-1.5
-                    text-[11.5px] text-ink-2 shadow-hairline transition-colors duration-100 hover:bg-hover-2
-                    ${row.mono ? "font-mono" : ""}`}
+                  className={`relative inline-flex h-5.5 min-w-0 max-w-[420px] flex-1 cursor-pointer items-center truncate rounded-chip bg-field px-1.5
+                    text-ui-sm text-ink-2 shadow-hairline transition-colors duration-100 hover:bg-hover-2
+                    ${row.mono ? "font-mono" : ""} ${row.status === "running" ? "chip-sweep" : ""}`}
                 >
                   {row.chip}
                 </span>
@@ -246,16 +291,17 @@ export default function ToolChips({
 
               {/* expanded detail — the rule sits just past the row icon and the
                   text lands on the row label's x, so detail reads as a child. */}
+              {hasDetail ? (
               <div
                 className="grid transition-[grid-template-rows,opacity] duration-300"
-                style={{ gridTemplateRows: rowOpen ? "1fr" : "0fr", opacity: rowOpen ? 1 : 0, transitionTimingFunction: "cubic-bezier(0.23, 1, 0.32, 1)" }}
+                style={{ gridTemplateRows: rowOpen ? "1fr" : "0fr", opacity: rowOpen ? 1 : 0, transitionTimingFunction: "var(--ease-out-strong-css)" }}
               >
                 <div className="min-h-0 overflow-hidden">
                   <div className="scrollbar-thin mt-0.5 mb-1 ml-[18px] flex max-h-[320px] flex-col gap-0.5 overflow-y-auto border-l border-line py-0.5 pl-[7px]">
                     {row.detail.map((line, lineIndex) => (
                       <span
                         key={`${rowKey}-d${lineIndex}`}
-                        className={`truncate text-[11.5px] leading-[1.6] ${row.detailMono ? "font-mono" : ""} ${
+                        className={`truncate text-ui-sm leading-[1.6] ${row.detailMono ? "font-mono" : ""} ${
                           line.tone === "add" ? "text-green" : line.tone === "del" ? "text-red" : "text-ink-2"
                         }`}
                       >
@@ -265,6 +311,7 @@ export default function ToolChips({
                   </div>
                 </div>
               </div>
+              ) : null}
             </div>
             );
           })}
@@ -289,9 +336,9 @@ export default function ToolChips({
                 onFocus={openPreview(d.file)}
                 onBlur={closePreview(d.file)}
                 className="inline-flex h-7 max-w-full items-center gap-2 rounded-chip
-                  bg-surface px-2 font-mono text-[11.5px] text-ink shadow-btn
+                  bg-surface px-2 font-mono text-ui-sm text-ink shadow-btn
                   transition-colors duration-100 hover:bg-hover"
-                style={{ animation: `pop-in 250ms cubic-bezier(0.23,1,0.32,1) ${i * 80}ms both` }}
+                style={{ animation: `pop-in 250ms var(--ease-out-strong-css) ${i * 80}ms both` }}
               >
                 <span className="min-w-0 truncate">{d.file}</span>
                 <span className="shrink-0 text-green tabular-nums">+{d.add}</span>
@@ -303,7 +350,7 @@ export default function ToolChips({
           {copy.more ? (
             <button
               type="button"
-              className="inline-flex h-7 items-center rounded-chip px-1.5 font-mono text-[11.5px] text-ink-3
+              className="inline-flex h-7 items-center rounded-chip px-1.5 font-mono text-ui-sm text-ink-3
                 underline decoration-transparent underline-offset-2 transition-colors duration-100
                 hover:text-ink-2 hover:decoration-current"
               style={{ animation: `fade-in 300ms ease-out ${diffs.length * 80}ms both` }}
@@ -318,16 +365,16 @@ export default function ToolChips({
       </div>
       {preview && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed z-50 w-72 overflow-hidden rounded-[10px] bg-surface shadow-overlay"
+          className="fixed z-50 w-72 overflow-hidden rounded-card bg-surface shadow-overlay"
           style={{
             left: preview.x,
             top: preview.top,
             bottom: preview.bottom,
-            animation: "pop-in 160ms cubic-bezier(0.23,1,0.32,1) both",
+            animation: "pop-in 160ms var(--ease-out-strong-css) both",
             transformOrigin: preview.top === undefined ? "bottom left" : "top left",
           }}
         >
-          <div className="flex items-center justify-between border-b border-line px-2.5 py-1.5 font-mono text-[11px]">
+          <div className="flex items-center justify-between border-b border-line px-2.5 py-1.5 font-mono text-ui-sm">
             <span className="min-w-0 truncate text-ink-2">{preview.file}</span>
             <span className="shrink-0 tabular-nums">
               <span className="text-green">+{diffs.find((diff) => diff.file === preview.file)?.add}</span>
@@ -336,18 +383,32 @@ export default function ToolChips({
               )}
             </span>
           </div>
-          <div className="py-1 font-mono text-[11px] leading-[1.8]">
-            {(diffLines[preview.file] ?? []).map((line, index) => (
-              <div
-                key={index}
-                className={`flex gap-2 px-2.5 whitespace-pre ${
-                  line.tone === "add" ? "bg-green-tint" : line.tone === "del" ? "bg-red-tint" : "text-ink-2"
-                }`}
-              >
-                <span className="w-3 shrink-0 select-none">{line.tone === "add" ? "+" : line.tone === "del" ? "−" : " "}</span>
-                <span className="min-w-0 truncate">{line.text}</span>
-              </div>
-            ))}
+          {/* the preview is a code change, so it is coloured as code: the wash
+              says which lines moved, the file's own grammar says what they are.
+              Flat ink here left the green and red rows as the only colour on
+              screen — a preview that never showed what the new line actually
+              contains. */}
+          <div className="hljs py-1 font-mono text-ui-sm leading-[1.8]">
+            {(diffLines[preview.file] ?? []).map((line, index) => {
+              const html = highlightCode(line.text, languageFromFilename(preview.file));
+              return (
+                <div
+                  key={index}
+                  className={`flex gap-2 px-2.5 whitespace-pre ${
+                    line.tone === "add" ? "bg-green-tint" : line.tone === "del" ? "bg-red-tint" : ""
+                  }`}
+                >
+                  <span className="w-3 shrink-0 select-none">{line.tone === "add" ? "+" : line.tone === "del" ? "−" : " "}</span>
+                  <span
+                    className="min-w-0 truncate"
+                    {...(html
+                      ? // eslint-disable-next-line react/no-danger -- highlight.js escapes its input
+                        { dangerouslySetInnerHTML: { __html: html } }
+                      : { children: line.text })}
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>,
         document.body,

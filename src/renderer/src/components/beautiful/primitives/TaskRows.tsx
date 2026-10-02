@@ -44,7 +44,7 @@ function SpinnerRing({ active, children }: { active?: boolean; children?: React.
           />
         )}
       </svg>
-      <span className="relative text-[10.5px] font-semibold tabular-nums text-ink">{children}</span>
+      <span className="relative text-ui-xs font-semibold tabular-nums text-ink">{children}</span>
     </span>
   );
 }
@@ -54,7 +54,7 @@ function Badge({ tone, children }: { tone: "red" | "green"; children: React.Reac
     <span
       className={`flex size-5.5 shrink-0 items-center justify-center rounded-full text-white
         ${tone === "red" ? "bg-red" : "bg-green"}`}
-      style={{ animation: "pop-in 300ms cubic-bezier(0.23,1,0.32,1) both" }}
+      style={{ animation: "pop-in 300ms var(--ease-out-strong-css) both" }}
     >
       {children}
     </span>
@@ -171,24 +171,24 @@ export default function TaskRows({
   const pillFor = (row: TaskRow) => {
     if (row.status === "done")
       return (
-        <span className="inline-flex h-5.5 items-center rounded-full bg-green-tint px-2 text-[11.5px] font-medium text-green">
+        <span className="inline-flex h-5.5 items-center rounded-full bg-green-tint px-2 text-ui-sm font-medium text-green">
           {copy.completed}
         </span>
       );
     if (row.status === "failed")
       return (
-        <span className="inline-flex h-5.5 items-center rounded-full bg-red-tint px-2 text-[11.5px] font-medium text-red">
+        <span className="inline-flex h-5.5 items-center rounded-full bg-red-tint px-2 text-ui-sm font-medium text-red">
           {copy.failed}
         </span>
       );
     if (row.status === "pending") return null;
     if (row.status === "running") return null;
     return row2 === "failed" ? (
-      <span className="inline-flex h-5.5 items-center gap-1.5 rounded-full bg-red-tint px-2 text-[11.5px] font-medium text-red" style={{ animation: "fade-in 200ms ease-out both" }}>
+      <span className="inline-flex h-5.5 items-center gap-1.5 rounded-full bg-red-tint px-2 text-ui-sm font-medium text-red" style={{ animation: "fade-in 200ms ease-out both" }}>
         {copy.failed} <span style={{ animation: "spin 1.2s linear infinite" }} className="flex">{RetryIcon}</span>
       </span>
     ) : row2 === "done" ? (
-      <span className="inline-flex h-5.5 items-center gap-1.5 rounded-full bg-green-tint px-2 text-[11.5px] font-medium text-green" style={{ animation: "fade-in 200ms ease-out both" }}>
+      <span className="inline-flex h-5.5 items-center gap-1.5 rounded-full bg-green-tint px-2 text-ui-sm font-medium text-green" style={{ animation: "fade-in 200ms ease-out both" }}>
         {copy.completed}
       </span>
     ) : null;
@@ -211,7 +211,7 @@ export default function TaskRows({
             }`}
             style={{
               borderRadius: list ? 0 : open ? 14 : 22,
-              animation: `fade-up 450ms cubic-bezier(0.23,1,0.32,1) ${i * 80}ms both`,
+              animation: `fade-up 450ms var(--ease-out-strong-css) ${i * 80}ms both`,
             }}
           >
             <button
@@ -226,10 +226,10 @@ export default function TaskRows({
               <span className="flex size-6 shrink-0 items-center justify-center">
                 {badgeFor(row)}
               </span>
-              <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">
+              <span className="min-w-0 flex-1 truncate text-ui-base font-medium text-ink">
                 {row.label}
               </span>
-              <span className="text-[12.5px] text-ink-2 tabular-nums">{row.amount}</span>
+              <span className="text-ui-caption text-ink-2 tabular-nums">{row.amount}</span>
               {pillFor(row)}
               <span
                 aria-hidden="true"
@@ -251,7 +251,7 @@ export default function TaskRows({
                 style={{
                   gridTemplateRows: open ? "1fr" : "0fr",
                   opacity: open ? 1 : 0,
-                  transitionTimingFunction: "cubic-bezier(0.23, 1, 0.32, 1)",
+                  transitionTimingFunction: "var(--ease-out-strong-css)",
                 }}
               >
                 <div className="overflow-hidden">
@@ -264,12 +264,12 @@ export default function TaskRows({
                           className="flex items-center justify-between"
                           style={
                             open
-                              ? { animation: `fade-up 300ms cubic-bezier(0.23,1,0.32,1) ${120 + j * 100}ms both` }
+                              ? { animation: `fade-up 300ms var(--ease-out-strong-css) ${120 + j * 100}ms both` }
                               : undefined
                           }
                         >
-                          <span className="text-[12px] text-ink-2">{d.label}</span>
-                          <span className="font-mono text-[11.5px] text-ink-3 tabular-nums">
+                          <span className="text-ui-caption text-ink-2">{d.label}</span>
+                          <span className="font-mono text-ui-sm text-ink-3 tabular-nums">
                             {d.meta}
                           </span>
                         </div>

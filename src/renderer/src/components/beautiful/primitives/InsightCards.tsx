@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
  * carousel. Autoplay yields as soon as a person uses it.
  * ───────────────────────────────────────────────────────── */
 
-const EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
+const EASE = "var(--ease-link-css)";
 
 const formatPercent = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
 const formatMoney = (v: number) => `$${Math.round(v).toLocaleString("en-US")}`;
@@ -87,7 +87,7 @@ function Entity({ name, tone }: { name: string; tone: string }) {
 
 function Mono({ children, tone }: { children: React.ReactNode; tone: "red" | "green" }) {
   return (
-    <code className={`font-mono text-[11.5px] ${tone === "red" ? "text-red" : "text-green"}`}>
+    <code className={`font-mono text-ui-sm ${tone === "red" ? "text-red" : "text-green"}`}>
       {children}
     </code>
   );
@@ -171,11 +171,11 @@ function CompareCard({ series = COMPARE_SERIES }: { series?: CompareSeries[] }) 
       <div className="flex items-center gap-4">
         {series.map((s, i) => (
           <div key={s.name} className="flex-1">
-            <span className="flex items-center gap-1.5 text-[11.5px] text-ink-2">
+            <span className="flex items-center gap-1.5 text-ui-sm text-ink-2">
               <span className={`size-2 rounded-full ${s.dot}`} />
               {s.name}
             </span>
-            <span className={`block text-[17px] font-semibold tracking-[-0.01em] tabular-nums ${s.tone === "red" ? "text-red" : "text-green"}`}>
+            <span className={`block text-ui-stat font-semibold tracking-[-0.01em] tabular-nums ${s.tone === "red" ? "text-red" : "text-green"}`}>
               {formatPercent(points[i].at(-1)?.value ?? (s.values.at(-1) ?? 0))}
             </span>
             <Mono tone={s.tone}>{s.sub}</Mono>
@@ -184,10 +184,10 @@ function CompareCard({ series = COMPARE_SERIES }: { series?: CompareSeries[] }) 
       </div>
       <div className="mt-2 overflow-hidden rounded-control bg-inset shadow-hairline">
         <div className="flex items-center justify-between border-b border-line px-2.5 py-1.5">
-          <span className="text-[11px] text-ink-3 tabular-nums">
+          <span className="text-ui-sm text-ink-3 tabular-nums">
             Trend snapshot
           </span>
-          <span className="rounded-full bg-field px-2 py-0.5 text-[10.5px] font-medium text-ink-2">
+          <span className="rounded-full bg-field px-2 py-0.5 text-ui-xs font-medium text-ink-2">
             Snapshot
           </span>
         </div>
@@ -259,17 +259,17 @@ function AnomalyCard({ data: anomaly = ANOMALY_DATA }: { data?: AnomalyData }) {
   return (
     <div className="min-h-[278px] rounded-card bg-surface p-3 shadow-hairline">
       <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-[12px] font-medium text-ink">
+        <span className="flex items-center gap-1.5 text-ui-caption font-medium text-ink">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
           High freezer spend
         </span>
-        <span className="rounded-full bg-field px-2 py-0.5 text-[10.5px] font-medium text-ink-2">
+        <span className="rounded-full bg-field px-2 py-0.5 text-ui-xs font-medium text-ink-2">
           Snapshot
         </span>
       </div>
       <div className="mt-2 overflow-hidden rounded-control bg-inset shadow-hairline">
         <div className="flex items-center justify-between border-b border-line px-2.5 py-1.5">
-          <span className="text-[11px] text-ink-3 tabular-nums">
+          <span className="text-ui-sm text-ink-3 tabular-nums">
             {hoverIndex !== null
               ? metric === "spend"
                 ? formatMoney(data[hoverIndex].value)
@@ -283,7 +283,7 @@ function AnomalyCard({ data: anomaly = ANOMALY_DATA }: { data?: AnomalyData }) {
                 type="button"
                 aria-pressed={metric === item}
                 onClick={() => setMetric(item)}
-                className={`rounded-full px-2 py-0.5 text-[10.5px] font-medium transition-[background-color,color,box-shadow,transform] duration-150 active:scale-[0.96] ${
+                className={`rounded-full px-2 py-0.5 text-ui-xs font-medium transition-[background-color,color,box-shadow,transform] duration-150 active:scale-[0.96] ${
                   metric === item ? "bg-surface text-ink shadow-btn" : "text-ink-3 hover:text-ink-2"
                 }`}
               >
@@ -326,11 +326,11 @@ function AnomalyCard({ data: anomaly = ANOMALY_DATA }: { data?: AnomalyData }) {
         </div>
       </div>
       <div className="mt-1.5 flex items-baseline gap-2">
-        <span className="text-[17px] font-semibold tracking-[-0.01em] text-ink tabular-nums">
+        <span className="text-ui-stat font-semibold tracking-[-0.01em] text-ink tabular-nums">
           {moneyLabel} spent
         </span>
         <Mono tone="red">+$1,834.66</Mono>
-        <span className="text-[11px] text-ink-3">vs 3 months</span>
+        <span className="text-ui-sm text-ink-3">vs 3 months</span>
       </div>
     </div>
   );
@@ -359,13 +359,13 @@ function AllocationCard({ segments = ALLOCATION_SEGMENTS }: { segments?: Allocat
 
   return (
     <div className="min-h-[278px] rounded-card bg-surface p-3 shadow-hairline">
-      <span className="flex items-center gap-1.5 text-[12px] font-medium text-ink">
-        <span className="flex size-3.5 items-center justify-center rounded-full bg-orange text-[8px] font-bold text-white">
+      <span className="flex items-center gap-1.5 text-ui-caption font-medium text-ink">
+        <span className="flex size-3.5 items-center justify-center rounded-full bg-orange text-ui-2xs font-bold text-white">
           V
         </span>
         Vanilla allocation
       </span>
-      <span className="mt-1 block text-[20px] font-semibold tracking-[-0.01em] text-ink tabular-nums">
+      <span className="mt-1 block text-ui-display font-semibold tracking-[-0.01em] text-ink tabular-nums">
         {active.amount}
       </span>
       <div
@@ -406,7 +406,7 @@ function AllocationCard({ segments = ALLOCATION_SEGMENTS }: { segments?: Allocat
             type="button"
             aria-pressed={selected === s.name}
             onClick={() => setSelected(s.name)}
-            className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] transition-[background-color,color,transform] duration-150 active:scale-[0.96] ${
+            className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-ui-sm transition-[background-color,color,transform] duration-150 active:scale-[0.96] ${
               selected === s.name ? "bg-field text-ink" : "text-ink-2 hover:bg-hover hover:text-ink"
             }`}
           >
@@ -416,8 +416,8 @@ function AllocationCard({ segments = ALLOCATION_SEGMENTS }: { segments?: Allocat
         ))}
       </div>
       <div className="mt-3 min-h-16 rounded-control bg-inset px-2.5 py-2 shadow-hairline">
-        <span className={`block text-[11.5px] font-medium ${active.tone}`}>{active.label}</span>
-        <span className="mt-1 block text-[11px] leading-relaxed text-ink-3">
+        <span className={`block text-ui-sm font-medium ${active.tone}`}>{active.label}</span>
+        <span className="mt-1 block text-ui-sm leading-relaxed text-ink-3">
           Contribution snapshot across current inventory value. Segment selection changes the inspected group without moving the card.
         </span>
       </div>
@@ -500,8 +500,8 @@ export default function InsightCards({
       {/* pager header */}
       <div className="flex items-center justify-between">
         <span className="flex items-baseline gap-1.5">
-          <span className="text-[13px] font-semibold text-ink">{l.title}</span>
-          <span className="text-[13px] text-ink-3 tabular-nums">{pages.length}</span>
+          <span className="text-ui-base font-semibold text-ink">{l.title}</span>
+          <span className="text-ui-base text-ink-3 tabular-nums">{pages.length}</span>
         </span>
         <span className="flex items-center gap-0.5">
           {(["M15 18l-6-6 6-6", "M9 6l6 6-6 6"] as const).map((d, i) => (
@@ -509,7 +509,7 @@ export default function InsightCards({
               key={i}
               aria-label={i === 0 ? "Previous insight" : "Next insight"}
               onClick={() => move(i === 0 ? -1 : 1)}
-              className="flex size-6 items-center justify-center rounded-[6px] text-ink-3
+              className="flex size-6 items-center justify-center rounded-chip text-ink-3
                 transition-[background-color,color,transform] duration-100 hover:bg-hover
                 hover:text-ink active:scale-[0.96]"
             >
@@ -526,12 +526,12 @@ export default function InsightCards({
         className="transition-[opacity,filter] duration-250"
         style={{ opacity: 1, filter: "blur(0)" }}
       >
-        <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-2">{prose}</p>
+        <p className="mt-1.5 text-ui-caption leading-relaxed text-ink-2">{prose}</p>
         <div className="mt-2">
           <Card />
         </div>
         <button
-          className="mt-2 rounded-full bg-surface px-3 py-1.5 text-left text-[12px] text-ink
+          className="mt-2 rounded-full bg-surface px-3 py-1.5 text-left text-ui-caption text-ink
             shadow-btn transition-colors duration-100 hover:bg-hover"
         >
           {pill}

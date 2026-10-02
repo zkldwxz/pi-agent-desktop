@@ -5,13 +5,16 @@ import { TitleBar } from "./components/TitleBar";
 import { AgentComposer } from "./components/agent/AgentComposer";
 import { AgentSidebar, type SidebarView } from "./components/agent/AgentSidebar";
 import { FolderPicker } from "./components/agent/FolderPicker";
+import { HOME_STEPS, Reveal, SuggestionRail } from "./components/agent/HomeReveal";
 import { TerminalPanel } from "./components/panel/TerminalPanel";
 import type { FileEntry } from "@shared/workspace";
 import { cn } from "./lib/cn";
-import { ListChecksIcon, TerminalIcon } from "./components/icons";
+import { AlertIcon, ListChecksIcon, TerminalIcon } from "./components/icons";
+import { Skeleton } from "./components/ui";
 import { playDoneChime } from "./lib/sound";
-import { t, useLocale } from "./lib/i18n";
+import { t, tf, useLocale } from "./lib/i18n";
 import { chordOf, matches, resolveEvent } from "./lib/keybindings";
+import { IS_MAC } from "./lib/platform";
 import type { BrowserState, DesignPick } from "@shared/browser";
 import type { UiAnswer, UiNotification, UiRequest } from "@shared/ui";
 import { ApprovalPrompt, NoticeStack } from "./components/agent/ApprovalPrompt";
@@ -39,7 +42,7 @@ import { SessionStrip } from "./components/panel/SessionStrip";
 import { DockToggle } from "./components/panel/DockToggle";
 import { FolderOpener } from "./components/panel/FolderOpener";
 import { formatDesignPick, toImageAttachment } from "./lib/design-pick";
-import { ViewSkeleton } from "./components/ViewSkeleton";
+import { BrowserViewSkeleton, ViewSkeleton } from "./components/ViewSkeleton";
 import { useTheme } from "./lib/theme";
 import { QueueBar, type QueueBehavior } from "./components/agent/QueueBar";
 
@@ -54,10 +57,12 @@ type MainView = SidebarView | "browser";
 
 const emptyState: HostState = {
   cwd: "",
+  homeDir: "",
   connected: false,
   sessions: [],
   models: [],
   providers: [],
+  channels: [],
   commands: [],
   settings: {
     blockImages: false,
@@ -147,12 +152,15 @@ export function App() {
   }, []);
 
   /** Run a write against models.json and report both outcomes. The failure is
-   *  re-thrown so the dialog that raised it can stay open with the work in it. */
+   *  re-thrown so the dialog that raised it can stay open with the work in it.
+   *  The result comes back too: creating a channel answers with the provider ids
+   *  it wrote, and the caller needs them to finish the model it came with. */
   const runModelWrite = useCallback(
-    async (job: () => Promise<void>, done: string) => {
+    async <T,>(job: () => Promise<T>, done: string): Promise<T> => {
       try {
-        await job();
+        const result = await job();
         pushNotice(done, "info");
+        return result;
       } catch (error) {
         pushNotice(error instanceof Error ? error.message : String(error), "error");
         throw error;
@@ -177,7 +185,19 @@ export function App() {
   /* the host keeps every notification it ever sent; ids that timed out or were
      dismissed here must never reappear on the next payload */
   const [prefill, setPrefill] = useState<string | undefined>(undefined);
-  const [queueBehavior, setQueueBehavior] = useState<QueueBehavior>("followUp");
+  /* 打断回答 vs 引导回答 — a setting now (智能体 page), persisted locally and
+     applied to every send made while the agent is running */
+  const [queueBehavior, setQueueBehaviorState] = useState<QueueBehavior>(
+    () => (localStorage.getItem("pi-queue-behavior") as QueueBehavior) || "followUp",
+  );
+  const setQueueBehavior = (behavior: QueueBehavior) => {
+    setQueueBehaviorState(behavior);
+    try {
+      localStorage.setItem("pi-queue-behavior", behavior);
+    } catch {}
+  };
+  /** editing a queued message: its text sits in the composer, the row is gone */
+  const [queueEditing, setQueueEditing] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const suppressScrollRef = useRef(false);
   /** follow the stream only while the reader is already at the bottom */
@@ -185,6 +205,9 @@ export function App() {
   const [atBottom, setAtBottom] = useState(true);
   /** the transcript is remounted when the view key changes; remember where the reader was */
   const scrollMemoryRef = useRef(0);
+  /** the turn the rail marks as current — see `syncActiveTurn` */
+  const [activeTurn, setActiveTurn] = useState<string | undefined>(undefined);
+  const scrollFrame = useRef(0);
 
   /* the window's own width, which is also what a zoom change moves; a
      resized row would move with the monitor's own width and flap, and a
@@ -267,7 +290,15 @@ export function App() {
   useEffect(() => {
     const unsubscribe = window.pi.onUpdate((payload) => {
       setState(normalizeState(payload.state));
-      setMessages(payload.messages);
+      /* The host sends the transcript in the clear only when its settled part
+         moved; while an answer streams it sends just that one message and says
+         where it belongs. Splice at `at` rather than appending so a tail that
+         lands after a full replacement still goes in the right place. */
+      if (payload.messages) setMessages(payload.messages);
+      else if (payload.tail) {
+        const { at, messages: tail } = payload.tail;
+        setMessages((current) => [...current.slice(0, at), ...tail]);
+      }
       setTools(payload.tools);
       if (payload.uiRequest !== undefined) setUiRequest(payload.uiRequest);
       if (payload.notifications) {
@@ -328,12 +359,19 @@ export function App() {
   /* the desktop config is read once and kept: the plan tab needs the build
      model it remembers, and that is written by the host on every build */
   const [buildModel, setBuildModel] = useState<{ provider: string; id: string } | undefined>(undefined);
-  useEffect(() => {
-    void window.pi.getDesktopConfig().then((config) => {
+  /** the account row's name, asked for at onboarding, defaulted to the OS user */
+  const [userName, setUserName] = useState<string | undefined>(undefined);
+  const refreshDesktopConfig = useCallback(async () => {
+    try {
+      const config = await window.pi.getDesktopConfig();
       setOnboarded(config.onboardingDone);
       setBuildModel(config.buildModel);
-    });
+      setUserName(config.userName);
+    } catch {}
   }, []);
+  useEffect(() => {
+    void refreshDesktopConfig();
+  }, [refreshDesktopConfig]);
 
   /* Plan mode's controls. The feature is a plugin, so the window presses its
    * subcommands rather than doing any of the work itself; the host writes the
@@ -498,6 +536,40 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [browser.designMode, streaming]);
 
+  /* Which turn the rail marks as current.
+   *
+   * Scroll-driven, not an observer: the line is the scrollport's top plus a
+   * fifth of its height (capped at 96px), and the current turn is the last one
+   * whose top is above it — a binary search over the turn rows, which are in
+   * document order. Parked at the bottom it is simply the latest turn, which is
+   * what "following the stream" means everywhere else in this window. */
+  const syncActiveTurn = useCallback(() => {
+    const node = scrollerRef.current;
+    if (!node) return;
+    const rows = node.querySelectorAll<HTMLElement>("[data-turn]");
+    if (!rows.length) return;
+    const latest = rows[rows.length - 1].dataset.turn;
+    if (node.scrollHeight - node.scrollTop - node.clientHeight < 80) {
+      setActiveTurn((current) => (current === latest ? current : latest));
+      return;
+    }
+    const line = node.getBoundingClientRect().top + Math.min(96, node.clientHeight * 0.2);
+    let low = 0;
+    let high = rows.length - 1;
+    let found = 0;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (rows[mid].getBoundingClientRect().top <= line) {
+        found = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    const key = rows[found]?.dataset.turn;
+    if (key) setActiveTurn((current) => (current === key ? current : key));
+  }, []);
+
   /** Distance from the bottom, in px — the threshold that counts as "at the bottom". */
   const onTranscriptScroll = useCallback(() => {
     const node = scrollerRef.current;
@@ -507,7 +579,14 @@ export function App() {
     stickRef.current = near;
     scrollMemoryRef.current = node.scrollTop;
     setAtBottom(near);
-  }, []);
+    /* the rail's current mark follows the same event, one frame later: a binary
+       search over the turn rows is cheap, but not per scroll packet */
+    if (scrollFrame.current) return;
+    scrollFrame.current = window.requestAnimationFrame(() => {
+      scrollFrame.current = 0;
+      syncActiveTurn();
+    });
+  }, [syncActiveTurn]);
 
   // restore the reading position after a view switch, and do not yank it back
   useEffect(() => {
@@ -542,15 +621,54 @@ export function App() {
     node.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
   }, []);
 
-  const jumpToTurn = useCallback((key: string) => {
-    suppressScrollRef.current = true;
-    const target = scrollerRef.current?.querySelector(`[data-turn="${key}"]`);
-    target?.scrollIntoView({ behavior: "smooth", block: "start" });
-    // auto-scroll stays suppressed for one tick so the smooth scroll is not cancelled
-    window.setTimeout(() => {
-      suppressScrollRef.current = false;
-    }, 600);
-  }, []);
+  const jumpToTurn = useCallback(
+    (key: string) => {
+      const node = scrollerRef.current;
+      const target = node?.querySelector<HTMLElement>(`[data-turn="${key}"]`);
+      if (!node || !target) return;
+      suppressScrollRef.current = true;
+      /* Instant, and landing the turn 24px below the top of the scrollport —
+         the reference's own jump. A smooth `scrollIntoView` animated for most of
+         a second on a long transcript and parked the turn flush against the
+         edge, where its hover controls sit on the first line of text. */
+      const top = target.getBoundingClientRect().top - node.getBoundingClientRect().top + node.scrollTop - 24;
+      node.scrollTop = Math.max(0, top);
+      stickRef.current = false;
+      setAtBottom(false);
+      syncActiveTurn();
+      window.setTimeout(() => {
+        suppressScrollRef.current = false;
+      }, 80);
+    },
+    [syncActiveTurn],
+  );
+
+  /**
+   * Hold the conversation column's width still while a side panel slides.
+   *
+   * The dock animates its own width, and every frame of that animation used to
+   * re-flow the thread beside it: prose re-wraps, code blocks re-measure, the
+   * column shifts — 26 relayouts in 280ms, which is what made opening and
+   * closing the panel feel like the conversation was being shoved rather than
+   * the panel arriving. ZCode locks its side pane's content width for exactly
+   * this reason (`useAnimatedResizablePanel`), so the same trick is applied from
+   * the other side: pin the column to the width it has *now*, let the panels
+   * move, then release it once the slide is over and let one relayout happen.
+   *
+   * The pin is `null` except during a slide, and a real window resize clears it,
+   * so a drag of the window edge still re-flows live the way it must.
+   */
+  const [lockedColumnWidth, setLockedColumnWidth] = useState<number | null>(null);
+  const columnRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = columnRef.current;
+    if (!element) return;
+    const from = element.getBoundingClientRect().width;
+    if (from <= 0) return;
+    setLockedColumnWidth(from);
+    const timer = window.setTimeout(() => setLockedColumnWidth(null), 300);
+    return () => window.clearTimeout(timer);
+  }, [dockOpen, monitorOpen, browserDockOpen]);
 
   /**
    * The dock is a summary, not a live view: it accepts stale-by-a-frame data.
@@ -662,7 +780,8 @@ export function App() {
 
   /** a fresh session owns the middle of the window, not the bottom edge */
   const emptySession = messages.length === 0 && !streaming;
-  /** the folder switcher inside the greeting is open — the rest of the page dims */
+  /** the folder switcher inside the greeting is open — a whisper of shade
+   *  covers the view's edges so the eye settles on the switcher itself */
   const [pickingFolder, setPickingFolder] = useState(false);
   /* "In {name} What should Pi do next?" wraps the inline folder switcher, so
    * the template splits around the name instead of interpolating it */
@@ -697,14 +816,47 @@ export function App() {
   // hook declared after an early return changes the hook count between renders.
   if (onboarded === false) {
     return (
-      <div className="flex h-screen flex-col overflow-hidden bg-page text-ink">
+      <div className="relative flex h-screen flex-col overflow-hidden bg-page text-ink">
         <TitleBar />
+        {/* the welcome screen has no working strip, so it keeps its own grab
+            zone where the hidden macOS title bar used to be */}
+        {IS_MAC ? <div aria-hidden className="titlebar-drag absolute inset-x-0 top-0 h-10" /> : null}
         <Suspense fallback={<ViewSkeleton />}>
-          <WelcomeView onDone={() => setOnboarded(true)} />
+          <WelcomeView onDone={() => void refreshDesktopConfig()} />
         </Suspense>
       </div>
     );
   }
+
+/**
+ * The command line a live terminal call is running.
+ *
+ * `args` arrives as `unknown` off the wire, so the shape is checked rather than
+ * asserted — a call whose arguments never made it through should fall back to
+ * the tool's own name, not render `[object Object]` in the chip.
+ */
+function terminalCommand(tool: ToolActivity): string {
+  const args = tool.args;
+  if (args && typeof args === "object" && "command" in args) {
+    const command = (args as { command?: unknown }).command;
+    if (typeof command === "string" && command.trim()) return command;
+  }
+  return tool.toolName;
+}
+
+  /**
+   * A terminal call the agent is running right now — the prompt bar chip.
+   *
+   * Read from the live activity list, not from `state.tools`: that field is the
+   * *catalogue* of tools the session exposes (`string[]`, what the model may
+   * call), so looking a running call up in it yields tool names and no status.
+   * The activities — the ones with an `args` to take the command from — are the
+   * `tools` state the host streams alongside the transcript.
+   */
+  const runningTerminals = useMemo(
+    () => tools.filter((tool) => /bash|terminal/i.test(tool.toolName) && tool.status === "running"),
+    [tools],
+  );
 
   /** the composer, hoisted so an empty session can centre it Cursor-style */
   const composer = (
@@ -716,16 +868,30 @@ export function App() {
       onSend={(text) => {
         // while the agent runs the delivery mode is the user's choice — it is
         // what decides "correct this run" versus "add to the next"
+        setQueueEditing(false);
         if (streaming) {
           void (queueBehavior === "steer" ? window.pi.steer(text) : window.pi.followUp(text));
           return;
         }
         void window.pi.prompt({ text });
       }}
-      onSetThinking={(level) => void window.pi.setThinking(level).catch(() => undefined)}
+      onSetThinking={(level) => void reportFailure(() => window.pi.setThinking(level))}
       onAbort={() => void window.pi.abort()}
       onSetModel={(provider, modelId) => void reportFailure(() => window.pi.setModel(provider, modelId))}
       onPlanAction={planAction}
+      runningTerminal={
+        runningTerminals.length
+          ? {
+              count: runningTerminals.length,
+              title: runningTerminals.map(terminalCommand).join("\n"),
+            }
+          : null
+      }
+      onOpenTerminal={() => {
+        setDockTool("terminal");
+        setDockOpen(true);
+      }}
+      editingQueued={queueEditing}
     />
   );
 
@@ -737,7 +903,10 @@ export function App() {
           they are tools, not window chrome, so they do not sit with the
           close/minimize buttons. The terminal button only opens the dock's
           terminal: that is the one terminal the shell has. */}
-      <div className="flex h-10 shrink-0 items-center justify-end gap-1 border-b border-line bg-canvas px-3">
+      <div className="relative flex h-10 shrink-0 items-center justify-end gap-1 border-b border-line bg-canvas px-3">
+        {/* macOS has no title bar of its own now, so this row is what you drag
+            the window by — up to where the working controls start on the right. */}
+        {IS_MAC ? <div aria-hidden className="titlebar-drag absolute inset-y-0 right-64 left-0" /> : null}
         <FolderOpener
           cwd={state.cwd}
           onBrowse={() => {
@@ -752,7 +921,7 @@ export function App() {
           aria-pressed={monitorOpen}
           onClick={() => setMonitorOpen((value) => !value)}
           className={cn(
-            "pressable flex size-7 items-center justify-center rounded-[6px]",
+            "pressable flex size-7 items-center justify-center rounded-chip",
             monitorOpen ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
           )}
         >
@@ -767,7 +936,7 @@ export function App() {
             setDockOpen(true);
           }}
           className={cn(
-            "pressable flex size-7 items-center justify-center rounded-[6px]",
+            "pressable flex size-7 items-center justify-center rounded-chip",
             dockOpen && dockTool === "terminal" ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
           )}
         >
@@ -795,8 +964,8 @@ export function App() {
               setPendingSession(path);
               void window.pi.switchSession(path);
             }}
-            onPickCwd={() => void window.pi.pickCwd()}
             onSearch={() => setPaletteOpen(true)}
+            userName={userName}
             onNewInWorkspace={(cwd) => {
               setView("chat");
               void (async () => {
@@ -813,22 +982,26 @@ export function App() {
           <div key={view} className="view-enter flex min-h-0 flex-1 flex-col">
             <Suspense fallback={<ViewSkeleton />}>
             {view === "browser" ? (
-              <BrowserPanel
-                state={browser}
-                expanded
-                zoom={zoomFactor}
-                onExpandedChange={(next) => {
-                  if (!next) {
-                    setBrowserDockOpen(true);
-                    setView("chat");
-                  }
-                }}
-                designPick={designPick}
-                recent={messages.slice(-3)}
-                onAddToChat={(pick) => sendDesignPick(pick)}
-                onAskAbout={(pick, instruction) => sendDesignPick(pick, instruction)}
-                onClearPick={() => setDesignPick(null)}
-              />
+              /* its own fallback: the shared one is a dashboard skeleton, and the
+                 browser is a bar over a page a native view paints */
+              <Suspense fallback={<BrowserViewSkeleton />}>
+                <BrowserPanel
+                  state={browser}
+                  expanded
+                  zoom={zoomFactor}
+                  onExpandedChange={(next) => {
+                    if (!next) {
+                      setBrowserDockOpen(true);
+                      setView("chat");
+                    }
+                  }}
+                  designPick={designPick}
+                  recent={messages.slice(-3)}
+                  onAddToChat={(pick) => sendDesignPick(pick)}
+                  onAskAbout={(pick, instruction) => sendDesignPick(pick, instruction)}
+                  onClearPick={() => setDesignPick(null)}
+                />
+              </Suspense>
             ) : null}
 
             {/* the code viewer lives in the dock — the centre is always the
@@ -836,61 +1009,72 @@ export function App() {
 
             {view === "chat" ? (
               <div className="relative flex min-h-0 flex-1">
-              <div className="flex min-w-0 flex-1 flex-col">
+              {/* the conversation container: thread, queue and composer all
+                  measure against it, so ZCode's off-centre shift applies and
+                  unwinds itself when the dock or monitor takes width */}
+              <div
+                ref={columnRef}
+                className="@container/conversation flex min-w-0 flex-1 flex-col"
+                style={lockedColumnWidth === null ? undefined : { width: lockedColumnWidth, flex: "0 0 auto" }}
+              >
                 {/* no conversation header — Cursor runs the thread straight to
                     the top edge; the session name lives on its sidebar row and
-                    the run state on the working indicator */}
-                {fatalError ? (
-                  <div className="border-b border-red-tint bg-red-tint px-4 py-2 text-[12px] text-red">{fatalError}</div>
-                ) : null}
+                    the run state on the working indicator. A failed turn reads
+                    at the bottom for the same reason: it is the last thing that
+                    happened, not a banner over everything. */}
 
                 {emptySession ? (
-                  <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 pb-20">
-                    <div
-                      className={cn(
-                        "-mt-6 flex flex-col items-center transition-[filter,opacity] duration-300",
-                        pickingFolder && "pointer-events-none select-none opacity-60 [filter:blur(5px)]",
-                      )}
-                      style={{ animation: "fade-up 320ms cubic-bezier(0.23,1,0.32,1) both" }}
-                    >
-                      <div className="text-[20px] font-semibold tracking-[-0.02em] text-ink">
-                        {t("Only Coding，First Windows.")}
+                  <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 pb-20 transition-transform duration-150 @min-[1280px]/conversation:-translate-x-2">
+                    {/* The folder switcher's focus field: shade at the edges of
+                        the view only. It must not be a flat scrim — the popover
+                        lives inside this view's stacking context, so anything
+                        painted over the whole view covers the menu too, which
+                        is exactly the blur-the-picker bug this replaced. A
+                        vignette with a clear centre reads as focus while the
+                        switcher and everything near it stay crisp and clickable. */}
+                    {pickingFolder ? (
+                      <div
+                        aria-hidden
+                        className="folder-scrim pointer-events-none fixed inset-0 z-20"
+                        style={{ animation: "fade-in 220ms ease-out both" }}
+                      />
+                    ) : null}
+                    <Reveal at={HOME_STEPS.greeting} className="-mt-6">
+                      <div className="flex flex-col items-center">
+                        <div className="text-ui-display font-semibold tracking-[-0.02em] text-ink">
+                          {tf("Only Coding，First {platform}.", { platform: IS_MAC ? "macOS" : "Windows" })}
+                        </div>
                       </div>
-                    </div>
+                    </Reveal>
                     {/* the greeting sentence: mostly dimmed copy, with the
                         folder name as the one crisp, bold, underlined link.
                         Same body size as the line above it — the two read as
                         one heading, not a heading and a caption. */}
-                    <p
-                      className={cn(
-                        "mt-3 max-w-[620px] text-center text-[20px] leading-[1.5] tracking-[-0.02em] text-ink-3 transition-[filter,opacity] duration-300",
-                        pickingFolder && "pointer-events-none select-none opacity-60 [filter:blur(5px)]",
-                      )}
-                    >
-                      {greetingBefore}
-                      <FolderPicker cwd={state.cwd} onOpenChange={setPickingFolder} />
-                      {greetingAfter}
-                    </p>
-                    <div
-                      className={cn(
-                        "mt-12 flex w-full justify-center transition-[filter,opacity] duration-300",
-                        pickingFolder && "pointer-events-none select-none opacity-60 [filter:blur(5px)]",
-                      )}
-                    >
-                      {composer}
-                    </div>
+                    <Reveal at={HOME_STEPS.question} className="mt-3 w-full">
+                      <p className="mx-auto max-w-[620px] text-center text-ui-display leading-[1.5] tracking-[-0.02em] text-ink-3">
+                        {greetingBefore}
+                        <FolderPicker cwd={state.cwd} homeDir={state.homeDir} onOpenChange={setPickingFolder} />
+                        {greetingAfter}
+                      </p>
+                    </Reveal>
+                    <Reveal at={HOME_STEPS.composer} className="mt-12 w-full">
+                      <div className="flex w-full justify-center">{composer}</div>
+                    </Reveal>
+                    <SuggestionRail
+                      at={HOME_STEPS.suggestions}
+                      onPick={(text) => void window.pi.prompt({ text })}
+                    />
                   </div>
                 ) : (
                   <>
-                <div className="flex min-h-0 flex-1">
-                  <div className="relative min-h-0 flex-1">
+                <div className="relative min-h-0 flex-1">
                   {/* a session switch remounts the transcript with a soft
                       enter instead of the old conversation snapping out */}
                   <div
                     key={state.snapshot?.sessionFile ?? "new"}
                     ref={scrollerRef}
                     onScroll={onTranscriptScroll}
-                    className="scrollbar-thin view-enter h-full overflow-y-auto px-6 py-6"
+                    className="scrollbar-pill view-enter h-full overflow-y-auto px-6 pt-6 pb-10"
                   >
                     {pendingSession ? (
                       <TranscriptSkeleton />
@@ -902,36 +1086,89 @@ export function App() {
                       stopped={aborted}
                       sessionKey={state.snapshot?.sessionFile ?? "new"}
                       onFork={(userIndex) => void window.pi.forkAt(userIndex).catch(() => undefined)}
-                      onEditPrompt={setPrefill}
+                      onEditPrompt={async (text, userIndex) => {
+                        /* Editing a sent prompt steps the conversation back to
+                           before it first. Without that the edited text is just
+                           another turn appended after the old one, and the model
+                           answers a question the transcript now holds twice. */
+                        try {
+                          const result = await window.pi.rewindTo(userIndex);
+                          if (!result.cancelled) setPrefill(result.text || text);
+                        } catch (error) {
+                          pushNotice(error instanceof Error ? error.message : String(error), "error");
+                        }
+                      }}
                     />
                     )}
                   </div>
+                  {/* The thread dissolves into the composer instead of being
+                      hard-clipped by it. The reference achieves this by floating
+                      the composer over the transcript and measuring its height;
+                      ours has a variable-height composer plus a queue bar, a
+                      minimap and a tool dock around it, so the fade is painted
+                      on the scroller's own edge instead — same read, no layout
+                      refactor. Parked at the bottom it stands down entirely:
+                      the turn's closing row (copy, usage, cache share) is the
+                      last thing on screen, and a gradient over it reads as a
+                      rendering bug, not as depth. */}
+                  {!atBottom ? (
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute inset-x-0 bottom-0 h-12"
+                      style={{ background: "linear-gradient(to top, var(--page) 45%, transparent)" }}
+                    />
+                  ) : null}
                   {!atBottom ? (
                     <button
                       type="button"
                       onClick={jumpToLatest}
-                      className="pressable absolute bottom-3 left-1/2 flex h-7 -translate-x-1/2 items-center gap-1.5 rounded-full bg-ink px-3 text-[11.5px] font-medium text-canvas shadow-overlay"
-                      style={{ animation: "pop-in 200ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "bottom center" }}
+                      className="pressable absolute bottom-3 left-1/2 flex h-7 -translate-x-1/2 items-center gap-1.5 rounded-full bg-ink px-3 text-ui-sm font-medium text-canvas shadow-overlay"
+                      style={{ animation: "pop-in 200ms var(--ease-out-strong-css) both", transformOrigin: "bottom center" }}
                     >
                       {streaming ? t("Follow the stream") : t("Jump to latest")}
                     </button>
                   ) : null}
+                  {/* The turn rail, in the gutter the transcript reserves for it:
+                      12px clear of the 5px scrollbar, 28px wide, centred on the
+                      band above the composer. It appears only once the column is
+                      wide enough to have that gutter at all — below the
+                      breakpoint the thread fills its box and a rail would sit on
+                      the text. */}
+                  <SessionStrip
+                    messages={messages}
+                    activeKey={activeTurn}
+                    onJump={jumpToTurn}
+                    className="absolute top-1/2 right-[17px] z-10 hidden max-h-[min(420px,calc(100%-64px))] -translate-y-1/2 @min-[864px]/conversation:block"
+                  />
                   </div>
-                  {/* the conversation's minimap, down the transcript's right edge */}
-                  <SessionStrip messages={messages} onJump={jumpToTurn} />
-                </div>
+
+                {fatalError ? (
+                  <div className="mx-6 mb-1 flex max-w-[640px] items-start gap-2 rounded-card bg-red-tint px-3 py-2 text-ui-caption leading-snug text-red">
+                    <AlertIcon size={13} className="mt-px shrink-0" />
+                    <span className="min-w-0 flex-1">{fatalError}</span>
+                  </div>
+                ) : null}
 
                 <QueueBar
                   queue={state.queue}
-                  behavior={queueBehavior}
-                  onBehavior={setQueueBehavior}
-                  onMode={(kind, mode) => void window.pi.setQueueMode(kind, mode)}
                   onRemove={(kind, index) => void window.pi.removeQueued(kind, index)}
                   onClear={() => {
                     // pi only clears everything — put it back in the editor, the way Esc does
                     void window.pi.clearQueue().then((result) => {
                       if (result.texts.length) setPrefill(result.texts.join("\n"));
                     });
+                  }}
+                  onEdit={(kind, index, text) => {
+                    // the row leaves the queue and becomes the composer's draft —
+                    // the green 编辑中 strip says so until it is sent
+                    setQueueEditing(true);
+                    setPrefill(text);
+                    void window.pi.removeQueued(kind, index);
+                  }}
+                  onSendNow={(kind, index, text) => {
+                    setQueueEditing(false);
+                    void window.pi.removeQueued(kind, index);
+                    void window.pi.steer(text);
                   }}
                 />
 
@@ -1059,6 +1296,21 @@ export function App() {
                   onDeleteModel={(provider, modelId) =>
                     runModelWrite(() => window.pi.deleteModel(provider, modelId), t("Removed from models.json"))
                   }
+                  onCreateChannel={(edit) =>
+                    runModelWrite(() => window.pi.createChannel(edit), t("Channel written to models.json"))
+                  }
+                  onRemoveChannel={(channelId) =>
+                    runModelWrite(() => window.pi.removeChannel(channelId), t("Channel removed"))
+                  }
+                  onAddChannelKey={(channelId, key) =>
+                    runModelWrite(
+                      () => window.pi.addChannelKey(channelId, key).then(() => undefined),
+                      t("Key added"),
+                    )
+                  }
+                  onRemoveChannelKey={(providerId) =>
+                    runModelWrite(() => window.pi.removeChannelKey(providerId), t("Key removed"))
+                  }
                   onSetEnabledModels={(keys) =>
                     runModelWrite(
                       () => window.pi.updateSettings({ enabledModels: keys }),
@@ -1071,6 +1323,8 @@ export function App() {
                   usageRange={usageRange}
                   onUsageRange={setUsageRange}
                   onUsageRefresh={() => void loadUsage(usageRange)}
+                  queueBehavior={queueBehavior}
+                  onQueueBehavior={setQueueBehavior}
                 />
               </Suspense>
             ) : null}
@@ -1143,12 +1397,8 @@ function TranscriptSkeleton() {
   const widths = ["38%", "72%", "54%", "64%", "30%"];
   return (
     <div className="mx-auto flex w-full max-w-[720px] flex-col gap-3" aria-hidden>
-      {widths.map((width, index) => (
-        <div
-          key={index}
-          className="h-4 rounded-[6px] bg-hover-2"
-          style={{ width, animation: `fade-in 240ms ease-out ${index * 60}ms both` }}
-        />
+      {widths.map((width) => (
+        <Skeleton key={width} className="h-4" style={{ width }} />
       ))}
     </div>
   );

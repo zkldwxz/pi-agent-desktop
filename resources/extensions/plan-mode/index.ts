@@ -7,6 +7,14 @@
  *                    ▲                          │
  *                    └──────── /plan refine ────┘
  *
+ * Planning and building are two tasks, not one. The planning task ends when the
+ * plan is on screen — that is what the user asked for, and it is what they
+ * answer. Approving it starts the build as a *second* task, and the window shows
+ * them as two cards because the build opens with a `plan-mode-build` boundary
+ * message (see `startExecution`, and `buildTurns` on the desktop side). Without
+ * that boundary the entire build lands inside the planning turn: one card, every
+ * tool call the research and the work produced, and no seam between them.
+ *
  * `planning` and `review` are read-only, and the read-only lock lives in the
  * `tool_call` hook (`gating.ts`): a write call is refused while the mode says so.
  * The tool catalog itself never changes — see `gating.ts` for why that matters
@@ -253,6 +261,14 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			if (step.status === "failed" || step.status === "running") step.status = "pending";
 		}
 		commit(ctx);
+		/* The build is a task of its own, and this is where it opens.
+		 *
+		 * It is sent first so the boundary lands ahead of the build's first beat,
+		 * and it carries no `triggerTurn`: the hidden reminder below is what starts
+		 * the run, so a boundary that cannot start one is still the right thing to
+		 * send when a build is resumed rather than started. On the desktop this
+		 * type is also the seam the transcript cuts the new task card on — the
+		 * plugin and `buildTurns` match the same string on purpose. */
 		pi.sendMessage(
 			{
 				customType: "plan-mode-build",

@@ -111,7 +111,7 @@ const icons = {
 /* the single "keep" affirm — solid ink with a hairline (not the atom's filled
  * highlight) shadow, so it stays a local one-off rather than a Button variant */
 const primary =
-  "inline-flex h-7 shrink-0 items-center gap-1 rounded-full bg-ink px-2.5 text-[12.5px] font-normal text-canvas shadow-hairline transition-[opacity,transform] duration-150 hover:opacity-90 active:scale-[0.96]";
+  "inline-flex h-7 shrink-0 items-center gap-1 rounded-full bg-ink px-2.5 text-ui-caption font-normal text-canvas shadow-hairline transition-[opacity,transform] duration-150 hover:opacity-90 active:scale-[0.96]";
 
 
 const DEFAULT_ACTIONS: SelectionActionSet = {
@@ -245,7 +245,7 @@ export default function SelectionActions({
         ],
         {
           duration: 320,
-          easing: "cubic-bezier(0.23,1,0.32,1)",
+          easing: "var(--ease-out-strong-css)",
         },
       );
       widthAnimationRef.current = animation;
@@ -303,11 +303,11 @@ export default function SelectionActions({
   return (
     <div className="w-full max-w-[460px]">
       <div ref={hostRef} className="relative select-none pb-12">
-        <p className="text-[13px] leading-relaxed text-ink">
+        <p className="text-ui-base leading-relaxed text-ink">
           {passage.lead}
           <span
             ref={selectionRef}
-            className="box-decoration-clone rounded-[3px] bg-[color-mix(in_srgb,var(--accent)_14%,var(--surface))] text-ink dark:bg-accent-tint"
+            className="box-decoration-clone rounded-tiny bg-[color-mix(in_srgb,var(--accent)_14%,var(--surface))] text-ink dark:bg-accent-tint"
           >
             {mode === "idle" || mode === "thinking" ? (
               passage.original
@@ -328,7 +328,7 @@ export default function SelectionActions({
           style={{
             transform: `translate3d(${anchor.x}px, ${anchor.y}px, 0) translateX(-50%)`,
             transition:
-              "transform 320ms cubic-bezier(0.77,0,0.175,1), opacity 180ms ease-out",
+              "transform 320ms var(--ease-in-out-strong-css), opacity 180ms ease-out",
             opacity: visible ? 1 : 0,
             pointerEvents: visible ? "auto" : "none",
             willChange: "transform",
@@ -347,7 +347,7 @@ export default function SelectionActions({
               ...(visible
                 ? {
                     animation:
-                      "pop-in 220ms cubic-bezier(0.23,1,0.32,1) both",
+                      "pop-in 220ms var(--ease-out-strong-css) both",
                   }
                 : {}),
             }}
@@ -363,13 +363,13 @@ export default function SelectionActions({
               }}
             >
             {busy && (
-              <span className="inline-flex h-7 items-center gap-1.5 whitespace-nowrap px-2.5 text-[12.5px] font-normal text-ink-2">
+              <span className="inline-flex h-7 items-center gap-1.5 whitespace-nowrap px-2.5 text-ui-caption font-normal text-ink-2">
                 <span
                   className="size-3 shrink-0 rounded-full border-[1.5px] border-line-strong border-t-ink-2"
                   style={{ animation: "spin 700ms linear infinite" }}
                 />
                 {mode === "thinking" ? (
-                  <Shimmer className="text-[12.5px] font-normal">
+                  <Shimmer className="text-ui-caption font-normal">
                     {busyLabel}…
                   </Shimmer>
                 ) : (
@@ -416,7 +416,7 @@ export default function SelectionActions({
                         : 145,
                     opacity: expanded ? 0 : 1,
                     transform: expanded ? "translateX(-8px)" : "translateX(0)",
-                    transitionTimingFunction: "cubic-bezier(0.23,1,0.32,1)",
+                    transitionTimingFunction: "var(--ease-out-strong-css)",
                   }}
                 >
                   <form
@@ -424,7 +424,7 @@ export default function SelectionActions({
                     style={{
                       width:
                         hasPrompt && typingWidth ? typingWidth - 40 : 145,
-                      transitionTimingFunction: "cubic-bezier(0.23,1,0.32,1)",
+                      transitionTimingFunction: "var(--ease-out-strong-css)",
                     }}
                     onSubmit={(event) => {
                       event.preventDefault();
@@ -449,7 +449,7 @@ export default function SelectionActions({
                       }}
                       aria-label={copy.placeholder}
                       placeholder={copy.placeholder}
-                      className="h-7 w-full bg-transparent pr-2.5 pl-3 text-[12.5px] text-ink placeholder:text-ink-3"
+                      className="h-7 w-full bg-transparent pr-2.5 pl-3 text-ui-caption text-ink placeholder:text-ink-4"
                     />
                   </form>
                 </div>
@@ -460,7 +460,7 @@ export default function SelectionActions({
                     maxWidth: hasPrompt ? 0 : expanded ? 462 : 224,
                     opacity: hasPrompt ? 0 : 1,
                     transform: hasPrompt ? "translateX(-8px)" : "translateX(0)",
-                    transitionTimingFunction: "cubic-bezier(0.23,1,0.32,1)",
+                    transitionTimingFunction: "var(--ease-out-strong-css)",
                   }}
                 >
                   {!expanded && (
@@ -486,7 +486,7 @@ export default function SelectionActions({
                       maxWidth: expanded ? 262 : 0,
                       opacity: expanded ? 1 : 0,
                       marginLeft: expanded ? 2 : 0,
-                      transitionTimingFunction: "cubic-bezier(0.23,1,0.32,1)",
+                      transitionTimingFunction: "var(--ease-out-strong-css)",
                     }}
                   >
                   {actions.more.map((item) => (
@@ -516,7 +516,7 @@ export default function SelectionActions({
                       className="flex transition-transform duration-400"
                       style={{
                         transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
-                        transitionTimingFunction: "cubic-bezier(0.23,1,0.32,1)",
+                        transitionTimingFunction: "var(--ease-out-strong-css)",
                       }}
                     >
                       {icons.chevron}
@@ -530,7 +530,7 @@ export default function SelectionActions({
                     maxWidth: hasPrompt ? 30 : 0,
                     opacity: hasPrompt ? 1 : 0,
                     transform: hasPrompt ? "scale(1)" : "scale(0.88)",
-                    transitionTimingFunction: "cubic-bezier(0.23,1,0.32,1)",
+                    transitionTimingFunction: "var(--ease-out-strong-css)",
                   }}
                 >
                   <button

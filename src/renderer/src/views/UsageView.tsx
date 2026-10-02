@@ -1,24 +1,21 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { cacheHitRate } from "@shared/cache-usage";
 import type { UsageBucket, UsageStats } from "@shared/types";
-import { formatContext } from "../lib/format";
+import { compactTokens, formatContext, percent } from "../lib/format";
 import { cn } from "../lib/cn";
-import { t, tf } from "../lib/i18n";
-import {
-  BrainIcon,
-  ChartBarIcon,
-  ClockIcon,
-  DatabaseIcon,
-  FlameIcon,
-  MessageIcon,
-  RefreshIcon,
-} from "../components/icons";
+import { localeTag, t, tf } from "../lib/i18n";
+import { ClockIcon, RefreshIcon } from "../components/icons";
 import { Card, Chip, EmptyState, Skeleton, StatCard, ViewHeader } from "../components/ui";
 import { GlideList, SlidingGroup } from "../components/motion";
-import { EntityChip } from "../components/beautiful/atoms/EntityChip";
-import { ProgressRing } from "../components/beautiful/atoms/ProgressRing";
+import {
+  ActivityHeatmap,
+  HourBars,
+  ModelShareChart,
+  ModelTrendChart,
+  type HeatmapMode,
+} from "../components/charts/usage-charts";
+import { ChartBoundary } from "../components/charts/ChartBoundary";
 import { UsageInsights, UsageRecords } from "./usage-insights";
-import { ValuePill } from "../components/beautiful/atoms/ValuePill";
 
 const MOBY_DICK_TOKENS = 268_000;
 
@@ -31,6 +28,26 @@ interface Aggregate {
   total: number;
   cost: number;
   hitRate: number;
+}
+
+/** The headline figures: one surface, five cells, hairline dividers. The value
+ *  is the loudest thing in the cell and the label the quietest — ZCode's own
+ *  summary strip, which reads as one sentence rather than eight competing
+ *  cards. */
+function SummaryStrip({ items }: { items: Array<{ label: string; value: string | number }> }) {
+  return (
+    <section className="flex flex-col overflow-hidden rounded-card bg-surface shadow-hairline sm:flex-row sm:items-center">
+      {items.map((item, index) => (
+        <Fragment key={item.label}>
+          {index > 0 ? <div aria-hidden className="hidden h-7 w-px shrink-0 bg-line sm:block" /> : null}
+          <div className="min-w-0 flex-1 px-4 py-3 text-center">
+            <div className="truncate text-ui-lg font-medium tabular-nums text-ink">{item.value}</div>
+            <div className="mt-1 truncate text-ui-base text-ink-3">{item.label}</div>
+          </div>
+        </Fragment>
+      ))}
+    </section>
+  );
 }
 
 function aggregate(buckets: UsageBucket[]): Aggregate {
@@ -57,25 +74,6 @@ function aggregate(buckets: UsageBucket[]): Aggregate {
   return out;
 }
 
-/** Stable colour per provider, so a channel keeps its identity across panels. */
-const PROVIDER_COLORS = ["#2f6fec", "#1f7a5f", "#e56d24", "#8a5cf0", "#3cb8c8", "#c2455f", "#b58a2b"];
-function providerColor(provider: string): string {
-  let hash = 0;
-  for (let i = 0; i < provider.length; i += 1) hash = (hash * 31 + provider.charCodeAt(i)) % 997;
-  return PROVIDER_COLORS[hash % PROVIDER_COLORS.length];
-}
-
-function percent(value: number): string {
-  return `${(value * 100).toFixed(value >= 0.995 || value === 0 ? 0 : 1)}%`;
-}
-
-function compact(value: number): string {
-  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}B`;
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M`;
-  if (value >= 1000) return `${(value / 1000).toFixed(value >= 10_000 ? 0 : 1)}K`;
-  return String(Math.round(value));
-}
-
 function hourLabel(hour: number): string {
   const suffix = hour < 12 ? "AM" : "PM";
   const display = hour % 12 === 0 ? 12 : hour % 12;
@@ -83,7 +81,7 @@ function hourLabel(hour: number): string {
 }
 
 function dayLabel(date: string): string {
-  return new Date(`${date}T00:00:00`).toLocaleDateString(undefined, {
+  return new Date(`${date}T00:00:00`).toLocaleDateString(localeTag(), {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -110,6 +108,7 @@ export function UsageView({
   embedded?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("overview");
+  const [heatMode, setHeatMode] = useState<HeatmapMode>("daily");
   const [drillDate, setDrillDate] = useState<string | null>(null);
   const [drillHour, setDrillHour] = useState<number | null>(null);
 
@@ -208,57 +207,60 @@ export function UsageView({
       .sort((a, b) => b.total - a.total);
   }, [filtered]);
 
+  /* The reference always draws a full year — 52 columns of seven days ending
+     with the current week — because the grid itself is the chart: days the
+     scanner has no log for paint as the dim tile, and the eye reads the shape
+     of the year, not of the data we happen to have. */
   const heatmap = useMemo(() => {
     const days = stats?.days ?? [];
-    if (!days.length) return { weeks: [] as Array<Array<{ date: string; tokens: number; calls: number } | null>>, max: 1, months: [] as Array<{ index: number; label: string }> };
     const byDate = new Map(days.map((day) => [day.date, day]));
-    const first = new Date(`${days[0].date}T00:00:00`);
-    const last = new Date();
-    // align to the Sunday on or before the first day
-    const start = new Date(first);
-    start.setDate(start.getDate() - start.getDay());
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    // weeks run Sunday-start; the last column is the week in progress, its
+    // future days drawn as the empty tile like the reference's
+    const weekEnd = new Date(today);
+    weekEnd.setDate(weekEnd.getDate() + (6 - weekEnd.getDay()));
+    const start = new Date(weekEnd);
+    start.setDate(start.getDate() - 52 * 7 + 1);
+
     const weeks: Array<Array<{ date: string; tokens: number; calls: number } | null>> = [];
     const months: Array<{ index: number; label: string }> = [];
     let lastMonth = -1;
     const cursor = new Date(start);
-    while (cursor <= last) {
+    while (cursor <= weekEnd) {
       const week: Array<{ date: string; tokens: number; calls: number } | null> = [];
       for (let index = 0; index < 7; index += 1) {
         const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(
           cursor.getDate(),
         ).padStart(2, "0")}`;
         const entry = byDate.get(key);
-        week.push(entry ? { date: entry.date, tokens: entry.tokens, calls: entry.calls } : null);
+        week.push(entry ? { date: entry.date, tokens: entry.tokens, calls: entry.calls } : { date: key, tokens: 0, calls: 0 });
         if (index === 0 && cursor.getMonth() !== lastMonth) {
           lastMonth = cursor.getMonth();
-          months.push({ index: weeks.length, label: cursor.toLocaleDateString(undefined, { month: "short" }) });
+          months.push({ index: weeks.length, label: cursor.toLocaleDateString(localeTag(), { month: "short" }) });
         }
         cursor.setDate(cursor.getDate() + 1);
       }
       weeks.push(week);
     }
+    /* a year produces ~13 month boundaries; the reference keeps the most recent
+       twelve labelled and blanks the rest — the spans still hold the columns,
+       the gutter just stops growing crowded */
+    const labelledMonths = months.map((month, index) => ({
+      ...month,
+      label: index < months.length - 12 ? "" : month.label,
+    }));
     const max = Math.max(1, ...days.map((day) => day.tokens));
-    return { weeks, max, months };
+    return { weeks, max, months: labelledMonths };
   }, [stats]);
 
-  const levelFor = (tokens: number, max: number): number => {
-    if (tokens <= 0) return 0;
-    const ratio = tokens / max;
-    if (ratio > 0.6) return 4;
-    if (ratio > 0.3) return 3;
-    if (ratio > 0.12) return 2;
-    return 1;
-  };
-
-  const LEVEL_BG = [
-    "bg-field",
-    "bg-[color-mix(in_oklch,var(--accent)_22%,var(--surface))]",
-    "bg-[color-mix(in_oklch,var(--accent)_42%,var(--surface))]",
-    "bg-[color-mix(in_oklch,var(--accent)_65%,var(--surface))]",
-    "bg-accent",
-  ];
-
-  const hourMax = Math.max(1, ...hourTotals);
+  const peakDay = useMemo(() => {
+    const days = stats?.days ?? [];
+    return days.reduce<{ date: string; tokens: number } | null>(
+      (best, day) => (!best || day.tokens > best.tokens ? { date: day.date, tokens: day.tokens } : best),
+      null,
+    );
+  }, [stats]);
 
   /* Embedded in Settings, this view supplies no page header — Settings already
    * has one, and a second full-bleed bar inside a scrolling section reads as a
@@ -272,32 +274,35 @@ export function UsageView({
   }) =>
     embedded ? (
       <div className="flex flex-wrap items-center gap-2">
-        {subtitle ? <span className="min-w-0 flex-1 truncate text-[12px] text-ink-3">{subtitle}</span> : <span className="flex-1" />}
+        {subtitle ? <span className="min-w-0 flex-1 truncate text-ui-caption text-ink-3">{subtitle}</span> : <span className="flex-1" />}
         {actions}
       </div>
     ) : (
       <ViewHeader title={t("Usage")} subtitle={subtitle} actions={actions} />
     );
 
+  /* ZCode's range control: a pill of round tabs on the card surface, the active
+     one painted in the page colour. Our SlidingGroup keeps the animation; only
+     the shapes and the labels are the reference's. */
   const rangePicker = (
     <div className="flex items-center gap-1.5">
       <SlidingGroup
-        activeIndex={([0, 30, 7] as Range[]).indexOf(range)}
-        className="flex items-center gap-0.5 rounded-chip bg-field p-0.5"
-        pillClassName="bg-surface shadow-hairline"
+        activeIndex={([7, 30, 0] as Range[]).indexOf(range)}
+        className="flex h-7 items-center gap-0.5 rounded-full bg-surface p-0.5 shadow-hairline"
+        pillClassName="rounded-full bg-page shadow-none"
       >
-        {([0, 30, 7] as Range[]).map((value) => (
+        {([7, 30, 0] as Range[]).map((value) => (
           <button
             key={value}
             data-slide-item
             type="button"
             onClick={() => onRange(value)}
             className={cn(
-              "pressable relative z-10 h-5 rounded-[4px] px-2 text-[11.5px] tabular-nums",
+              "pressable relative z-10 h-6 flex-none rounded-full px-2.5 text-ui-sm font-medium",
               range === value ? "text-ink" : "text-ink-2 hover:text-ink",
             )}
           >
-            {value === 0 ? t("All") : `${value}d`}
+            {value === 0 ? t("All time") : value === 7 ? t("Last 7 days") : t("Last 30 days")}
           </button>
         ))}
       </SlidingGroup>
@@ -364,7 +369,7 @@ export function UsageView({
                 type="button"
                 onClick={() => setTab(key)}
                 className={cn(
-                  "h-6 rounded-chip px-2 text-[12px] transition-colors duration-100",
+                  "h-6 rounded-chip px-2 text-ui-caption transition-colors duration-100",
                   tab === key ? "bg-field font-medium text-ink" : "text-ink-2 hover:text-ink",
                 )}
               >
@@ -389,158 +394,96 @@ export function UsageView({
 
           {drilled ? (
             <div
-              className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-card bg-accent-tint px-3 py-2 text-[12px] text-ink"
-              style={{ animation: "pop-in 220ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "top left" }}
+              className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-card bg-accent-tint px-3 py-2 text-ui-caption text-ink"
+              style={{ animation: "pop-in 220ms var(--ease-out-strong-css) both", transformOrigin: "top left" }}
             >
               <span className="font-medium">{t("Selected slice")}</span>
               <span className="tabular-nums">{selection.calls} {t("calls")}</span>
-              <span className="tabular-nums">{compact(selection.total)} {t("tokens")}</span>
+              <span className="tabular-nums">{compactTokens(selection.total)} {t("tokens")}</span>
               <span className="tabular-nums">{t("cache hit")} {percent(selection.hitRate)}</span>
-              <span className="tabular-nums">{t("in")} {compact(selection.input)}</span>
-              <span className="tabular-nums">{t("out")} {compact(selection.output)}</span>
-              <span className="tabular-nums">{t("cache read")} {compact(selection.cacheRead)}</span>
+              <span className="tabular-nums">{t("in")} {compactTokens(selection.input)}</span>
+              <span className="tabular-nums">{t("out")} {compactTokens(selection.output)}</span>
+              <span className="tabular-nums">{t("cache read")} {compactTokens(selection.cacheRead)}</span>
               {selection.cost > 0 ? <span className="tabular-nums">${selection.cost.toFixed(4)}</span> : null}
             </div>
           ) : null}
 
           {tab === "overview" ? (
-            <div key="overview" className="view-enter flex flex-col gap-3">
-              <div className="grid grid-cols-4 gap-3">
-                <StatCard index={0} label={t("Sessions")} value={kpis.sessions} icon={<DatabaseIcon size={12} />} hint={`${stats.scannedFiles} ${t("files scanned")}`} />
-                <StatCard index={1} label={t("Messages")} value={kpis.messages.toLocaleString()} icon={<MessageIcon size={12} />} hint={`${selection.calls} ${t("calls in slice")}`} />
-                <StatCard
-                  index={2}
-                  label={t("Total tokens")}
-                  value={compact(stats.totals.total)}
-                  icon={<ChartBarIcon size={12} />}
-                  hint={`${formatContext(stats.totals.input)} ${t("in")} · ${formatContext(stats.totals.output)} ${t("out")}`}
-                />
-                <StatCard index={3} label={t("Active days")} value={kpis.activeDays} icon={<ClockIcon size={12} />} hint={`${kpis.currentStreak}d ${t("streak")}`} />
-                <StatCard index={4} label={t("Current streak")} value={`${kpis.currentStreak}d`} icon={<FlameIcon size={12} />} hint={`${t("longest")} ${kpis.longestStreak}d`} />
-                <StatCard index={5} label={t("Longest streak")} value={`${kpis.longestStreak}d`} icon={<FlameIcon size={12} />} />
-                <StatCard
-                  index={6}
-                  label={t("Peak hour")}
-                  value={kpis.peakHour !== null ? hourLabel(kpis.peakHour) : "—"}
-                  icon={<ClockIcon size={12} />}
-                  hint={kpis.peakHour !== null ? `${compact(stats.hours[kpis.peakHour])} ${t("tokens")}` : undefined}
-                />
-                <StatCard
-                  index={7}
-                  label={t("Favorite model")}
-                  value={kpis.favoriteModel ? kpis.favoriteModel.split("/").at(-1) : "—"}
-                  icon={<BrainIcon size={12} />}
-                  hint={kpis.favoriteModel?.split("/")[0]}
-                />
-              </div>
-
-              <Card index={8} className="flex flex-col gap-3 p-3">
-                <div className="flex items-center gap-2">
-                  <div className="text-[12.5px] font-medium text-ink">{t("Activity")}</div>
-                  <div className="text-[11.5px] text-ink-3">{t("click a day or an hour to inspect that slice")}</div>
-                  <span className="flex-1" />
-                  <div className="flex items-center gap-1 text-[10.5px] text-ink-3">
-                    {t("less")}
-                    {LEVEL_BG.map((bg, index) => (
-                      <span key={index} className={cn("size-2.5 rounded-[2px]", bg)} />
-                    ))}
-                    {t("more")}
-                  </div>
-                </div>
-
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  <div className="flex shrink-0 flex-col justify-between pt-4 text-[9.5px] leading-none text-ink-3">
-                    {["", t("Mon"), "", t("Wed"), "", t("Fri"), ""].map((label, index) => (
-                      <span key={index} className="h-2.5">
-                        {label}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex flex-col">
-                    <div className="relative flex h-4 gap-[3px]">
-                      {heatmap.months.map((month) => (
-                        <span
-                          key={`${month.label}-${month.index}`}
-                          className="absolute text-[9.5px] text-ink-3"
-                          style={{ left: `${month.index * 13}px` }}
-                        >
-                          {month.label}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="flex gap-[3px] py-0.5 pl-0.5">
-                      {heatmap.weeks.map((week, weekIndex) => (
-                        <div key={weekIndex} className="flex flex-col gap-[3px]">
-                          {week.map((day, dayIndex) => {
-                            if (!day) {
-                              return <span key={dayIndex} className="size-2.5 rounded-[2px] bg-transparent" />;
-                            }
-                            const active = drillDate === day.date;
-                            return (
-                              <button
-                                key={dayIndex}
-                                type="button"
-                                title={`${dayLabel(day.date)} · ${compact(day.tokens)} ${t("tokens")} · ${day.calls} ${t("calls")}`}
-                                onClick={() => {
-                                  setDrillHour(null);
-                                  setDrillDate(active ? null : day.date);
-                                }}
-                                className={cn(
-                                  "size-2.5 rounded-[2px] transition-[transform,box-shadow,opacity] duration-150 ease-out hover:scale-[1.35]",
-                                  LEVEL_BG[levelFor(day.tokens, heatmap.max)],
-                                  active && "scale-[1.35] shadow-[0_0_0_1.5px_var(--surface),0_0_0_3px_var(--accent-ink)]",
-                                  drillDate && !active && "opacity-50",
-                                )}
-                              />
-                            );
-                          })}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-end gap-[3px] border-t border-line pt-3">
-                  {hourTotals.map((tokens, hour) => {
-                    const ratio = tokens / hourMax;
-                    const active = drillHour === hour;
-                    return (
+            <div key="overview" className="view-enter flex flex-col gap-5">
+              {/* ZCode's reading order: the lifetime strip, then when the work
+                  happened (token activity), then how much over the chosen range
+                  (trend), how it splits (share), and what the split served from
+                  cache. Each is full width — two half-width charts side by side
+                  is two charts nobody can hover without nudging the other. */}
+              <SummaryStrip
+                items={[
+                  { label: t("Total tokens"), value: compactTokens(stats.totals.total) },
+                  { label: t("Peak tokens"), value: compactTokens(heatmap.max) },
+                  { label: t("Active days"), value: kpis.activeDays },
+                  { label: t("Current streak"), value: tf("{count}d", { count: kpis.currentStreak }) },
+                  { label: t("Longest streak"), value: tf("{count}d", { count: kpis.longestStreak }) },
+                ]}
+              />
+              <Card index={8} className="flex flex-col gap-3 px-3 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 truncate text-ui-base font-medium text-ink">{t("Token activity")}</div>
+                  {/* daily colours every day; weekly and cumulative fill each
+                      column bottom-up, the reference's own three modes */}
+                  <SlidingGroup
+                    activeIndex={(["daily", "weekly", "cumulative"] as HeatmapMode[]).indexOf(heatMode)}
+                    className="flex h-7 flex-none items-center gap-0.5 rounded-full bg-surface p-0.5 shadow-hairline"
+                    pillClassName="rounded-full bg-page shadow-none"
+                  >
+                    {(["daily", "weekly", "cumulative"] as HeatmapMode[]).map((value) => (
                       <button
-                        key={hour}
+                        key={value}
+                        data-slide-item
                         type="button"
-                        title={`${hourLabel(hour)} · ${compact(tokens)} ${t("tokens")}`}
-                        onClick={() => setDrillHour(active ? null : hour)}
-                        className="group flex flex-1 flex-col items-center justify-end gap-1"
-                      >
-                        <span className="relative flex h-12 w-full items-end overflow-hidden">
-                          <span
-                            className={cn(
-                              "pointer-events-none absolute inset-x-0 bottom-0 h-full origin-bottom rounded-[2px]",
-                              active
-                                ? "bg-accent"
-                                : tokens > 0
-                                  ? "bg-[color-mix(in_oklch,var(--ink-3)_55%,var(--surface))] group-hover:bg-accent"
-                                  : "bg-field",
-                            )}
-                            style={{
-                              transform: `scaleY(${tokens > 0 ? Math.max(0.06, ratio) : 0.05})`,
-                              opacity: drillDate && !tokens ? 0.5 : 1,
-                              transition:
-                                "transform 460ms cubic-bezier(0.23,1,0.32,1), background-color 150ms ease-out, opacity 200ms ease-out",
-                            }}
-                          />
-                        </span>
-                        {hour % 6 === 0 ? (
-                          <span className="text-[9px] text-ink-3 tabular-nums">{hour}</span>
-                        ) : (
-                          <span className="h-[11px]" />
+                        onClick={() => setHeatMode(value)}
+                        className={cn(
+                          "pressable relative z-10 h-6 flex-none rounded-full px-2.5 text-ui-sm font-medium",
+                          heatMode === value ? "text-ink" : "text-ink-2 hover:text-ink",
                         )}
+                      >
+                        {value === "daily" ? t("Daily") : value === "weekly" ? t("Weekly") : t("Cumulative")}
                       </button>
-                    );
-                  })}
+                    ))}
+                  </SlidingGroup>
                 </div>
 
-                <div className="text-[12px] text-ink-3">
+                <ChartBoundary bare>
+                  <ActivityHeatmap
+                    weeks={heatmap.weeks}
+                    months={heatmap.months}
+                    peak={heatmap.max}
+                    mode={heatMode}
+                    selected={drillDate}
+                    onSelect={(date) => {
+                      setDrillHour(null);
+                      setDrillDate(date);
+                    }}
+                  />
+                </ChartBoundary>
+
+                <div className="text-ui-caption text-ink-3">
+                  {peakDay && peakDay.tokens > 0
+                    ? tf("The busiest day was {day}, with about {tokens} tokens.", {
+                        day: dayLabel(peakDay.date),
+                        tokens: compactTokens(peakDay.tokens),
+                      })
+                    : t("No usage in the scanned logs yet.")}
+                </div>
+
+                <ChartBoundary bare>
+                  <HourBars
+                    hours={hourTotals}
+                    selected={drillHour}
+                    faded={drillDate !== null}
+                    onSelect={setDrillHour}
+                  />
+                </ChartBoundary>
+
+                <div className="text-ui-caption text-ink-3">
                   {tf(
                     "You've used ~{count}× more tokens than Moby-Dick — with {percent} of prompt tokens served from cache.",
                     {
@@ -551,47 +494,57 @@ export function UsageView({
                 </div>
               </Card>
 
-                <div className="grid grid-cols-2 gap-3">
-                <Card index={9} className="flex flex-col gap-2 p-3">
-                  <div className="text-[12.5px] font-medium text-ink">{t("Top models in slice")}</div>
-                  {modelRows.length === 0 ? (
-                    <div className="text-[12px] text-ink-3">{t("No calls in this slice.")}</div>
-                  ) : (
-                    modelRows.slice(0, 6).map((row) => (
-                      <div key={`${row.provider}/${row.model}`} className="flex items-center gap-2 text-[12px]">
-                        <span className="min-w-0 flex-1 truncate text-ink">{row.model}</span>
-                        <span className="font-mono text-[10.5px] text-ink-3">{row.provider}</span>
-                        <span className="w-14 text-right tabular-nums text-ink-2">{compact(row.total)}</span>
+              {/* the range row owns its own line, like the reference: what the
+                  two charts below it are filtered to */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-ui-base font-medium text-ink">{t("Time range")}</div>
+                {rangePicker}
+              </div>
+
+              <ChartBoundary title={t("Daily token trend")}>
+                <ModelTrendChart buckets={filtered} />
+              </ChartBoundary>
+              <ChartBoundary title={t("Model usage")}>
+                <ModelShareChart buckets={filtered} />
+              </ChartBoundary>
+
+              {/* ours, kept: the reference has no per-channel cache readout, and
+                  the cache share is what the strip's totals are made of */}
+              <Card index={9} className="flex flex-col gap-2 p-3">
+                <div className="text-ui-caption font-medium text-ink">{t("Cache share by channel")}</div>
+                {providerRows.length === 0 ? (
+                  <div className="text-ui-caption text-ink-3">{t("No calls in this slice.")}</div>
+                ) : (
+                  providerRows.slice(0, 6).map((row) => (
+                    <div key={row.provider} className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2 text-ui-caption">
+                        <span className="min-w-0 flex-1 truncate text-ink">{row.providerName}</span>
+                        <span className="tabular-nums text-ink-2">{compactTokens(row.total)}</span>
                         <span className="w-12 text-right tabular-nums text-ink-3">{percent(row.hitRate)}</span>
                       </div>
-                    ))
-                  )}
-                </Card>
-                <Card index={10} className="flex flex-col gap-2 p-3">
-                  <div className="text-[12.5px] font-medium text-ink">{t("Cache share by channel")}</div>
-                  {providerRows.length === 0 ? (
-                    <div className="text-[12px] text-ink-3">{t("No calls in this slice.")}</div>
-                  ) : (
-                    providerRows.slice(0, 6).map((row) => (
-                      <div key={row.provider} className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2 text-[12px]">
-                          <span className="min-w-0 flex-1 truncate text-ink">{row.providerName}</span>
-                          <span className="tabular-nums text-ink-2">{compact(row.total)}</span>
-                          <span className="w-12 text-right tabular-nums text-ink-3">{percent(row.hitRate)}</span>
-                        </div>
-                        <div className="h-1 overflow-hidden rounded-full bg-field">
-                          <div
-                            className="h-full origin-left rounded-full bg-accent"
-                            style={{
-                              transform: `scaleX(${row.hitRate})`,
-                              transition: "transform 460ms cubic-bezier(0.23,1,0.32,1)",
-                            }}
-                          />
-                        </div>
+                      <div className="h-1 overflow-hidden rounded-full bg-field">
+                        <div
+                          className="h-full origin-left rounded-full bg-accent"
+                          style={{
+                            transform: `scaleX(${row.hitRate})`,
+                            transition: "transform 460ms var(--ease-out-strong-css)",
+                          }}
+                        />
                       </div>
-                    ))
-                  )}
-                </Card>
+                    </div>
+                  ))
+                )}
+              </Card>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={onRefresh}
+                  className="pressable flex h-8 items-center gap-1.5 rounded-control border border-line bg-page px-2.5 text-ui-sm text-ink-2 hover:bg-hover hover:text-ink"
+                >
+                  <RefreshIcon size={14} />
+                  {t("Refresh")}
+                </button>
               </div>
             </div>
           ) : null}
@@ -612,19 +565,19 @@ export function UsageView({
             <div key="cache" className="view-enter flex flex-col gap-3">
               <div className="grid grid-cols-4 gap-3">
                 <StatCard index={0} label={t("Cache hit rate")} value={percent(selection.hitRate)} hint={t("cache read ÷ (fresh input + cache read + cache write)")} />
-                <StatCard index={1} label={t("Cache read")} value={compact(selection.cacheRead)} hint={t("tokens served from cache")} />
-                <StatCard index={2} label={t("Cache write")} value={compact(selection.cacheWrite)} hint={t("tokens written to cache")} />
-                <StatCard index={3} label={t("Fresh input")} value={compact(selection.input)} hint={t("uncached prompt tokens")} />
+                <StatCard index={1} label={t("Cache read")} value={compactTokens(selection.cacheRead)} hint={t("tokens served from cache")} />
+                <StatCard index={2} label={t("Cache write")} value={compactTokens(selection.cacheWrite)} hint={t("tokens written to cache")} />
+                <StatCard index={3} label={t("Fresh input")} value={compactTokens(selection.input)} hint={t("uncached prompt tokens")} />
               </div>
               <Card index={4} className="overflow-hidden">
                 <div className="flex items-center gap-2 border-b border-line px-3 py-2">
-                  <div className="text-[12.5px] font-medium text-ink">{t("Cache by channel")}</div>
-                  <div className="text-[11.5px] text-ink-3">{t("each provider/model pair is counted separately")}</div>
+                  <div className="text-ui-caption font-medium text-ink">{t("Cache by channel")}</div>
+                  <div className="text-ui-sm text-ink-3">{t("each provider/model pair is counted separately")}</div>
                 </div>
                 <GlideList rowSelector="tbody tr" highlightClassName="bg-hover" radius={0}>
-                <table className="w-full border-collapse text-[12px]">
+                <table className="w-full border-collapse text-ui-caption">
                   <thead>
-                    <tr className="border-b border-line text-left text-[11px] text-ink-3">
+                    <tr className="border-b border-line text-left text-ui-sm text-ink-3">
                       <th className="px-3 py-2 font-medium">{t("Channel")}</th>
                       <th className="px-3 py-2 font-medium">{t("Model")}</th>
                       <th className="px-3 py-2 text-right font-medium">{t("Calls")}</th>
@@ -638,15 +591,15 @@ export function UsageView({
                     {modelRows.map((row) => (
                       <tr key={`${row.provider}/${row.model}`} data-row className="border-b border-line last:border-0">
                         <td className="px-3 py-2">
-                          <span className="inline-flex h-5 items-center rounded-chip bg-field px-1.5 font-mono text-[10.5px] text-ink-2">
+                          <span className="inline-flex h-5 items-center rounded-chip bg-field px-1.5 font-mono text-ui-xs text-ink-2">
                             {row.provider}
                           </span>
                         </td>
                         <td className="max-w-[240px] truncate px-3 py-2 text-ink">{row.model}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-ink-2">{row.calls}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-green">{compact(row.cacheRead)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-orange">{compact(row.cacheWrite)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-ink-2">{compact(row.input)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-green">{compactTokens(row.cacheRead)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-orange">{compactTokens(row.cacheWrite)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-ink-2">{compactTokens(row.input)}</td>
                         <td className="px-3 py-2 text-right">
                           <span className="inline-flex items-center gap-2">
                             <span className="h-1 w-16 overflow-hidden rounded-full bg-field">
@@ -672,7 +625,7 @@ export function UsageView({
           ) : null}
 
           {stats.errors.length ? (
-            <Card className="p-3 text-[11.5px] text-red" style={{ animation: "fade-up 320ms cubic-bezier(0.23,1,0.32,1) both" }}>{tf("Skipped {count} unreadable session file(s).", { count: stats.errors.length })}</Card>
+            <Card className="p-3 text-ui-sm text-red" style={{ animation: "fade-up 320ms var(--ease-out-strong-css) both" }}>{tf("Skipped {count} unreadable session file(s).", { count: stats.errors.length })}</Card>
           ) : null}
           </div>
         </div>

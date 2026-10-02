@@ -88,7 +88,7 @@ export function CacheRing({ stats }: { stats: CacheStats }) {
         onFocus={() => setHovered(true)}
         onBlur={() => setHovered(false)}
         onClick={() => setPinned((value) => !value)}
-        className="pressable inline-flex items-center rounded-[5px] p-0.5 hover:bg-hover"
+        className="pressable inline-flex items-center rounded-chip p-0.5 hover:bg-hover"
       >
         {/* ring only: the band colour is the read, the numbers are on hover */}
         <span className="relative inline-flex shrink-0 items-center justify-center" style={{ width: size, height: size }}>
@@ -103,7 +103,7 @@ export function CacheRing({ stats }: { stats: CacheStats }) {
               strokeWidth={stroke}
               strokeLinecap="round"
               strokeDasharray={`${circumference * (rate / 100)} ${circumference}`}
-              style={{ transition: "stroke-dasharray 420ms cubic-bezier(0.23,1,0.32,1)" }}
+              style={{ transition: "stroke-dasharray 420ms var(--ease-out-strong-css)" }}
             />
           </svg>
         </span>
@@ -113,18 +113,18 @@ export function CacheRing({ stats }: { stats: CacheStats }) {
         <span
           role="dialog"
           className="absolute bottom-full right-0 z-30 mb-2 w-60 overflow-hidden rounded-card bg-surface shadow-overlay"
-          style={{ animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "bottom right" }}
+          style={{ animation: "pop-in 180ms var(--ease-out-strong-css) both", transformOrigin: "bottom right" }}
         >
           <span className="flex items-center gap-2 border-b border-line px-3 py-2">
             <span className="size-2 shrink-0 rounded-full" style={{ background: band.tone }} />
-            <span className="min-w-0 flex-1 text-[12px] font-medium text-ink">{tf("Cache {rate}%", { rate: Math.round(rate) })}</span>
-            {pinned ? <span className="font-mono text-[9.5px] text-ink-3">{t("pinned · Esc")}</span> : null}
+            <span className="min-w-0 flex-1 text-ui-caption font-medium text-ink">{tf("Cache {rate}%", { rate: Math.round(rate) })}</span>
+            {pinned ? <span className="font-mono text-ui-xs text-ink-3">{t("pinned · Esc")}</span> : null}
           </span>
           <span className="flex flex-col gap-1.5 px-3 py-2">
             <Row label="From cache" value={stats.cacheRead.toLocaleString()} tone={band.tone} />
             <Row label="Billed fresh" value={fresh.toLocaleString()} tone="var(--ink-2)" />
             <Row label="Prompt total" value={prompt.toLocaleString()} tone="var(--ink)" />
-            <span className="mt-1 border-t border-line pt-1.5 text-[11px] leading-snug text-ink-3">{t(band.label)}</span>
+            <span className="mt-1 border-t border-line pt-1.5 text-ui-sm leading-snug text-ink-3">{t(band.label)}</span>
           </span>
         </span>
       ) : null}
@@ -135,8 +135,8 @@ export function CacheRing({ stats }: { stats: CacheStats }) {
 function Row({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
     <span className="flex items-baseline justify-between gap-3">
-      <span className="text-[11.5px] text-ink-3">{t(label)}</span>
-      <span className={cn("font-mono text-[11.5px] tabular-nums")} style={{ color: tone }}>
+      <span className="text-ui-sm text-ink-3">{t(label)}</span>
+      <span className={cn("font-mono text-ui-sm tabular-nums")} style={{ color: tone }}>
         {value}
       </span>
     </span>

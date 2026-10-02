@@ -153,7 +153,7 @@ export function SlidingGroup({
           height: box?.height ?? 0,
           opacity: ready && box ? 1 : 0,
           transition: ready
-            ? "top 280ms cubic-bezier(0.23,1,0.32,1), left 280ms cubic-bezier(0.23,1,0.32,1), width 240ms cubic-bezier(0.23,1,0.32,1), height 220ms cubic-bezier(0.23,1,0.32,1), opacity 140ms ease-out"
+            ? "top 280ms var(--ease-out-strong-css), left 280ms var(--ease-out-strong-css), width 240ms var(--ease-out-strong-css), height 220ms var(--ease-out-strong-css), opacity 140ms ease-out"
             : "opacity 140ms ease-out",
         }}
       />
@@ -216,12 +216,12 @@ export function Popover({
       ref={ref}
       role="dialog"
       className={cn(
-        "absolute z-30 overflow-hidden rounded-[10px] bg-surface shadow-overlay",
+        "absolute z-30 overflow-hidden rounded-card bg-surface shadow-overlay",
         anchor.startsWith("bottom") ? "bottom-full mb-2" : "top-full mt-1.5",
         anchor.endsWith("right") ? "right-0" : "left-0",
         className,
       )}
-      style={{ animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: origin }}
+      style={{ animation: "pop-in 180ms var(--ease-out-strong-css) both", transformOrigin: origin }}
     >
       {children}
     </div>
@@ -254,6 +254,7 @@ export function StreamText({
   className,
   caret = true,
   markdown = false,
+  blurTail = 9,
 }: {
   text: string;
   done?: boolean;
@@ -261,8 +262,8 @@ export function StreamText({
   caret?: boolean;
   /** render the revealed slice through the Markdown pipeline as it grows */
   markdown?: boolean;
+  /** how many trailing characters resolve in, plain-text mode only */
   blurTail?: number;
-  tickMs?: number;
 }) {
   const targetLength = text.length;
   const [revealed, setRevealed] = useState(() => (done ? targetLength : Math.min(targetLength, 1)));
@@ -332,81 +333,30 @@ export function StreamText({
 
   const settled = done && revealed >= targetLength;
   const shownText = text.slice(0, revealed);
+  /* The resolving leading edge — the reference's mechanism, and the reason it
+   * works is that the tail is a property of the leading edge rather than of a
+   * region: characters sharpen by being pushed out of it as more arrive, so a
+   * stream that pauses or ends has nothing left hanging in a half-faded state.
+   *
+   * Plain text only. Markdown emits block elements, so an inline tail cannot
+   * follow a paragraph without dropping onto its own line, and slicing a
+   * markdown prefix short of its end can cut through a token — `**bold te`
+   * would render the `**` literally for a frame. The answer keeps its caret. */
+  const tailLength = markdown || settled ? 0 : Math.min(blurTail, shownText.length);
+  const solid = shownText.length - tailLength;
 
   return (
     <span className={className}>
-      {markdown ? <Markdown>{shownText}</Markdown> : shownText}
+      {markdown ? (
+        <Markdown>{shownText}</Markdown>
+      ) : (
+        <>
+          {shownText.slice(0, solid)}
+          {tailLength > 0 ? <span className="stream-tail">{shownText.slice(solid)}</span> : null}
+        </>
+      )}
       {caret ? <span aria-hidden className={`stream-caret${settled ? "" : " is-streaming"}`} /> : null}
     </span>
-  );
-}
-
-/**
- * Live agent output: real tokens revealed with the character-level 吐字 pass.
- * Never re-animates an already-settled message.
- */
-export function StreamingParagraph({
-  text,
-  done,
-  className,
-}: {
-  text: string;
-  done?: boolean;
-  className?: string;
-}) {
-  return <StreamText text={text} done={done} className={className} />;
-}
-
-/**
- * Word-by-word reveal for scripted/demo text where there is no real token
- * stream. Do not use this for live agent output.
- */
-export function StreamLine({
-  text,
-  className,
-  stream = false,
-  onDone,
-}: {
-  text: string;
-  className?: string;
-  stream?: boolean;
-  onDone?: () => void;
-}) {
-  const words = useMemo(() => text.split(" "), [text]);
-  const [count, setCount] = useState(() => (stream ? 0 : words.length));
-  const doneRef = useRef(!stream || words.length === 0);
-
-  useEffect(() => {
-    doneRef.current = !stream || words.length === 0;
-    setCount(stream ? 0 : words.length);
-  }, [text, stream, words.length]);
-
-  useEffect(() => {
-    if (count >= words.length) {
-      if (!doneRef.current) {
-        doneRef.current = true;
-        onDone?.();
-      }
-      return;
-    }
-    const timer = setTimeout(() => setCount((value) => value + 1), 34);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [count, words.length]);
-
-  const streaming = count < words.length;
-  const head = streaming ? words.slice(0, Math.max(0, count - 3)) : words.slice(0, count);
-  const tail = streaming ? words.slice(Math.max(0, count - 3), count) : [];
-
-  return (
-    <p className={className}>
-      {head.map((word, index) => (
-        <span key={index}>{word} </span>
-      ))}
-      {tail.length ? <span>{tail.join(" ")} </span> : null}
-      {streaming ? <span className="stream-caret is-streaming" /> : null}
-      {!streaming && stream ? <span className="stream-caret" /> : null}
-    </p>
   );
 }
 

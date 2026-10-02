@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { HostState, ModelEdit, PluginInfo } from "@shared/types";
+import type { CatalogItem, HostState, ModelEdit, PluginInfo } from "@shared/types";
 import { cn } from "../lib/cn";
 import { t } from "../lib/i18n";
 import { GlideList } from "../components/motion";
@@ -7,7 +7,7 @@ import { ModelsView } from "./ModelsView";
 import { PluginsView } from "./PluginsView";
 import { ViewHeader } from "../components/ui";
 import { ExtensionFlow } from "./ExtensionFlow";
-import { ArrowLeftIcon } from "../components/icons";
+import { ArrowLeftIcon, GlobeIcon, LayersIcon, ListChecksIcon, ListIcon, SparkIcon } from "../components/icons";
 
 type Tab = "plugins" | "skills" | "models" | "rules";
 
@@ -112,7 +112,7 @@ export function CustomizeView({
             aria-label={t("Back to the conversation")}
             title={t("Back")}
             onClick={onBack}
-            className="pressable -ml-1.5 flex size-7 shrink-0 items-center justify-center rounded-[7px] text-ink-3 hover:bg-hover hover:text-ink"
+            className="pressable -ml-1.5 flex size-7 shrink-0 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
           >
             <ArrowLeftIcon size={14} />
           </button>
@@ -125,7 +125,7 @@ export function CustomizeView({
                 onRefresh();
                 onReload();
               }}
-              className="pressable inline-flex h-7 items-center rounded-chip bg-field px-2.5 text-[12px] text-ink-2 hover:bg-hover-2"
+              className="pressable inline-flex h-7 items-center rounded-chip bg-field px-2.5 text-ui-caption text-ink-2 hover:bg-hover-2"
             >
               {t("Rescan")}
             </button>
@@ -147,12 +147,12 @@ export function CustomizeView({
                 type="button"
                 onClick={() => setTab(entry.key)}
                 className={cn(
-                  "glide-row pressable flex h-9 w-full items-center gap-2.5 rounded-[8px] px-3 text-left",
+                  "glide-row pressable flex h-9 w-full items-center gap-2.5 rounded-control px-3 text-left",
                   tab === entry.key ? "bg-surface font-medium text-ink shadow-hairline" : "text-ink-2",
                 )}
               >
-                <span className="min-w-0 flex-1 truncate text-[13px]">{t(entry.label)}</span>
-                <span className="shrink-0 font-mono text-[10.5px] text-ink-3 tabular-nums">{counts[entry.key]}</span>
+                <span className="min-w-0 flex-1 truncate text-ui-base">{t(entry.label)}</span>
+                <span className="shrink-0 font-mono text-ui-xs text-ink-3 tabular-nums">{counts[entry.key]}</span>
               </button>
             ))}
           </GlideList>
@@ -189,13 +189,13 @@ export function CustomizeView({
                     }}
                     placeholder={t("Rule name")}
                     aria-label={t("Rule name")}
-                    className="h-7.5 min-w-0 flex-1 rounded-[6px] bg-field px-2.5 text-[12.5px] text-ink outline-none placeholder:text-ink-3"
+                    className="h-7.5 min-w-0 flex-1 rounded-chip bg-field px-2.5 text-ui-caption text-ink outline-none placeholder:text-ink-4"
                   />
                   <button
                     type="button"
                     disabled={!ruleName.trim() || creatingRule}
                     onClick={() => void submitRule("global")}
-                    className="pressable h-7.5 shrink-0 rounded-[6px] bg-ink px-3 text-[11.5px] font-medium text-canvas disabled:opacity-40"
+                    className="pressable h-7.5 shrink-0 rounded-chip bg-ink px-3 text-ui-sm font-medium text-canvas disabled:opacity-40"
                   >
                     {t("New global rule")}
                   </button>
@@ -203,12 +203,12 @@ export function CustomizeView({
                     type="button"
                     disabled={!ruleName.trim() || creatingRule}
                     onClick={() => void submitRule("project")}
-                    className="pressable h-7.5 shrink-0 rounded-[6px] bg-field px-3 text-[11.5px] font-medium text-ink-2 hover:bg-hover-2 hover:text-ink disabled:opacity-40"
+                    className="pressable h-7.5 shrink-0 rounded-chip bg-field px-3 text-ui-sm font-medium text-ink-2 hover:bg-hover-2 hover:text-ink disabled:opacity-40"
                   >
                     {t("New project rule")}
                   </button>
                 </div>
-                {ruleError ? <div className="mt-1.5 px-1 text-[11px] text-red">{ruleError}</div> : null}
+                {ruleError ? <div className="mt-1.5 px-1 text-ui-sm text-red">{ruleError}</div> : null}
               </div>
               {rules.length ? (
                 <div className="mt-4 flex min-h-0 flex-1 flex-col px-8">
@@ -216,23 +216,134 @@ export function CustomizeView({
                 </div>
               ) : (
                 <div className="px-8 pt-6">
-                  <div className="rounded-card border border-dashed border-line-strong px-6 py-12 text-center text-[12.5px] text-ink-3">
+                  <div className="rounded-card border border-dashed border-line-strong px-6 py-12 text-center text-ui-caption text-ink-3">
                     {t("No rules yet")}
                   </div>
                 </div>
               )}
             </>
           ) : (
-            <PluginsView
-              plugins={tab === "skills" ? skills : extensions}
-              loading={loading}
-              onToggle={onToggle}
-              onDelete={onDelete}
-              onOpen={onOpen}
-            />
+            <>
+              {/* the bundled picks: extensions and skills this app ships, one
+                  click each — the onboarding checklist, available forever */}
+              <BundledPicks kind={tab === "skills" ? "skill" : "extension"} onRefresh={onRefresh} />
+              <PluginsView
+                plugins={tab === "skills" ? skills : extensions}
+                loading={loading}
+                onToggle={onToggle}
+                onDelete={onDelete}
+                onOpen={onOpen}
+              />
+            </>
           )}
         </div>
       </div>
     </>
+  );
+}
+
+const PICK_ICON: Record<string, React.ReactNode> = {
+  "skill:browser-design": <SparkIcon size={16} />,
+  "skill:browser-ops": <GlobeIcon size={16} />,
+  "skill:plan-with-tasks": <ListIcon size={16} />,
+  "extension:plan-mode": <ListChecksIcon size={16} />,
+  "extension:agent-team": <LayersIcon size={16} />,
+};
+
+/**
+ * The bundled catalogue as always-available one-click installs.
+ *
+ * Extensions live in the onboarding checklist and nowhere else, so a machine
+ * onboarded before an extension shipped had no way to add it later — this is
+ * that path, permanent. Installing and removing run through the same catalogue
+ * writer the welcome screen uses, so a removal here also records the "do not
+ * reinstall" marker the startup sync respects.
+ */
+function BundledPicks({ kind, onRefresh }: { kind: "extension" | "skill"; onRefresh: () => void }) {
+  const [items, setItems] = useState<CatalogItem[]>([]);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () =>
+      window.pi.getCatalog().then((catalog) => {
+        if (!cancelled) setItems(catalog.filter((item) => item.kind === kind));
+      });
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [kind]);
+
+  const apply = async (item: CatalogItem) => {
+    setBusyId(item.id);
+    try {
+      /* the wanted set is everything currently installed plus this toggle —
+         the capabilities ride along so their flags are never clobbered */
+      const wanted = new Set(items.filter((entry) => entry.installed).map((entry) => entry.id));
+      if (wanted.has(item.id)) wanted.delete(item.id);
+      else wanted.add(item.id);
+      await window.pi.applyCatalog([...wanted]);
+      onRefresh();
+      const catalog = await window.pi.getCatalog();
+      setItems(catalog.filter((entry) => entry.kind === kind));
+    } catch {
+      /* the row keeps its previous state; the error surfaces on rescan */
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (!items.length) return null;
+
+  return (
+    <div className="shrink-0 px-8 pt-8">
+      <div className="mb-2 flex items-baseline gap-2 px-0.5">
+        <h2 className="text-ui-caption font-medium text-ink">{t("Recommended")}</h2>
+        <span className="text-ui-sm text-ink-3">{t("bundled with this app — one click to install")}</span>
+      </div>
+      <div className="flex flex-col gap-2">
+        {items.map((item, index) => (
+          <div
+            key={item.id}
+            className="flex items-start gap-3 rounded-card bg-surface p-3 shadow-hairline"
+            style={{ animation: `fade-up 420ms var(--ease-out-strong-css) ${index * 45}ms both` }}
+          >
+            <span className="mt-px shrink-0 text-ink-3">{PICK_ICON[item.id] ?? <SparkIcon size={16} />}</span>
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-2">
+                <span className="text-ui-caption font-medium text-ink">{item.name}</span>
+                {item.installed ? (
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-flex h-4.5 items-center rounded-full bg-green-tint px-1.5 text-ui-xs text-green">
+                      {t("Installed")}
+                    </span>
+                    {item.kind === "capability" ? (
+                      <span className="inline-flex h-4.5 items-center rounded-full bg-accent-tint px-1.5 text-ui-xs text-accent-ink">
+                        {t("Built in")}
+                      </span>
+                    ) : null}
+                  </span>
+                ) : null}
+              </span>
+              <span className="mt-0.5 block text-ui-sm leading-snug text-ink-3">{item.description}</span>
+            </span>
+            <button
+              type="button"
+              disabled={busyId === item.id}
+              onClick={() => void apply(item)}
+              className={cn(
+                "pressable h-7 shrink-0 rounded-chip px-2.5 text-ui-sm font-medium disabled:opacity-40",
+                item.installed
+                  ? "border border-line bg-page text-ink-2 hover:bg-hover hover:text-ink"
+                  : "bg-ink text-canvas",
+              )}
+            >
+              {item.installed ? t("Uninstall") : t("Install")}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

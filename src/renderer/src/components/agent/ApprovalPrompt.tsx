@@ -55,19 +55,19 @@ export function ApprovalPrompt({ request, onAnswer }: { request: UiRequest; onAn
       />
       <div
         className="relative w-full max-w-[460px]"
-        style={{ animation: "pop-in 220ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "bottom center" }}
+        style={{ animation: "pop-in 220ms var(--ease-out-strong-css) both", transformOrigin: "bottom center" }}
       >
         <div className="mb-1.5 flex items-center gap-2 px-1">
-          <span className="inline-flex h-4 items-center rounded-chip bg-ink px-1.5 font-mono text-[9.5px] text-canvas">
+          <span className="inline-flex h-4 items-center rounded-chip bg-ink px-1.5 font-mono text-ui-xs text-canvas">
             {t("agent")}
           </span>
-          <span className="text-[11px] text-ink-3">{t("needs a decision")}</span>
+          <span className="text-ui-sm text-ink-3">{t("needs a decision")}</span>
           <span className="flex-1" />
           <button
             type="button"
             onClick={() => onAnswer({ id: request.id, cancelled: true })}
             aria-label={t("Dismiss")}
-            className="pressable flex size-5 items-center justify-center rounded-[5px] text-ink-3 hover:bg-hover hover:text-ink"
+            className="pressable flex size-5 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
           >
             <XIcon size={11} />
           </button>
@@ -75,7 +75,7 @@ export function ApprovalPrompt({ request, onAnswer }: { request: UiRequest; onAn
 
         {request.kind === "input" ? (
           <div className="flex flex-col gap-2.5 rounded-card bg-surface p-3 shadow-overlay">
-            <div className="text-[13px] font-medium text-ink">{request.title}</div>
+            <div className="text-ui-base font-medium text-ink">{request.title}</div>
             <input
               autoFocus
               value={value}
@@ -88,20 +88,20 @@ export function ApprovalPrompt({ request, onAnswer }: { request: UiRequest; onAn
                 if (event.key === "Escape") onAnswer({ id: request.id, cancelled: true });
               }}
               placeholder={request.placeholder ?? ""}
-              className="h-7 rounded-control bg-field px-2 font-mono text-[12px] text-ink outline-none placeholder:text-ink-3"
+              className="h-7 rounded-control bg-field px-2 font-mono text-ui-caption text-ink outline-none placeholder:text-ink-4"
             />
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => onAnswer({ id: request.id, value })}
-                className="pressable-soft pressable h-7 rounded-control bg-ink px-3 text-[12px] font-medium text-canvas"
+                className="pressable-soft pressable h-7 rounded-control bg-ink px-3 text-ui-caption font-medium text-canvas"
               >
                 {t("Send")}
               </button>
               <button
                 type="button"
                 onClick={() => onAnswer({ id: request.id, cancelled: true })}
-                className="pressable h-7 rounded-control px-2.5 text-[12px] text-ink-3 hover:bg-hover hover:text-ink-2"
+                className="pressable h-7 rounded-control px-2.5 text-ui-caption text-ink-3 hover:bg-hover hover:text-ink-2"
               >
                 {t("Skip")}
               </button>
@@ -145,7 +145,7 @@ export function NoticeStack({
           key={notice.id}
           type="button"
           onClick={() => onDismiss(notice.id)}
-          style={{ animation: `pop-in 220ms cubic-bezier(0.23,1,0.32,1) ${index * 40}ms both`, transformOrigin: "bottom right" }}
+          style={{ animation: `pop-in 220ms var(--ease-out-strong-css) ${index * 40}ms both`, transformOrigin: "bottom right" }}
           className={cn(
             "pointer-events-auto flex items-start gap-2 rounded-card px-2.5 py-2 text-left shadow-overlay",
             notice.type === "error" ? "bg-red-tint text-red" : notice.type === "warning" ? "bg-orange-tint text-orange" : "bg-surface text-ink",
@@ -156,7 +156,7 @@ export function NoticeStack({
           ) : (
             <AlertIcon size={13} className="mt-px shrink-0" />
           )}
-          <span className="min-w-0 flex-1 text-[11.5px] leading-snug">{notice.message}</span>
+          <span className="min-w-0 flex-1 text-ui-sm leading-snug">{notice.message}</span>
         </button>
       ))}
     </div>

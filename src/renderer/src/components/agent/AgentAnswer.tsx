@@ -9,7 +9,7 @@ function CodeSegment({ lang, code }: { lang: string; code: string }) {
   const lines = code.split("\n");
   // a short listing reads better as the plain Code view; anything long scrolls
   return (
-    <div className="max-w-[640px]">
+    <div>
       <CodeBlock variant="Code" lines={lines} code={code} filename={lang ? `snippet.${lang}` : "snippet"} />
     </div>
   );
@@ -45,17 +45,16 @@ export const AgentAnswer = memo(function AgentAnswer({
   if (streaming) {
     // no card chrome while tokens arrive: the settled prose is plain text at
     // exactly these metrics, so the moment the stream hands over to markdown
-    // nothing shifts — same box, same type, no jump
+    // nothing shifts — same box, same type, no jump. Prose spans the full
+    // conversation column (ZCode's own measure), which is also what keeps the
+    // prompt shell below from outgrowing the text it answers.
     return (
-      <div
-        className="max-w-[640px]"
-        style={{ animation: "fade-up 300ms cubic-bezier(0.23,1,0.32,1) both" }}
-      >
+      <div style={{ animation: "fade-up 300ms var(--ease-out-strong-css) both" }}>
         <StreamText
           markdown
           text={item.text}
           done={false}
-          className="text-[13px] leading-[21px] text-ink"
+          className="text-ui-base leading-[21px] text-ink"
         />
       </div>
     );
@@ -63,41 +62,35 @@ export const AgentAnswer = memo(function AgentAnswer({
 
   const segments = splitSegments(item.text);
   const hasCode = segments.some((segment) => segment.kind === "code");
-  const prose = segments.filter((segment) => segment.kind === "text");
   const withSources = isLast && turn.sources.length > 0 && !hasCode;
 
   return (
     <div className="flex w-full flex-col gap-3">
-      {withSources ? (
-        <div className="max-w-[640px]">
-          <StreamingText
-            instant
-            loop={false}
-            fill
-            content={prose.flatMap((segment, index) =>
-              segment.kind === "text"
-                ? [
-                    ...segment.text.split(/(\s+)/).filter(Boolean).map((text) => ({ text })),
-                    ...(index === prose.length - 1 ? [{ text: "", cite: true }] : []),
-                  ]
-                : [],
-            )}
-            sources={turn.sources}
-            followUps={[]}
-            labels={{ sources: `${turn.sources.length} source${turn.sources.length === 1 ? "" : "s"}`, followUps: "" }}
-          />
-        </div>
-      ) : (
-        segments.map((segment, index) =>
-          segment.kind === "code" ? (
-            <CodeSegment key={index} lang={segment.lang} code={segment.code} />
-          ) : (
-            <div key={index} className="max-w-[640px]">
-              <Markdown>{segment.text}</Markdown>
-            </div>
-          ),
-        )
+      {/* the prose always goes through Markdown. It used to be handed to
+          StreamingText as a word-token list when the turn cited sources — and a
+          token list cannot carry structure, so the settled answer of every
+          search turned into literal `##`, `-` and `**` on screen. */}
+      {segments.map((segment, index) =>
+        segment.kind === "code" ? (
+          <CodeSegment key={index} lang={segment.lang} code={segment.code} />
+        ) : (
+          <div key={index}>
+            <Markdown>{segment.text}</Markdown>
+          </div>
+        ),
       )}
+
+      {withSources ? (
+        <StreamingText
+          instant
+          loop={false}
+          fill
+          content={[]}
+          sources={turn.sources}
+          followUps={[]}
+          labels={{ sources: `${turn.sources.length} source${turn.sources.length === 1 ? "" : "s"}`, followUps: "" }}
+        />
+      ) : null}
 
       {/* no per-answer usage line here: the turn's closing row already reports
           duration, tokens and cache share, and the two stacked rows repeated

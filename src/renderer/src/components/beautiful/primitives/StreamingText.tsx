@@ -58,12 +58,12 @@ function SourceChip({ source }: { source?: StreamingSource }) {
       href={source.href}
       target="_blank"
       rel="noreferrer"
-      className="ml-0 mr-1 inline-flex h-4.5 translate-y-[-1px] items-center gap-1 rounded-[5px]
-        bg-inset pr-[3px] pl-[3px] align-middle font-mono text-[10.5px] text-ink-2 shadow-hairline
+      className="ml-0 mr-1 inline-flex h-4.5 translate-y-[-1px] items-center gap-1 rounded-chip
+        bg-inset pr-[3px] pl-[3px] align-middle font-mono text-ui-xs text-ink-2 shadow-hairline
         transition-colors duration-150 hover:bg-hover hover:text-ink"
-      style={{ animation: "pop-in 250ms cubic-bezier(0.23,1,0.32,1) both" }}
+      style={{ animation: "pop-in 250ms var(--ease-out-strong-css) both" }}
     >
-      <img src={sourceImage(source)} alt="" className="source-avatar size-3 rounded-[3px]" />
+      <img src={sourceImage(source)} alt="" className="source-avatar size-3 rounded-tiny" />
       <span>{source.domain}</span>
     </a>
   );
@@ -140,7 +140,7 @@ export default function StreamingText({
 
   return (
     <div className={fill ? "w-full" : "min-h-[15.5rem] w-full max-w-95"}>
-      <p className="text-[13px] leading-relaxed text-ink">
+      <p className="text-ui-base leading-relaxed text-ink">
         {content.slice(0, count).map((token, i) =>
           token.cite ? (
             <SourceChip key={i} source={sources[0]} />
@@ -168,7 +168,7 @@ export default function StreamingText({
             key={i}
             type="button"
             aria-label="Action"
-            className="flex size-6 items-center justify-center rounded-[6px] text-ink-3
+            className="flex size-6 items-center justify-center rounded-chip text-ink-3
               transition-colors duration-100 hover:bg-hover-2 hover:text-ink-2"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -180,7 +180,7 @@ export default function StreamingText({
           type="button"
           aria-expanded={sourcesOpen}
           onClick={() => setSourcesOpen((current) => !current)}
-          className="ml-1.5 flex items-center gap-1.5 rounded-[6px] px-1 py-0.5 text-left transition-colors duration-150 hover:bg-hover"
+          className="ml-1.5 flex items-center gap-1.5 rounded-chip px-1 py-0.5 text-left transition-colors duration-150 hover:bg-hover"
         >
           <span className="flex -space-x-1">
             {sources.map((source) => (
@@ -192,7 +192,7 @@ export default function StreamingText({
               />
             ))}
           </span>
-          <span className="text-[12px] text-ink-2">{l.sources}</span>
+          <span className="text-ui-caption text-ink-2">{l.sources}</span>
         </button>
       </div>
 
@@ -201,22 +201,22 @@ export default function StreamingText({
         style={{
           gridTemplateRows: done && sourcesOpen ? "1fr" : "0fr",
           opacity: done && sourcesOpen ? 1 : 0,
-          transitionTimingFunction: "cubic-bezier(0.23, 1, 0.32, 1)",
+          transitionTimingFunction: "var(--ease-out-strong-css)",
         }}
       >
         <div className="overflow-hidden">
-          <div className="mt-1.5 flex flex-col rounded-[10px] bg-inset p-1 shadow-hairline">
+          <div className="mt-1.5 flex flex-col rounded-card bg-inset p-1 shadow-hairline">
             {sources.map((source) => (
               <a
                 key={source.domain}
                 href={source.href}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center gap-2 rounded-[6px] px-1.5 py-1 text-[12px] text-ink-2 transition-colors duration-150 hover:bg-hover hover:text-ink"
+                className="flex items-center gap-2 rounded-chip px-1.5 py-1 text-ui-caption text-ink-2 transition-colors duration-150 hover:bg-hover hover:text-ink"
               >
-                <img src={sourceImage(source)} alt="" className="source-avatar size-4 rounded-[4px]" />
+                <img src={sourceImage(source)} alt="" className="source-avatar size-4 rounded-tiny" />
                 <span className="animated-underline">{source.name}</span>
-                <span className="ml-auto font-mono text-[10.5px] text-ink-3">{source.domain}</span>
+                <span className="ml-auto font-mono text-ui-xs text-ink-3">{source.domain}</span>
               </a>
             ))}
           </div>
@@ -228,18 +228,18 @@ export default function StreamingText({
         className="mt-2.5 transition-opacity duration-400"
         style={{ opacity: done ? 1 : 0, pointerEvents: done ? "auto" : "none" }}
       >
-        <p className="text-[12px] font-medium text-ink-2">{l.followUps}</p>
+        <p className="text-ui-caption font-medium text-ink-2">{l.followUps}</p>
         <div className="mt-0.5 flex flex-col">
           {followUps.map((text, i) => (
             <button
               key={text}
               onClick={() => onFollowUp?.(text, i)}
-              className="-mx-1.5 flex items-center gap-2 rounded-[7px] border-b border-line
-                px-1.5 py-1.5 text-left text-[12.5px] text-ink transition-colors
+              className="-mx-1.5 flex items-center gap-2 rounded-chip border-b border-line
+                px-1.5 py-1.5 text-left text-ui-caption text-ink transition-colors
                 duration-100 hover:bg-hover-2"
               style={
                 done
-                  ? { animation: `fade-up 350ms cubic-bezier(0.23,1,0.32,1) ${i * 90}ms both` }
+                  ? { animation: `fade-up 350ms var(--ease-out-strong-css) ${i * 90}ms both` }
                   : { opacity: 0 }
               }
             >

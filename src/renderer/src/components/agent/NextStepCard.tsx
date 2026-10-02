@@ -134,7 +134,7 @@ export function NextStepCard({
   };
 
   return (
-    <div className="mx-auto mb-3 w-full max-w-[720px]" style={{ animation: "fade-up 400ms cubic-bezier(0.23,1,0.32,1) both" }}>
+    <div className="mx-auto mb-3 w-full max-w-[720px]" style={{ animation: "fade-up 400ms var(--ease-out-strong-css) both" }}>
       <RecommendationCard
         options={options}
         labels={{

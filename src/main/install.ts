@@ -75,6 +75,10 @@ export async function readConfig(): Promise<DesktopConfig> {
           : undefined,
       agents: coerceAgents(parsed.agents),
       terminal: coerceTerminal(parsed.terminal),
+      removedBundledExtensions: Array.isArray(parsed.removedBundledExtensions)
+        ? parsed.removedBundledExtensions.filter((name): name is string => typeof name === "string")
+        : [],
+      userName: typeof parsed.userName === "string" && parsed.userName.trim() ? parsed.userName.trim().slice(0, 40) : undefined,
     };
   } catch {
     return {
@@ -104,6 +108,8 @@ async function writeConfigNow(patch: Partial<DesktopConfig>): Promise<DesktopCon
     buildModel: "buildModel" in patch ? patch.buildModel : current.buildModel,
     agents: patch.agents ? coerceAgents({ ...current.agents, ...patch.agents }) : current.agents,
     terminal: patch.terminal ? coerceTerminal({ ...current.terminal, ...patch.terminal }) : current.terminal,
+    removedBundledExtensions: patch.removedBundledExtensions ?? current.removedBundledExtensions,
+    userName: "userName" in patch ? (patch.userName?.trim() ? patch.userName.trim().slice(0, 40) : undefined) : current.userName,
   };
   await mkdir(getAgentDir(), { recursive: true });
   const temporary = `${configPath()}.${process.pid}.tmp`;
@@ -233,6 +239,7 @@ export async function catalog(): Promise<CatalogItem[]> {
 export async function applyCatalog(ids: string[]): Promise<{ config: DesktopConfig; installed: string[] }> {
   const wanted = new Set(ids);
   const installed: string[] = [];
+  const config = await readConfig();
 
   // skills: copy in or remove, so the checkbox is a real toggle
   const names = existsSync(skillsRoot()) ? await readdir(skillsRoot()) : [];
@@ -251,8 +258,12 @@ export async function applyCatalog(ids: string[]): Promise<{ config: DesktopConf
   }
 
   // extensions: copied into the agent's own plugin folder, so pi (CLI or app)
-  // loads one and the same file
+  // loads one and the same file. Installing from the catalogue also forgives an
+  // earlier deletion — the checkbox is an explicit "I want this back".
   const extensionNames = existsSync(extensionsRoot()) ? await readdir(extensionsRoot()) : [];
+  const stillRemoved = (config.removedBundledExtensions ?? []).filter(
+    (name) => !(EXTENSION_META[name] && wanted.has(`extension:${name}`)),
+  );
   for (const name of extensionNames) {
     if (!EXTENSION_META[name]) continue;
     const target = extensionDir(name);
@@ -267,14 +278,55 @@ export async function applyCatalog(ids: string[]): Promise<{ config: DesktopConf
     }
   }
 
-  const config = await writeConfig({
+  const nextConfig = await writeConfig({
     capabilities: {
       browser: wanted.has("capability:browser"),
       todos: wanted.has("capability:todos"),
     },
+    removedBundledExtensions: stillRemoved,
   });
 
-  return { config, installed };
+  return { config: nextConfig, installed };
+}
+
+/** The bundled extension this path belongs to, if it is one — `null` otherwise. */
+export function bundledExtensionName(path: string): string | null {
+  const normalized = path.replace(/[\\/]+$/, "");
+  for (const name of Object.keys(EXTENSION_META)) {
+    if (normalized === extensionDir(name)) return name;
+  }
+  return null;
+}
+
+/**
+ * Install bundled extensions the machine is missing.
+ *
+ * Extensions ship in `resources/extensions` but only ever landed on a machine
+ * through the onboarding checklist — so a user onboarded before plan mode (or
+ * agent team) shipped never got the plugin, and `/plan` reached the model as
+ * literal text. This runs at startup and installs what is missing, skipping
+ * the ones the user deleted on purpose (`removedBundledExtensions`); a copy
+ * that already exists is left alone, because it may carry local edits.
+ */
+export async function syncBundledExtensions(): Promise<string[]> {
+  const installed: string[] = [];
+  const config = await readConfig();
+  const removed = new Set(config.removedBundledExtensions ?? []);
+  const names = existsSync(extensionsRoot()) ? await readdir(extensionsRoot()) : [];
+  for (const name of names) {
+    if (!EXTENSION_META[name]) continue;
+    if (removed.has(name)) continue;
+    const target = extensionDir(name);
+    if (isExtensionInstalled(name)) continue;
+    try {
+      await mkdir(target, { recursive: true });
+      await cp(join(extensionsRoot(), name), target, { recursive: true });
+      installed.push(name);
+    } catch {
+      /* a failed copy must not keep the host from starting */
+    }
+  }
+  return installed;
 }
 
 export async function markOnboardingDone(): Promise<DesktopConfig> {

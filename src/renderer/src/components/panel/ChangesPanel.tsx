@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { ChatMessage } from "@shared/types";
-import { buildTurns, toDiffRows, toolSignature, type DiffLine, type TurnView } from "../../lib/agent-view";
+import { buildTurns, toDiffRows, toolSignature, type DiffLine, type DiffPiece, type TurnView } from "../../lib/agent-view";
+import { highlightCode, languageFromFilename } from "../../lib/highlight";
 import { t, tf } from "../../lib/i18n";
 import { cn } from "../../lib/cn";
 import { ChevronDownIcon, FilePenIcon } from "../icons";
@@ -100,26 +101,26 @@ export function ChangesPanel({
 
   if (!changes.length) {
     return (
-      <div className="flex flex-col gap-1 px-3 py-6 text-[11.5px] text-ink-3">
+      <div className="flex flex-col gap-1 px-3 py-6 text-ui-sm text-ink-3">
         <span>{t("No edits yet.")}</span>
-        <span className="text-[11px]">{t("Files the agent writes with edit or write will be listed here.")}</span>
+        <span className="text-ui-sm">{t("Files the agent writes with edit or write will be listed here.")}</span>
       </div>
     );
   }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 pb-2">
-        <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink-2">
+      <div className="flex h-[40px] shrink-0 items-center gap-2 border-b border-line px-[12px]">
+        <span className="min-w-0 flex-1 truncate text-ui-base text-ink-2">
           {tf(changes.length === 1 ? "{count} file touched" : "{count} files touched", { count: changes.length })}
         </span>
-        <span className="shrink-0 font-mono text-[10.5px] tabular-nums">
+        <span className="shrink-0 font-mono text-ui-sm tabular-nums">
           <span className="text-green">+{totals.add}</span> <span className="text-red">−{totals.del}</span>
         </span>
       </div>
 
-      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 py-1.5">
-        <div className="flex flex-col gap-0.5">
+      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-[8px] py-[6px]">
+        <div className="flex flex-col gap-[2px]">
           {changes.map((change, index) => {
             const active = activeFile === change.file;
             const expanded = openFiles.has(change.file);
@@ -130,9 +131,9 @@ export function ChangesPanel({
             return (
               <div key={change.path ?? change.file} className="flex flex-col">
                 <div
-                  style={{ animation: `row-enter 240ms cubic-bezier(0.23,1,0.32,1) ${Math.min(index, 4) * 35}ms both` }}
+                  style={{ animation: `row-enter 240ms var(--ease-out-strong-css) ${Math.min(index, 4) * 35}ms both` }}
                   className={cn(
-                    "group/change flex items-center gap-1 rounded-[7px] pr-0.5",
+                    "group/change flex items-center gap-1 rounded-chip pr-0.5",
                     active ? "bg-surface shadow-hairline" : "hover:bg-hover",
                   )}
                 >
@@ -142,7 +143,7 @@ export function ChangesPanel({
                     aria-expanded={expanded}
                     disabled={!lines.length}
                     title={lines.length ? t("Show this file's diff") : t("No diff was recorded for this write")}
-                    className="flex min-w-0 flex-1 items-center gap-1.5 rounded-[7px] px-1.5 py-1.5 text-left disabled:cursor-default"
+                    className="flex min-w-0 flex-1 items-center gap-[8px] rounded-chip px-[8px] py-[7px] text-left disabled:cursor-default"
                   >
                     <ChevronDownIcon
                       size={10}
@@ -152,10 +153,13 @@ export function ChangesPanel({
                       )}
                       style={{ transform: expanded ? "rotate(0deg)" : "rotate(-90deg)" }}
                     />
-                    <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-ink-2">
+                    {/* the file is the row's title, so it takes the dock's one
+                        size and the brightest ink; the counts beside it are the
+                        metadata and stay a step down */}
+                    <span className="min-w-0 flex-1 truncate font-mono text-ui-base text-ink">
                       {change.file}
                     </span>
-                    <span className="shrink-0 font-mono text-[10.5px] tabular-nums">
+                    <span className="shrink-0 font-mono text-ui-sm tabular-nums">
                       {change.add ? <span className="text-green">+{change.add}</span> : null}
                       {change.del ? <span className="text-red"> −{change.del}</span> : null}
                     </span>
@@ -165,7 +169,7 @@ export function ChangesPanel({
                     onClick={() => onOpen(change)}
                     title={t("Open this file with its diff")}
                     aria-label={tf("Open {file}", { file: change.file })}
-                    className="pressable flex size-5 shrink-0 items-center justify-center rounded-[5px] text-ink-3 opacity-0 hover:bg-hover-2 hover:text-ink group-hover/change:opacity-100 focus-visible:opacity-100"
+                    className="pressable flex size-5 shrink-0 items-center justify-center rounded-chip text-ink-3 opacity-0 hover:bg-hover-2 hover:text-ink group-hover/change:opacity-100 focus-visible:opacity-100"
                   >
                     <FilePenIcon size={12} />
                   </button>
@@ -173,12 +177,12 @@ export function ChangesPanel({
 
                 {expanded ? (
                   <div className="ml-[13px] border-l border-line py-1 pl-2">
-                    <DiffPreview lines={shown} />
+                    <DiffPreview lines={shown} file={change.file} />
                     {hidden > 0 ? (
                       <button
                         type="button"
                         onClick={() => onOpen(change)}
-                        className="pressable mt-1 rounded-chip px-1.5 py-0.5 text-[10.5px] text-ink-3 hover:bg-hover hover:text-ink-2"
+                        className="pressable mt-1 rounded-chip px-1.5 py-0.5 text-ui-xs text-ink-3 hover:bg-hover hover:text-ink-2"
                       >
                         {tf("+{count} more lines — open the file", { count: hidden })}
                       </button>
@@ -201,24 +205,28 @@ export function ChangesPanel({
  * horizontally hides the change it is describing. The gutter carries the real
  * line number the parser resolved, so a multi-hunk patch numbers correctly.
  *
- * The code itself stays in the normal ink and only the gutter is coloured, the
- * way a diff is read everywhere else — green and red text on a green and red
- * wash made both the wash and the colouring redundant, and the eye had to
- * decode the tint before the line. The words that actually changed keep a
- * stronger wash of their own, from the same rows the code card renders.
+ * The code is highlighted with the file's own grammar, in whichever code theme
+ * Settings ▸ Appearance picked — the same colours the file gets when it is
+ * opened in full. It used to be laid down as flat ink, which left the green and
+ * red row washes as the only colour on screen: a preview that says *that*
+ * something changed without ever showing what the line now is. Only the gutter
+ * and the wash say added/removed; the words themselves are coloured as code.
+ * The runs that actually changed keep a stronger wash of their own, from the
+ * same rows the code card renders.
  */
-function DiffPreview({ lines }: { lines: DiffLine[] }) {
+function DiffPreview({ lines, file }: { lines: DiffLine[]; file: string }) {
   const rows = toDiffRows(lines);
+  const lang = languageFromFilename(file);
   if (!rows.length) {
-    return <div className="px-1.5 py-1 text-[10.5px] text-ink-3">{t("No diff was recorded.")}</div>;
+    return <div className="px-1.5 py-1 text-ui-xs text-ink-3">{t("No diff was recorded.")}</div>;
   }
 
   return (
-    <div className="flex flex-col font-mono text-[10.5px] leading-[1.65]">
+    <div className="hljs flex flex-col font-mono text-ui-xs leading-[1.65]">
       {rows.map((row, index) => {
         if (row.type === "ctx" && (row.pieces[0]?.text ?? "").startsWith("@@")) {
           return (
-            <div key={index} className="mt-1 mb-0.5 truncate text-[10px] text-ink-3 first:mt-0">
+            <div key={index} className="mt-1 mb-0.5 truncate text-ui-xs text-ink-3 first:mt-0">
               {row.pieces.map((piece) => piece.text).join("")}
             </div>
           );
@@ -229,7 +237,7 @@ function DiffPreview({ lines }: { lines: DiffLine[] }) {
           <div
             key={index}
             className={cn(
-              "grid grid-cols-[26px_minmax(0,1fr)] items-start rounded-[3px]",
+              "grid grid-cols-[26px_minmax(0,1fr)] items-start rounded-tiny",
               add ? "bg-green-tint" : del ? "bg-red-tint" : "",
             )}
           >
@@ -241,30 +249,44 @@ function DiffPreview({ lines }: { lines: DiffLine[] }) {
             >
               {(del ? row.old : row.cur) ?? ""}
             </span>
-            <span className="min-w-0 break-words whitespace-pre-wrap text-ink-2">
-              {row.pieces.map((piece, j) =>
-                piece.change ? (
-                  <span
-                    key={j}
-                    className="rounded-[3px]"
-                    style={{
-                      background: `color-mix(in srgb, var(--${piece.change === "add" ? "green" : "red"}) 18%, transparent)`,
-                      padding: "0 2px",
-                      margin: "0 -1px",
-                      boxDecorationBreak: "clone",
-                      WebkitBoxDecorationBreak: "clone",
-                    }}
-                  >
-                    {piece.text}
-                  </span>
-                ) : (
-                  <span key={j}>{piece.text}</span>
-                ),
-              )}
+            {/* no ink class on the code itself: the line takes the code theme's
+                own foreground (`.hljs`), the way the same file reads in full */}
+            <span className="min-w-0 break-words whitespace-pre-wrap">
+              {row.pieces.map((piece, j) => (
+                <Piece key={j} piece={piece} lang={lang} />
+              ))}
             </span>
           </div>
         );
       })}
     </div>
+  );
+}
+
+/** One run of a diff row: highlighted on its own, plus the wash that marks it as
+ *  the part of the line the edit actually touched.
+ *
+ *  A piece is highlighted alone rather than as part of the line because a
+ *  fragment like `{ flavor }` has no line around it to be lexed against, and a
+ *  half-open string in one run must not leak its colour into the next. */
+function Piece({ piece, lang }: { piece: DiffPiece; lang: string }) {
+  const html = highlightCode(piece.text, lang);
+  const style = piece.change
+    ? {
+        background: `color-mix(in srgb, var(--${piece.change === "add" ? "green" : "red"}) 18%, transparent)`,
+        padding: "0 2px",
+        margin: "0 -1px",
+        boxDecorationBreak: "clone" as const,
+        WebkitBoxDecorationBreak: "clone" as const,
+      }
+    : undefined;
+
+  if (!html) return <span style={style}>{piece.text}</span>;
+  return (
+    <span
+      style={style}
+      // eslint-disable-next-line react/no-danger -- highlight.js escapes its input
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   );
 }

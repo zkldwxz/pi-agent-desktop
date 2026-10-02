@@ -22,7 +22,7 @@ export function DockToggle({ open, onToggle }: { open: boolean; onToggle: () => 
       aria-label={open ? t("Hide the tool panel") : t("Show the tool panel")}
       onClick={onToggle}
       className={cn(
-        "pressable flex size-6 shrink-0 items-center justify-center rounded-[6px]",
+        "pressable flex size-6 shrink-0 items-center justify-center rounded-chip",
         open ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
       )}
     >

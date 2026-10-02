@@ -8,14 +8,16 @@ import {
   SettingsIcon,
 } from "../icons";
 import { cn } from "../../lib/cn";
+import { initialsOf } from "../../lib/format";
 import { NavRow } from "../NavRow";
-import { WorkspaceList, type WorkspacePrefs } from "./WorkspaceList";
+import { WorkspaceList, loadSessionGroups, type SessionGroups, type WorkspacePrefs } from "./WorkspaceList";
+import { loadSidebarPrefs, saveSidebarPrefs, onSidebarPrefs } from "../../lib/sidebar-prefs";
 import { t, useLocale } from "../../lib/i18n";
 import { formatChord, useShortcuts } from "../../lib/keybindings";
 
-const PREFS_KEY = "pi-workspace-prefs";
 const RENAME_KEY = "pi-workspace-names";
 const READ_KEY = "pi-workspace-read";
+const SESSION_GROUPS_KEY = "pi-session-groups";
 const SIDEBAR_WIDTH_KEY = "pi-sidebar-width";
 
 const DEFAULT_PREFS: WorkspacePrefs = { group: "workspace", order: "recent", show: 3, statusFilter: "all" };
@@ -94,28 +96,30 @@ export function AgentSidebar({
   onView,
   onNew,
   onSelect,
-  onPickCwd,
   onSearch,
   onNewInWorkspace,
   collapsed,
   onCollapsedChange,
+  userName,
 }: {
   state: HostState;
   view: SidebarView;
   onView: (view: SidebarView) => void;
   onNew: () => void;
   onSelect: (path: string) => void;
-  onPickCwd: () => void;
   onSearch: () => void;
   onNewInWorkspace?: (cwd: string) => void;
   /** owned by the app so the title bar can toggle the same state */
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
+  /** the account row's name — the person, not the provider */
+  userName?: string;
 }) {
   const [all, setAll] = useState<SessionListItem[]>(state.sessions);
-  const [prefs, setPrefs] = useState<WorkspacePrefs>(() => load(PREFS_KEY, DEFAULT_PREFS));
+  const [prefs, setPrefs] = useState<WorkspacePrefs>(() => loadSidebarPrefs(DEFAULT_PREFS));
   const [renamed, setRenamed] = useState<Record<string, string>>(() => load(RENAME_KEY, {}));
   const [readAt, setReadAt] = useState<Record<string, number>>(() => load(READ_KEY, {}));
+  const [sessionGroups, setSessionGroups] = useState<SessionGroups>(() => loadSessionGroups());
   useLocale();
   const chords = useShortcuts();
   const setCollapsed = onCollapsedChange;
@@ -207,9 +211,24 @@ export function AgentSidebar({
     };
   }, [sessionsSignature]);
 
-  useEffect(() => localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)), [prefs]);
+  useEffect(() => saveSidebarPrefs(prefs), [prefs]);
   useEffect(() => localStorage.setItem(RENAME_KEY, JSON.stringify(renamed)), [renamed]);
   useEffect(() => localStorage.setItem(READ_KEY, JSON.stringify(readAt)), [readAt]);
+  useEffect(() => localStorage.setItem(SESSION_GROUPS_KEY, JSON.stringify(sessionGroups)), [sessionGroups]);
+  /* Settings edits the same prefs; the module fans the change back out here */
+  useEffect(() => onSidebarPrefs(setPrefs), []);
+
+  /* "New chat in group": pi's newSession carries no return value, so the
+   * session's file is claimed the moment the snapshot reports it, then the
+   * pending marker is dropped — a failed create leaves nothing assigned. */
+  const pendingGroupRef = useRef<string | null>(null);
+  const sessionFile = state.snapshot?.sessionFile;
+  useEffect(() => {
+    const group = pendingGroupRef.current;
+    if (!sessionFile || !group) return;
+    pendingGroupRef.current = null;
+    setSessionGroups((current) => ({ ...current, assign: { ...current.assign, [sessionFile]: group } }));
+  }, [sessionFile]);
 
   const openSession = (path: string) => {
     setReadAt((current) => ({ ...current, [path]: Date.now() }));
@@ -223,7 +242,7 @@ export function AgentSidebar({
       className="relative flex h-full shrink-0 flex-col overflow-hidden border-r border-line bg-canvas select-none"
       style={{
         width: collapsed ? WIDTH_COLLAPSED : sidebarWidth,
-        transition: isResizing ? "none" : "width 280ms cubic-bezier(0.16, 1, 0.3, 1)",
+        transition: isResizing ? "none" : "width 280ms var(--ease-link-css)",
         willChange: railAnimating ? "width" : undefined,
       }}
     >
@@ -248,7 +267,7 @@ export function AgentSidebar({
                 aria-label={t("Collapse sidebar")}
                 title={t("Collapse sidebar")}
                 onClick={() => setCollapsed(true)}
-                className="pressable flex size-7 items-center justify-center rounded-[6px] text-ink-3 hover:bg-hover hover:text-ink"
+                className="pressable flex size-7 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
               >
                 <PanelLeftIcon size={14} />
               </button>
@@ -285,31 +304,40 @@ export function AgentSidebar({
             activePath={state.snapshot?.sessionFile}
             readAt={readAt}
             cwd={state.cwd}
+            homeDir={state.homeDir}
             onReadAll={() =>
               setReadAt(Object.fromEntries(all.map((session) => [session.path, Date.now()])))
             }
             onSelect={openSession}
             onRename={(key, label) => setRenamed((current) => ({ ...current, [key]: label }))}
-            onAddFolder={onPickCwd}
             onNewInWorkspace={onNewInWorkspace}
+            onNewInGroup={(group) => {
+              pendingGroupRef.current = group;
+              onNew();
+            }}
+            sessionGroups={sessionGroups}
+            onSessionGroups={setSessionGroups}
           />
         </div>
         )}
 
         {/* account */}
         <div className="side-pane-copy flex w-full shrink-0 items-center gap-2 border-t border-line px-3 py-2.5">
-          <div className="flex size-[22px] shrink-0 items-center justify-center rounded-full bg-ink text-[9px] font-semibold text-canvas">
-            PI
+          {/* the person sitting here, not the vendor: initials avatar + the name
+              they were asked for at onboarding */}
+          <div
+            className="flex size-[22px] shrink-0 items-center justify-center rounded-full bg-ink text-ui-xs font-semibold text-canvas"
+            title={userName}
+          >
+            {initialsOf(userName)}
           </div>
-          <span className="min-w-0 flex-1 truncate text-[12px] text-ink-3">
-            {state.snapshot?.model?.provider ?? "local"}
-          </span>
+          <span className="min-w-0 flex-1 truncate text-ui-caption text-ink-3">{userName || t("User")}</span>
           <button
             type="button"
             title={t("Settings")}
             aria-label={t("Settings")}
             onClick={() => onView("settings")}
-            className="pressable flex size-7 shrink-0 items-center justify-center rounded-[6px] text-ink-3 hover:bg-hover hover:text-ink"
+            className="pressable flex size-7 shrink-0 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
           >
             <SettingsIcon size={14} />
           </button>

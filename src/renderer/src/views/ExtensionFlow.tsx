@@ -95,14 +95,14 @@ export function ExtensionFlow({ state }: { state: HostState }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2.5">
-        <span className="text-[12px] text-ink-3">
+        <span className="text-ui-caption text-ink-3">
           {tf("{count} tools available · capabilities are switched in Settings → Customize", { count: state.tools.length })}
         </span>
         {!browserOn ? (
-          <span className="rounded-chip bg-orange-tint px-2 py-0.5 text-[11px] text-orange">{t("browser off")}</span>
+          <span className="rounded-chip bg-orange-tint px-2 py-0.5 text-ui-sm text-orange">{t("browser off")}</span>
         ) : null}
         {!todosOn ? (
-          <span className="rounded-chip bg-orange-tint px-2 py-0.5 text-[11px] text-orange">{t("task list off")}</span>
+          <span className="rounded-chip bg-orange-tint px-2 py-0.5 text-ui-sm text-orange">{t("task list off")}</span>
         ) : null}
       </div>
       <div className="overflow-x-auto pb-1">

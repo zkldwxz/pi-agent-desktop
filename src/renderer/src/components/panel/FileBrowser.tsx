@@ -94,7 +94,7 @@ export function FileBrowser({
             onReveal(entry.path);
           }}
           className={cn(
-            "group/file pressable row-enter flex h-7 w-full items-center gap-1.5 rounded-[6px] pr-2 text-left",
+            "group/file pressable row-enter flex h-[28px] w-full items-center gap-[8px] rounded-chip pr-[8px] text-left",
             active ? "bg-surface text-ink shadow-hairline" : "text-ink-2 hover:bg-hover",
           )}
         >
@@ -122,9 +122,9 @@ export function FileBrowser({
               <span className="size-[5px] rounded-[1px] bg-line-strong" />
             </span>
           )}
-          <span className={cn("min-w-0 flex-1 truncate text-[12.5px]", active && "font-medium")}>{entry.name}</span>
+          <span className={cn("min-w-0 flex-1 truncate text-ui-base", active && "font-medium")}>{entry.name}</span>
           {entry.kind === "file" && entry.size !== undefined ? (
-            <span className="shrink-0 font-mono text-[9.5px] text-ink-3 tabular-nums">{formatSize(entry.size)}</span>
+            <span className="shrink-0 font-mono text-ui-sm text-ink-3 tabular-nums">{formatSize(entry.size)}</span>
           ) : null}
         </button>
         {isOpen && nested
@@ -138,14 +138,14 @@ export function FileBrowser({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center gap-1.5 px-2 pb-1.5">
-        <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-ink-3">{root}</span>
+      <div className="flex h-[40px] shrink-0 items-center gap-[8px] border-b border-line px-[12px]">
+        <span className="min-w-0 flex-1 truncate font-mono text-ui-sm text-ink-3">{root}</span>
         <button
           type="button"
           title={showAll ? t("Hide ignored folders") : t("Show ignored folders")}
           onClick={() => setShowAll(!showAll)}
           className={cn(
-            "pressable flex size-6 items-center justify-center rounded-[5px]",
+            "pressable flex size-6 items-center justify-center rounded-chip",
             showAll ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
           )}
         >
@@ -155,27 +155,27 @@ export function FileBrowser({
           type="button"
           title={t("Refresh")}
           onClick={() => void loadRoot()}
-          className="pressable flex size-6 items-center justify-center rounded-[5px] text-ink-3 hover:bg-hover hover:text-ink"
+          className="pressable flex size-6 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
         >
           <RefreshIcon size={12} />
         </button>
       </div>
 
-      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-[8px] pb-[8px]">
         {loading ? (
-          <div className="flex flex-col gap-1 py-2">
+          <div className="flex flex-col gap-[6px] py-[8px]">
             {[0, 1, 2, 3, 4].map((index) => (
               <div
                 key={index}
-                className="h-6 rounded-[6px] bg-hover-2"
+                className="h-[16px] rounded-chip bg-hover-2"
                 style={{ animation: `fade-in 300ms ease-out ${index * 40}ms both` }}
               />
             ))}
           </div>
         ) : error ? (
-          <div className="px-1 py-4 text-[11.5px] text-red">{error}</div>
+          <div className="px-1 py-4 text-ui-sm text-red">{error}</div>
         ) : entries.length === 0 ? (
-          <div className="px-1 py-4 text-[11.5px] text-ink-3">{t("Empty folder.")}</div>
+          <div className="px-1 py-4 text-ui-sm text-ink-3">{t("Empty folder.")}</div>
         ) : (
           <div className="flex flex-col gap-px">
             {entries.map((entry) => (

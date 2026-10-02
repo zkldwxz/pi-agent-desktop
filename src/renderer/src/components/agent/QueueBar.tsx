@@ -1,127 +1,104 @@
+import { useEffect, useState } from "react";
 import type { QueueState } from "@shared/types";
 import { cn } from "../../lib/cn";
 import { t, tf } from "../../lib/i18n";
-import { Collapse, GlideList, SlidingGroup } from "../motion";
-import { ArrowUpIcon, ClockIcon, XIcon } from "../icons";
+import { Collapse, GlideList } from "../motion";
+import { ArrowUpIcon, ChevronDownIcon, ClockIcon, PencilIcon, XIcon } from "../icons";
 
 export type QueueBehavior = "steer" | "followUp";
 export type QueueMode = "all" | "one-at-a-time";
 
-const MODES: Array<{ key: QueueMode; label: string; title: string }> = [
-  { key: "one-at-a-time", label: "one at a time", title: "Hand pi one queued message at a time" },
-  { key: "all", label: "all at once", title: "Hand pi every queued message together" },
-];
+/** How many queued messages a section lists before folding the rest behind a
+ *  count. The card sits directly above the composer, so an unbounded list would
+ *  push the editor down the window. */
+const SHOWN = 3;
 
 /**
- * The message queue.
+ * The message queue, stripped to the minimum.
  *
- * pi holds messages sent while the agent is running, and it distinguishes two
- * kinds: **steering**, delivered at the next turn boundary, and **follow-up**,
- * delivered only once the agent stops. That difference decides whether you are
- * correcting the current run or adding to the next one, so both are shown
- * separately and the send behaviour is a visible choice rather than a setting
- * buried in a config file.
- *
- * Each section also carries pi's own delivery mode for that kind. It was
- * previously printed as read-only text; it is a real session setting
- * (`setSteeringMode` / `setFollowUpMode`), so it is a control here.
- *
- * The card is the width of the prompt bar below it, so the two read as one
- * stack: queue first, then the editor.
+ * pi holds messages sent while the agent is running in two queues — steering
+ * and follow-up — and which one a send lands in is a *setting* now (智能体 ·
+ * 消息发送), not a switch on this card. What remains per message is exactly
+ * three actions: load it back into the editor, fire it immediately, or drop
+ * it. The kind labels stay tiny; everything else went away.
  *
  * Clearing hands the text back to the composer, which is what pi's own Esc does.
  */
 export function QueueBar({
   queue,
-  behavior,
-  onBehavior,
-  onMode,
   onRemove,
   onClear,
+  onEdit,
+  onSendNow,
 }: {
   queue: QueueState;
-  behavior: QueueBehavior;
-  onBehavior: (behavior: QueueBehavior) => void;
-  onMode: (kind: "steering" | "followUp", mode: QueueMode) => void;
   onRemove: (kind: "steering" | "followUp", index: number) => void;
   onClear: () => void;
+  /** load a queued message back into the composer for editing */
+  onEdit: (kind: "steering" | "followUp", index: number, text: string) => void;
+  /** fire one queued message right now, ahead of the rest */
+  onSendNow: (kind: "steering" | "followUp", index: number, text: string) => void;
 }) {
   const total = queue.steering.length + queue.followUp.length;
+  const [expanded, setExpanded] = useState(false);
+
+  /* an emptied queue is a fresh queue — the next batch must not arrive already
+     unfolded from wherever the last one was left */
+  useEffect(() => {
+    if (!total) setExpanded(false);
+  }, [total]);
+
+  const visible = (texts: string[]) => (expanded ? texts : texts.slice(0, SHOWN));
 
   return (
     <Collapse open={total > 0}>
       <div className="mx-auto mb-2 w-full max-w-[720px]">
-        <div className="flex flex-col gap-2 rounded-[14px] border border-line bg-surface px-3 py-2.5 shadow-card">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-1 rounded-window border border-line bg-surface px-3 py-2 shadow-card">
+          <div className="flex items-center gap-2 px-0.5">
             <ClockIcon size={12} className="shrink-0 text-ink-3" />
-            <span className="text-[11.5px] font-medium text-ink">
+            <span className="text-ui-sm font-medium text-ink">
               {tf(total === 1 ? "{count} message queued" : "{count} messages queued", { count: total })}
             </span>
             <span className="flex-1" />
-            <span className="hidden text-[10.5px] text-ink-3 sm:inline">{t("next message will")}</span>
-            <SlidingGroup
-              activeIndex={behavior === "steer" ? 0 : 1}
-              className="flex items-center gap-0.5 rounded-chip bg-field p-[3px]"
-              pillClassName="bg-surface shadow-hairline"
-            >
-              {(
-                [
-                  { key: "steer", label: "Interrupt", title: "Delivered at the next turn boundary" },
-                  { key: "followUp", label: "Wait", title: "Delivered once the agent stops" },
-                ] as const
-              ).map((entry) => (
-                <button
-                  key={entry.key}
-                  data-slide-item
-                  type="button"
-                  title={t(entry.title)}
-                  onClick={() => onBehavior(entry.key)}
-                  className={cn(
-                    "pressable relative z-10 h-5 rounded-[4px] px-2 text-[10.5px]",
-                    behavior === entry.key ? "text-ink" : "text-ink-3 hover:text-ink-2",
-                  )}
-                >
-                  {t(entry.label)}
-                </button>
-              ))}
-            </SlidingGroup>
             <button
               type="button"
               onClick={onClear}
               title={t("Clear the queue and put the text back in the editor")}
-              className="pressable shrink-0 rounded-chip px-1.5 py-0.5 text-[10.5px] text-ink-3 hover:bg-hover hover:text-ink-2"
+              className="pressable shrink-0 rounded-chip px-1.5 py-0.5 text-ui-xs text-ink-3 hover:bg-hover hover:text-ink-2"
             >
               {t("Clear")}
             </button>
           </div>
 
           {queue.steering.length ? (
-            <Section
-              kind="steering"
-              label="Interrupt"
-              hint="delivered at the next turn boundary"
-              mode={queue.steeringMode}
-              onMode={onMode}
-              tone="accent"
-            >
-              {queue.steering.map((text, index) => (
-                <Chip key={`s-${index}`} text={text} tone="accent" onRemove={() => onRemove("steering", index)} />
+            <Section kind="steering" count={queue.steering.length}>
+              {visible(queue.steering).map((text, index) => (
+                <Chip
+                  key={`s-${index}`}
+                  text={text}
+                  tone="accent"
+                  onEdit={() => onEdit("steering", index, text)}
+                  onSendNow={() => onSendNow("steering", index, text)}
+                  onRemove={() => onRemove("steering", index)}
+                />
               ))}
+              <Rest count={queue.steering.length} shown={Math.min(queue.steering.length, SHOWN)} onExpand={() => setExpanded(true)} expanded={expanded} />
             </Section>
           ) : null}
 
           {queue.followUp.length ? (
-            <Section
-              kind="followUp"
-              label="After the run"
-              hint="delivered once the agent stops"
-              mode={queue.followUpMode}
-              onMode={onMode}
-              tone="neutral"
-            >
-              {queue.followUp.map((text, index) => (
-                <Chip key={`f-${index}`} text={text} tone="neutral" onRemove={() => onRemove("followUp", index)} />
+            <Section kind="followUp" count={queue.followUp.length}>
+              {visible(queue.followUp).map((text, index) => (
+                <Chip
+                  key={`f-${index}`}
+                  text={text}
+                  tone="neutral"
+                  onEdit={() => onEdit("followUp", index, text)}
+                  onSendNow={() => onSendNow("followUp", index, text)}
+                  onRemove={() => onRemove("followUp", index)}
+                />
               ))}
+              <Rest count={queue.followUp.length} shown={Math.min(queue.followUp.length, SHOWN)} onExpand={() => setExpanded(true)} expanded={expanded} />
             </Section>
           ) : null}
         </div>
@@ -132,97 +109,113 @@ export function QueueBar({
 
 function Section({
   kind,
-  label,
-  hint,
-  mode,
-  onMode,
-  tone,
+  count,
   children,
 }: {
   kind: "steering" | "followUp";
-  label: string;
-  hint: string;
-  mode: QueueMode;
-  onMode: (kind: "steering" | "followUp", mode: QueueMode) => void;
-  tone: "accent" | "neutral";
+  count: number;
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1 border-t border-line pt-2">
-      <div className="flex items-center gap-2 px-0.5">
-        <span
-          className={cn(
-            "size-1.5 shrink-0 rounded-full",
-            tone === "accent" ? "bg-accent" : "bg-line-strong",
-          )}
-        />
-        <span className="shrink-0 text-[11.5px] font-medium text-ink-2">{t(label)}</span>
-        <span className="hidden min-w-0 truncate text-[10.5px] text-ink-3 md:inline">{t(hint)}</span>
-        <span className="flex-1" />
-        <SlidingGroup
-          activeIndex={mode === "all" ? 1 : 0}
-          className="flex items-center gap-0.5 rounded-chip bg-field p-[3px]"
-          pillClassName="bg-surface shadow-hairline"
-        >
-          {MODES.map((entry) => (
-            <button
-              key={entry.key}
-              data-slide-item
-              type="button"
-              title={t(entry.title)}
-              onClick={() => onMode(kind, entry.key)}
-              className={cn(
-                "pressable relative z-10 h-[18px] rounded-[4px] px-1.5 text-[10px]",
-                mode === entry.key ? "text-ink" : "text-ink-3 hover:text-ink-2",
-              )}
-            >
-              {t(entry.label)}
-            </button>
-          ))}
-        </SlidingGroup>
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-2 px-0.5 pt-1">
+        <span className={cn("size-1.5 shrink-0 rounded-full", kind === "steering" ? "bg-accent" : "bg-line-strong")} />
+        <span className="shrink-0 text-ui-xs text-ink-3">{t(kind === "steering" ? "Interrupt" : "After the run")}</span>
+        <span className="shrink-0 font-mono text-ui-xs tabular-nums text-ink-3">{count}</span>
       </div>
       <GlideList className="flex flex-col gap-px">{children}</GlideList>
     </div>
   );
 }
 
+/** The folded tail of a section, and the way back to it. */
+function Rest({
+  count,
+  shown,
+  expanded,
+  onExpand,
+}: {
+  count: number;
+  shown: number;
+  expanded: boolean;
+  onExpand: () => void;
+}) {
+  if (count <= shown) return null;
+  return (
+    <button
+      type="button"
+      onClick={onExpand}
+      className="pressable flex items-center gap-1 rounded-chip px-2 py-1 text-ui-xs text-ink-3 hover:bg-hover hover:text-ink-2"
+    >
+      <ChevronDownIcon size={10} className={cn("shrink-0 transition-transform duration-200", expanded && "rotate-180")} />
+      {tf("{count} more in this queue", { count: count - shown })}
+    </button>
+  );
+}
+
 function Chip({
   text,
   tone,
+  onEdit,
+  onSendNow,
   onRemove,
 }: {
   text: string;
   tone: "accent" | "neutral";
+  onEdit: () => void;
+  onSendNow: () => void;
   onRemove: () => void;
 }) {
   return (
     <div
       data-row
       className={cn(
-        "glide-row pressable flex items-center gap-2 rounded-[7px] px-2 py-1.5",
+        "glide-row group/queued flex items-center gap-2 rounded-chip px-2 py-1.5",
         tone === "accent" ? "bg-accent-tint" : "bg-inset",
       )}
-      style={{ animation: "pop-in 220ms cubic-bezier(0.23,1,0.32,1) both" }}
     >
-      <span className={cn("shrink-0", tone === "accent" ? "text-accent-ink" : "text-ink-3")}>
-        <ArrowUpIcon size={10} />
-      </span>
       <span
         className={cn(
-          "min-w-0 flex-1 truncate text-[11.5px]",
+          "min-w-0 flex-1 truncate text-ui-sm",
           tone === "accent" ? "text-accent-ink" : "text-ink-2",
         )}
       >
         {text}
       </span>
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={t("Remove from queue")}
-        className="pressable flex size-4 shrink-0 items-center justify-center rounded-[4px] text-ink-3 hover:bg-hover hover:text-ink"
-      >
-        <XIcon size={10} />
-      </button>
+      {/* exactly three actions, icons only, on hover — the row itself stays text */}
+      <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-100 group-hover/queued:opacity-100">
+        <IconAction label="Load into the editor" onClick={onEdit}>
+          <PencilIcon size={11} />
+        </IconAction>
+        <IconAction label="Send now" onClick={onSendNow}>
+          <ArrowUpIcon size={11} />
+        </IconAction>
+        <IconAction label="Remove from queue" onClick={onRemove}>
+          <XIcon size={11} />
+        </IconAction>
+      </span>
     </div>
+  );
+}
+
+function IconAction({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={t(label)}
+      title={t(label)}
+      className="pressable flex size-5 shrink-0 items-center justify-center rounded-tiny text-ink-3 hover:bg-hover hover:text-ink"
+    >
+      {children}
+    </button>
   );
 }

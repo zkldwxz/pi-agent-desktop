@@ -47,9 +47,15 @@ Light theme (default):
   gradient.
 
 Dark theme maps the same roles: page `#16181C`, canvas `#1B1E23`, surface
-`#23262C`, field `#2A2D34`, hairline `#33363E`, ink `#F2F3F6`, ink-2
-`#BFC3CC`, ink-3 `#8B909C`, green `#4FBE8B`, amber `#E69A4B`, coral `#E4675C`,
-violet `#9B6FF0`.
+`#23262C`, field `#2A2D34`, hairline `#33363E`, green `#4FBE8B`, amber
+`#E69A4B`, coral `#E4675C`, violet `#9B6FF0`. Its label ramp lifts the two
+middle levels above the light theme's mirror image — `#F3F4F6` / `#C4C7CC` /
+`#A2A5AB` — because a step that reads as hierarchy on white reads as the same
+grey wash on near-black; plus a fourth, dimmer level (`#5B5D62`) for what has to
+read as *empty* rather than as quiet: placeholders and other dimmed affordances.
+Light-on-dark glyphs also keep the platform's own font smoothing (see the
+dark-mode block in `index.css`): forcing `antialiased` there thins every stem and
+turns white into grey.
 
 ## 3. Typography Rules
 

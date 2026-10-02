@@ -166,3 +166,62 @@ export function canHighlight(language: string): boolean {
   ensureRegistered();
   return Boolean(hljs.getLanguage(lang));
 }
+
+/**
+ * The grammar a filename implies: `src/App.tsx` → `tsx`, `App.tsx:361` → `tsx`.
+ *
+ * Only the extension is read. Every caller already knows the thing is code — a
+ * diff row, an open file — and the extension the operating system itself goes
+ * by beats a table of filenames that each code-rendering component would have to
+ * keep for itself. A trailing `:line` is part of the label a diff row carries
+ * (`SettingsView.tsx:361`), so it is tolerated rather than stripping it at every
+ * call site.
+ */
+export function languageFromFilename(filename: string): string {
+  const match = /\.([a-z0-9]+)(?::\d+(?:-\d+)?)?$/i.exec(filename.trim());
+  return match ? match[1].toLowerCase() : "";
+}
+
+/**
+ * Split one highlighted block into per-line HTML.
+ *
+ * `highlight.js` emits a single string for the whole snippet and its spans can
+ * cross a newline (a block comment, a template literal). A line-per-row renderer
+ * therefore has to re-open, at the start of a line, whatever spans were still
+ * active when the previous one ended — the browser closes them at the row
+ * boundary, which is exactly what a line-per-row listing wants.
+ */
+export function splitHighlightedLines(html: string): string[] {
+  const out: string[] = [];
+  const stack: string[] = [];
+
+  for (const line of html.split("\n")) {
+    const openedAtStart = stack.join("");
+    const tokens = line.match(/<span\b[^>]*>|<\/span>|[^<]+/g) ?? [];
+    let body = "";
+
+    for (const token of tokens) {
+      if (token === "</span>") {
+        stack.pop();
+        body += token;
+      } else if (token.startsWith("<span")) {
+        stack.push(token);
+        body += token;
+      } else {
+        body += token;
+      }
+    }
+    out.push(openedAtStart + body);
+  }
+  return out;
+}
+
+/**
+ * A block, highlighted and split into rows — the two steps every line-per-row
+ * caller wants, in the order it wants them. `null` when the language has no
+ * grammar here, so the caller renders the raw text instead of empty rows.
+ */
+export function highlightLines(code: string, language: string): string[] | null {
+  const html = highlightCode(code, language);
+  return html ? splitHighlightedLines(html) : null;
+}

@@ -203,12 +203,12 @@ export function PlanPanel({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {showDoc ? (
-        <header className="shrink-0 px-3 pt-3">
+        <header className="shrink-0 px-[12px] pt-[12px]">
           <div className="flex items-center gap-1.5">
             <span aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ background: PHASE_TONE[plan.phase] }} />
-            <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-ink-2">{t(PHASE_LABEL[plan.phase])}</span>
+            <span className="min-w-0 flex-1 truncate text-ui-sm font-medium text-ink-2">{t(PHASE_LABEL[plan.phase])}</span>
             {plan.steps.length ? (
-              <span className="shrink-0 font-mono text-[10.5px] text-ink-3 tabular-nums">
+              <span className="shrink-0 font-mono text-ui-xs text-ink-3 tabular-nums">
                 {done}/{plan.steps.length}
               </span>
             ) : null}
@@ -217,7 +217,7 @@ export function PlanPanel({
               aria-label={t("Re-read the plan file")}
               title={t("Re-read the plan file")}
               onClick={() => setReload((count) => count + 1)}
-              className="pressable flex size-6 shrink-0 items-center justify-center rounded-[6px] text-ink-3 hover:bg-hover hover:text-ink"
+              className="pressable flex size-6 shrink-0 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
             >
               <RefreshIcon size={11} />
             </button>
@@ -232,10 +232,10 @@ export function PlanPanel({
             title={path}
             className="pressable mt-1.5 block w-full min-w-0 text-left"
           >
-            <div className="truncate text-[13px] font-medium tracking-[-0.01em] text-ink">
+            <div className="truncate text-ui-base font-medium tracking-[-0.01em] text-ink">
               {doc.title || plan.title || baseName(path ?? "Plan")}
             </div>
-            <div className="truncate font-mono text-[10px] text-ink-3">
+            <div className="truncate font-mono text-ui-xs text-ink-3">
               {baseName(path ?? "Plan")} · {parentDir(path ?? "")}
             </div>
           </button>
@@ -255,7 +255,7 @@ export function PlanPanel({
                       setPickerOpen((open) => !open);
                     }}
                     title={t("Model to build with")}
-                    className="pressable flex h-7 min-w-0 flex-1 items-center gap-1 rounded-[8px] bg-field px-2 text-[11.5px] text-ink-2 hover:bg-hover-2"
+                    className="pressable flex h-7 min-w-0 flex-1 items-center gap-1 rounded-control bg-field px-2 text-ui-sm text-ink-2 hover:bg-hover-2"
                   >
                     <span className="truncate">{targetName}</span>
                     <ChevronDownIcon size={11} className="shrink-0 text-ink-3" />
@@ -264,13 +264,13 @@ export function PlanPanel({
                     type="button"
                     disabled={!canBuild}
                     onClick={() => target && onAction({ action: "build", model: target })}
-                    className="pressable flex h-7 shrink-0 items-center justify-center rounded-[8px] bg-plan px-3 text-[12px] font-semibold text-plan-ink hover:bg-plan/90 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="pressable flex h-7 shrink-0 items-center justify-center rounded-control bg-plan px-3 text-ui-caption font-semibold text-plan-ink hover:bg-plan/90 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {t("Build")}
                   </button>
                 </>
               ) : (
-                <span className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-[8px] bg-plan-tint px-2 text-[11.5px] font-medium text-plan-ink">
+                <span className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-control bg-plan-tint px-2 text-ui-sm font-medium text-plan-ink">
                   <LoaderIcon size={11} className="spin-fast shrink-0" />
                   <span className="truncate">{tf("{done} of {total} steps done", { done, total: plan.steps.length })}</span>
                 </span>
@@ -285,7 +285,7 @@ export function PlanPanel({
                   setPickerOpen(false);
                   setMenuOpen((open) => !open);
                 }}
-                className="pressable flex size-7 shrink-0 items-center justify-center rounded-[8px] text-ink-3 hover:bg-hover hover:text-ink"
+                className="pressable flex size-7 shrink-0 items-center justify-center rounded-control text-ink-3 hover:bg-hover hover:text-ink"
               >
                 <EllipsisIcon size={14} />
               </button>
@@ -294,7 +294,7 @@ export function PlanPanel({
                 <div className="scrollbar-thin max-h-[50vh] overflow-y-auto p-2">
                   {grouped.map(([provider, models]) => (
                     <div key={provider} className="mb-1.5">
-                      <div className="px-1 pb-0.5 font-mono text-[10px] text-ink-3">{provider}</div>
+                      <div className="px-1 pb-0.5 font-mono text-ui-xs text-ink-3">{provider}</div>
                       <GlideList rowSelector="[data-row]" highlightClassName="bg-hover" radius={6}>
                         {models.map((model) => {
                           const active = target?.provider === model.provider && target?.id === model.id;
@@ -308,11 +308,11 @@ export function PlanPanel({
                                 setPickerOpen(false);
                               }}
                               className={cn(
-                                "glide-row pressable flex items-center gap-2 rounded-[6px] px-2 py-1 text-left",
+                                "glide-row pressable flex items-center gap-2 rounded-chip px-2 py-1 text-left",
                                 active && "bg-surface shadow-hairline",
                               )}
                             >
-                              <span className={cn("min-w-0 flex-1 truncate text-[11.5px]", active ? "text-ink" : "text-ink-2")}>
+                              <span className={cn("min-w-0 flex-1 truncate text-ui-sm", active ? "text-ink" : "text-ink-2")}>
                                 {model.name}
                               </span>
                               {active ? <span className="size-1.5 shrink-0 rounded-full bg-plan" /> : null}
@@ -352,12 +352,12 @@ export function PlanPanel({
           ) : null}
 
           {plan.phase === "review" && !buildModel && !picked && parent ? (
-            <div className="mt-1.5 text-[10.5px] leading-snug text-ink-3">{t("Build defaults to the model that wrote the plan.")}</div>
+            <div className="mt-1.5 text-ui-xs leading-snug text-ink-3">{t("Build defaults to the model that wrote the plan.")}</div>
           ) : null}
         </header>
       ) : null}
 
-      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-[12px] pb-[12px]">
         {plan.phase === "off" && !path && !plan.steps.length ? (
           <EmptyState
             title={t("No plan yet")}
@@ -369,9 +369,9 @@ export function PlanPanel({
           <div className="mt-2 rounded-card bg-inset px-3 py-3">
             <div className="flex items-center gap-2">
               <ListChecksIcon size={13} className="text-accent" />
-              <span className="text-[12px] text-ink">{t("Researching, read-only")}</span>
+              <span className="text-ui-caption text-ink">{t("Researching, read-only")}</span>
             </div>
-            <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-3">
+            <p className="mt-1.5 text-ui-sm leading-relaxed text-ink-3">
               {t(
                 "Write calls are refused while this runs. When the agent calls create_plan, the plan lands here for review.",
               )}
@@ -379,15 +379,18 @@ export function PlanPanel({
           </div>
         ) : (
           <>
-            {/* the document proper: the plan's own prose, as markdown */}
+            {/* the document proper: the plan's own prose, as markdown. The panel
+                variant, because the transcript's metrics out-sized this column —
+                a `## Notes` heading was drawn larger than the plan's own title
+                in the header just above it. */}
             {file?.error ? (
-              <div className="mt-3 rounded-card bg-red-tint px-3 py-2 text-[11.5px] text-red">{file.error}</div>
+              <div className="mt-3 rounded-card bg-red-tint px-3 py-2 text-ui-sm text-red">{file.error}</div>
             ) : doc.body ? (
               <div className="mt-3">
-                <Markdown>{doc.body}</Markdown>
+                <Markdown variant="panel">{doc.body}</Markdown>
               </div>
             ) : file ? (
-              <div className="mt-3 rounded-card border border-dashed border-line-strong px-3 py-2 text-[11.5px] leading-relaxed text-ink-3">
+              <div className="mt-3 rounded-card border border-dashed border-line-strong px-3 py-2 text-ui-sm leading-relaxed text-ink-3">
                 {t("The plan file holds nothing but its steps.")}
               </div>
             ) : (
@@ -395,7 +398,7 @@ export function PlanPanel({
                 {Array.from({ length: 5 }).map((_, index) => (
                   <div
                     key={index}
-                    className="h-3.5 rounded-[4px] bg-hover-2"
+                    className="h-3.5 rounded-tiny bg-hover-2"
                     style={{ width: `${45 + ((index * 19) % 50)}%`, animation: `fade-in 300ms ease-out ${index * 30}ms both` }}
                   />
                 ))}
@@ -404,8 +407,8 @@ export function PlanPanel({
 
             {/* the steps, live: what the extension keeps updated as the build runs */}
             <div className="mt-4 flex items-center gap-2">
-              <span className="text-[11px] tracking-[0.3px] text-ink-3">{t("Tasks")}</span>
-              <span className="font-mono text-[10.5px] text-ink-3 tabular-nums">
+              <span className="text-ui-sm tracking-[0.3px] text-ink-3">{t("Tasks")}</span>
+              <span className="font-mono text-ui-xs text-ink-3 tabular-nums">
                 {done}/{plan.steps.length}
               </span>
               <span className="flex-1" />
@@ -413,7 +416,7 @@ export function PlanPanel({
                 <button
                   type="button"
                   onClick={() => setRefining((open) => !open)}
-                  className="pressable flex h-6 items-center gap-1 rounded-[6px] px-1.5 text-[11px] text-ink-2 hover:bg-hover"
+                  className="pressable flex h-6 items-center gap-1 rounded-chip px-1.5 text-ui-sm text-ink-2 hover:bg-hover"
                 >
                   <PlusIcon size={10} />
                   {t("Refine")}
@@ -432,13 +435,13 @@ export function PlanPanel({
                     if (event.key === "Escape") setRefining(false);
                   }}
                   placeholder={t("What should change?")}
-                  className="h-7 min-w-0 flex-1 rounded-[8px] bg-field px-2 text-[11.5px] text-ink placeholder:text-ink-3 focus:outline-none"
+                  className="h-7 min-w-0 flex-1 rounded-control bg-field px-2 text-ui-sm text-ink placeholder:text-ink-4 focus:outline-none"
                 />
                 <button
                   type="button"
                   disabled={!note.trim()}
                   onClick={refine}
-                  className="pressable h-7 shrink-0 rounded-[8px] bg-field px-2.5 text-[11px] text-ink disabled:opacity-40"
+                  className="pressable h-7 shrink-0 rounded-control bg-field px-2.5 text-ui-sm text-ink disabled:opacity-40"
                 >
                   {t("Refine")}
                 </button>
@@ -452,7 +455,7 @@ export function PlanPanel({
                     className="h-full rounded-full bg-accent"
                     style={{
                       width: `${(done / plan.steps.length) * 100}%`,
-                      transition: "width 300ms cubic-bezier(0.23,1,0.32,1)",
+                      transition: "width 300ms var(--ease-out-strong-css)",
                     }}
                   />
                 </div>
@@ -461,18 +464,18 @@ export function PlanPanel({
                 </div>
               </>
             ) : (
-              <div className="mt-1.5 text-[11.5px] text-ink-3">{t("The plan has no steps yet.")}</div>
+              <div className="mt-1.5 text-ui-sm text-ink-3">{t("The plan has no steps yet.")}</div>
             )}
           </>
         )}
       </div>
 
-      <footer className="mt-auto shrink-0 border-t border-line p-3">
+      <footer className="mt-auto shrink-0 border-t border-line p-[12px]">
         {plan.phase === "off" ? (
           <button
             type="button"
             onClick={() => onAction({ action: "toggle" })}
-            className="pressable flex h-8 w-full items-center justify-center gap-1.5 rounded-[8px] bg-field text-[12px] font-medium text-ink hover:bg-hover-2"
+            className="pressable flex h-8 w-full items-center justify-center gap-1.5 rounded-control bg-field text-ui-caption font-medium text-ink hover:bg-hover-2"
           >
             <ListChecksIcon size={13} />
             {t("Start plan mode")}
@@ -480,7 +483,7 @@ export function PlanPanel({
         ) : (
           <div className="flex items-center gap-2">
             {plan.phase === "executing" ? (
-              <span className="min-w-0 flex-1 text-[10.5px] leading-snug text-ink-3">
+              <span className="min-w-0 flex-1 text-ui-xs leading-snug text-ink-3">
                 {t("Building. The steps above follow the task list the agent keeps updated.")}
               </span>
             ) : (
@@ -490,7 +493,7 @@ export function PlanPanel({
               type="button"
               onClick={() => onAction({ action: "cancel" })}
               title={t("Leave plan mode. The plan file stays on disk, but there is nothing left to build.")}
-              className="pressable flex h-7 shrink-0 items-center rounded-[6px] px-2 text-[11.5px] text-ink-3 hover:bg-hover hover:text-ink-2"
+              className="pressable flex h-7 shrink-0 items-center rounded-chip px-2 text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
             >
               {t("Cancel plan mode")}
             </button>
@@ -517,7 +520,7 @@ function MenuRow({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="pressable flex h-7 w-full items-center gap-2 rounded-[6px] px-2 text-left text-[11.5px] text-ink-2 hover:bg-hover disabled:opacity-40 disabled:hover:bg-transparent"
+      className="pressable flex h-7 w-full items-center gap-2 rounded-chip px-2 text-left text-ui-sm text-ink-2 hover:bg-hover disabled:opacity-40 disabled:hover:bg-transparent"
     >
       <span className="shrink-0 text-ink-3">{icon}</span>
       <span className="min-w-0 flex-1 truncate">{label}</span>

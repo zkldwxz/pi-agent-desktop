@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { promptTokens } from "@shared/cache-usage";
 import type { ChatMessage, HostState, PlanAction, PlanState } from "@shared/types";
 import PromptBar from "../beautiful/primitives/PromptBar";
-import { buildTurns, toolSignature } from "../../lib/agent-view";
+import { buildTurns, CONVERSATION_COLUMN, toolSignature } from "../../lib/agent-view";
 import { ModelThinkingControl } from "./ModelThinkingControl";
 import { CacheRing } from "./CacheRing";
 import { ContextBadge } from "../panel/ContextBadge";
 import { t, useLocale } from "../../lib/i18n";
 import { cn } from "../../lib/cn";
-import { ListChecksIcon } from "../icons";
+import { ListChecksIcon, LoaderIcon, PencilIcon, TerminalIcon } from "../icons";
 import { useUltraSweep } from "../../lib/theme";
 
 /** What the pill says, per phase. */
@@ -57,6 +57,9 @@ export function AgentComposer({
   onSetModel,
   onSetThinking,
   onPlanAction,
+  runningTerminal,
+  onOpenTerminal,
+  editingQueued,
 }: {
   state: HostState;
   messages: ChatMessage[];
@@ -67,6 +70,12 @@ export function AgentComposer({
   onSetModel: (provider: string, modelId: string) => void;
   onSetThinking: (level: string) => void;
   onPlanAction: (action: PlanAction) => void;
+  /** a terminal call the agent is running right now — surfaced as a chip */
+  runningTerminal?: { count: number; title?: string } | null;
+  /** clicking the terminal chip opens the dock on that terminal */
+  onOpenTerminal?: () => void;
+  /** a queued message was loaded back into the editor — the shell says so */
+  editingQueued?: boolean;
 }) {
   const commands = useMemo(
     () =>
@@ -132,13 +141,14 @@ export function AgentComposer({
   }, []);
 
   /* Plan mode is the plugin's, not the draft's: the pill reads the phase the
-     plugin published and toggles it through `/plan`, so it says the same thing
-     whether the mode was entered from here, from the `/` menu or from the CLI. */
+     plugin published, so it says the same thing whether the mode was entered
+     from here, from the `/` menu or from the CLI. It only exists once the mode
+     is on — `/plan` starts it, and the pill is then the way back out. */
   const planPhase = state.plan.phase;
   const planOn = planPhase !== "off";
   const onPlan = useCallback(() => {
-    onPlanAction({ action: planOn ? "cancel" : "toggle" });
-  }, [onPlanAction, planOn]);
+    onPlanAction({ action: "cancel" });
+  }, [onPlanAction]);
 
   /* pasted images become path references. A file already on disk keeps its
      path; anything temporary (or a raw clipboard bitmap) is copied into the
@@ -188,9 +198,32 @@ export function AgentComposer({
 
   return (
     <div className="flex w-full flex-col items-center px-6 pb-3 pt-1">
-      <div className="w-full max-w-[720px]">
+      <div
+        className={cn(
+          /* the dock renders ZCode's exact conversation column — the same
+             class the timeline uses, or the prompt bar drifts out of line
+             with the text it answers. The greeting stays a centred hero. */
+          messages.length > 0 ? CONVERSATION_COLUMN : "mx-auto w-full max-w-[720px]",
+          "transition-transform duration-150 ease-out",
+          /* ZCode's dock insets its shell px-4 inside the shared column while
+             the text carries px-6: the shell overhangs the prose by 8px on
+             both edges, which is the breathing room their thread reads with */
+          messages.length > 0 && "px-4",
+        )}
+      >
+      {editingQueued ? (
+        /* the shell's status line: green, gone the moment the draft is sent */
+        <div
+          className="mb-1.5 flex w-full items-center gap-1.5 rounded-control bg-green-tint px-2 py-1 text-ui-sm text-green"
+          style={{ animation: "fade-up 200ms var(--ease-out-strong-css) both" }}
+        >
+          <PencilIcon size={11} className="shrink-0" />
+          {t("Editing a queued message — Enter sends it")}
+        </div>
+      ) : null}
         <PromptBar
           variant="Rounded"
+          tall
           demo={false}
           forceWide={messages.length > 0}
           placeholder={messages.length ? t("Send follow-up…") : t("Ask Pi to build, analyze or explain anything…")}
@@ -217,27 +250,48 @@ export function AgentComposer({
           appendToken={appendState}
           onPasteFiles={handlePasteFiles}
           leadingAddon={
-            /* the mode is always one click away, and it tells the truth about
-               which phase it is in — amber the moment a plan is waiting */
-            <button
-              type="button"
-              aria-pressed={planOn}
-              aria-label={t("Plan mode")}
-              title={t(PLAN_HINT[planPhase])}
-              onClick={onPlan}
-              className={cn(
-                "pressable hidden h-7 items-center gap-1 rounded-[8px] px-1.5 text-[11.5px] font-medium",
-                "transition-[background-color,color] duration-150 sm:inline-flex",
-                planPhase === "off"
-                  ? "text-ink-3 hover:bg-hover hover:text-ink"
-                  : planPhase === "planning"
-                    ? "bg-accent-tint text-accent-ink hover:bg-accent-tint/80"
-                    : "bg-plan-tint text-plan-ink hover:bg-plan-tint/80",
-              )}
-            >
-              <ListChecksIcon size={12} />
-              {t(PLAN_LABEL[planPhase])}
-            </button>
+            /* the phase badge, not a launcher: amber the moment a plan is waiting,
+               and gone entirely while plan mode is off. Beside it, a live terminal
+               chip when the agent is running one — clicking docks onto it. */
+            <>
+              {planOn ? (
+                <button
+                  type="button"
+                  aria-label={t("Plan mode")}
+                  title={t(PLAN_HINT[planPhase])}
+                  onClick={onPlan}
+                  className={cn(
+                    "pressable hidden h-7 items-center gap-1 rounded-control px-1.5 text-ui-sm font-medium",
+                    "transition-[background-color,color] duration-150 sm:inline-flex",
+                    planPhase === "planning"
+                      ? "bg-accent-tint text-accent-ink hover:bg-accent-tint/80"
+                      : "bg-plan-tint text-plan-ink hover:bg-plan-tint/80",
+                  )}
+                >
+                  <ListChecksIcon size={12} />
+                  {t(PLAN_LABEL[planPhase])}
+                </button>
+              ) : null}
+              {runningTerminal ? (
+                <button
+                  type="button"
+                  aria-label={t("Running terminal")}
+                  title={runningTerminal.title}
+                  onClick={onOpenTerminal}
+                  className={cn(
+                    "pressable hidden h-7 items-center gap-1.5 rounded-control bg-field px-1.5 text-ui-sm text-ink-2",
+                    "transition-colors duration-150 hover:bg-hover-2 hover:text-ink sm:inline-flex",
+                  )}
+                  style={{ animation: "pop-in 200ms var(--ease-out-strong-css) both" }}
+                >
+                  <LoaderIcon size={11} className="spin-fast shrink-0 text-accent" />
+                  <TerminalIcon size={12} className="shrink-0" />
+                  {/* icon + count only — commands stretch the bar; the full
+                      lines live in the dock and in the hover title */}
+                  <span className="shrink-0 font-mono text-ui-xs tabular-nums">{runningTerminal.count}</span>
+                </button>
+              ) : null}
+            </>
           }
           sweepPalette={sweepPalette}
         />

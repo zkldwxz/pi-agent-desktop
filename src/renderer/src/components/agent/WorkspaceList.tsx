@@ -9,6 +9,8 @@ import {
   ChevronDownIcon,
   FolderIcon,
   FolderOpenIcon,
+  HomeIcon,
+  LayersIcon,
   ListIcon,
   LoaderIcon,
   PencilIcon,
@@ -18,9 +20,63 @@ import {
 import { relativeTime } from "../../lib/format";
 import { t, tf, useLocale } from "../../lib/i18n";
 
-export type GroupMode = "workspace" | "date" | "status";
+export type GroupMode = "workspace" | "date" | "status" | "groups";
 export type OrderMode = "recent" | "name";
 export type ShowCount = 3 | 5 | 0;
+
+/**
+ * The task-group mode's own data: named groups a chat can be dragged into.
+ * `order` lists the group names; `assign` maps a session file to one of them.
+ * Sessions with no assignment read as one trailing "Ungrouped" bucket.
+ */
+export interface SessionGroups {
+  order: string[];
+  assign: Record<string, string>;
+}
+
+const SESSION_GROUPS_KEY = "pi-session-groups";
+
+export function loadSessionGroups(): SessionGroups {
+  try {
+    const raw = localStorage.getItem(SESSION_GROUPS_KEY);
+    if (!raw) return { order: [], assign: {} };
+    const parsed = JSON.parse(raw) as Partial<SessionGroups>;
+    return { order: Array.isArray(parsed.order) ? parsed.order : [], assign: parsed.assign ?? {} };
+  } catch {
+    return { order: [], assign: {} };
+  }
+}
+
+const WORKSPACE_FOLDERS_KEY = "pi-workspace-folders";
+
+/** Trailing slashes and separators differ between the dialog, the host and the
+ *  session headers; the registry and the session map must agree on identity. */
+export function normalizeFolder(path: string): string {
+  return path.replace(/[\\/]+$/, "").replace(/\\/g, "/");
+}
+
+function sameFolder(left: string, right: string): boolean {
+  if (!left || !right) return false;
+  return normalizeFolder(left).toLowerCase() === normalizeFolder(right).toLowerCase();
+}
+
+/**
+ * Folders the user opened on this machine, newest first.
+ *
+ * pi keeps a new session's file in memory until its first assistant reply
+ * flushes, so a folder picked moments ago has no `.jsonl` on disk and nothing
+ * for the session scan to group — without this register the folder never
+ * becomes a workspace until its first chat finishes a turn.
+ */
+export function loadWorkspaceFolders(): string[] {
+  try {
+    const raw = localStorage.getItem(WORKSPACE_FOLDERS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(parsed) ? parsed.filter((path): path is string => typeof path === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 export interface Workspace {
   key: string;
@@ -59,26 +115,73 @@ function orderSessions(sessions: SessionListItem[], order: OrderMode): SessionLi
  * Mirrors the reference menu: grouping by workspace (the project folder, which
  * is what a workspace *is*), by date, or by status.
  */
-export function groupSessions(sessions: SessionListItem[], prefs: WorkspacePrefs, renamed: Record<string, string>): Workspace[] {
+export function groupSessions(
+  sessions: SessionListItem[],
+  prefs: WorkspacePrefs,
+  renamed: Record<string, string>,
+  custom?: SessionGroups,
+  knownFolders?: string[],
+  homeDir?: string,
+): Workspace[] {
   const filtered =
     prefs.statusFilter === "all"
       ? sessions
       : sessions.filter((session) => session.status === prefs.statusFilter);
 
+  /* The task-group mode: flat and always expanded, no folder management. The
+   * user's own named groups first, everything unassigned trails in one
+   * bucket — so a chat never disappears just because no group claims it. */
+  if (prefs.group === "groups") {
+    const buckets = new Map<string, Workspace>();
+    for (const name of custom?.order ?? []) {
+      buckets.set(name, { key: `group:${name}`, label: name, sessions: [] });
+    }
+    const loose: SessionListItem[] = [];
+    for (const session of orderSessions(filtered, prefs.order)) {
+      const name = custom?.assign[session.path];
+      const bucket = name ? buckets.get(name) : undefined;
+      if (bucket) bucket.sessions.push(session);
+      else loose.push(session);
+    }
+    const out = [...buckets.values()];
+    if (loose.length) out.push({ key: "group:__ungrouped", label: t("Ungrouped"), sessions: loose });
+    return out;
+  }
+
   if (prefs.group === "workspace") {
     const map = new Map<string, Workspace>();
+    if (homeDir) {
+      map.set(homeDir, { key: homeDir, label: t("Home"), path: homeDir, sessions: [] });
+    }
     for (const session of filtered) {
-      const key = session.cwd || "unknown";
+      const isHome = Boolean(homeDir && session.cwd && (session.cwd === "~" || sameFolder(session.cwd, homeDir)));
+      const key = isHome ? homeDir! : session.cwd || "unknown";
       const workspace = map.get(key) ?? {
         key,
-        label: renamed[key] ?? baseName(key),
+        label: isHome ? t("Home") : renamed[key] ?? baseName(key),
         path: key,
         sessions: [],
       };
       workspace.sessions.push(session);
       map.set(key, workspace);
     }
+    /* Registered folders whose sessions have not flushed to disk yet. A folder
+     * the user just opened must show up now, not after its first turn ends —
+     * empty ones sort last because they have no mtime to order by. */
+    for (const folder of knownFolders ?? []) {
+      const key = normalizeFolder(folder);
+      if (homeDir && (folder === "~" || sameFolder(folder, homeDir))) continue;
+      if ([...map.keys()].some((existing) => normalizeFolder(existing) === key)) continue;
+      map.set(folder, {
+        key: folder,
+        label: renamed[folder] ?? baseName(folder),
+        path: folder,
+        sessions: [],
+      });
+    }
     return [...map.values()].sort((a, b) => {
+      if (homeDir && sameFolder(a.path ?? a.key, homeDir)) return -1;
+      if (homeDir && sameFolder(b.path ?? b.key, homeDir)) return 1;
       if (prefs.order === "name") return a.label.localeCompare(b.label);
       const aTime = Math.max(...a.sessions.map((s) => Date.parse(s.modified)));
       const bTime = Math.max(...b.sessions.map((s) => Date.parse(s.modified)));
@@ -160,18 +263,12 @@ function FolderOpenButton({ path, className }: { path?: string; className?: stri
           event.stopPropagation();
           openFolderDirect(path);
         }}
-        className="pressable flex size-5.5 items-center justify-center rounded-[5px] text-ink-3 hover:bg-hover hover:text-ink"
+        className="pressable flex size-5.5 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
       >
         <FolderOpenIcon size={11} />
       </button>
     </div>
   );
-}
-
-function StatusGlyph({ status }: { status: SessionListItem["status"] }) {
-  if (status === "running") return <LoaderIcon size={12} className="spin-fast text-accent" />;
-  if (status === "failed") return <span className="size-[7px] rounded-full bg-red" />;
-  return <span className="size-[7px] rounded-full bg-line-strong" />;
 }
 
 export function MenuRow({
@@ -194,13 +291,13 @@ export function MenuRow({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "glide-row pressable flex h-8 w-full items-center gap-2 rounded-[6px] px-2 text-left",
+        "glide-row pressable flex h-8 w-full items-center gap-2 rounded-chip px-2 text-left",
         disabled && "opacity-40",
       )}
     >
-      <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{label}</span>
-      {value ? <span className="shrink-0 text-[11.5px] text-ink-3">{value}</span> : null}
-      {hint ? <span className="shrink-0 font-mono text-[10.5px] text-ink-3 tabular-nums">{hint}</span> : null}
+      <span className="min-w-0 flex-1 truncate text-ui-base text-ink">{label}</span>
+      {value ? <span className="shrink-0 text-ui-sm text-ink-3">{value}</span> : null}
+      {hint ? <span className="shrink-0 font-mono text-ui-xs text-ink-3 tabular-nums">{hint}</span> : null}
     </button>
   );
 }
@@ -223,10 +320,14 @@ export function WorkspaceList({
   onReadAll,
   onSelect,
   onRename,
-  onAddFolder,
   onNewInWorkspace,
+  onNewInGroup,
+  sessionGroups,
+  onSessionGroups,
   /** the folder the session is currently bound to — the header's open-with target */
   cwd,
+  /** canonical home directory; its workspace is the no-project Home entry */
+  homeDir,
 }: {
   sessions: SessionListItem[];
   prefs: WorkspacePrefs;
@@ -237,9 +338,13 @@ export function WorkspaceList({
   onReadAll: () => void;
   onSelect: (path: string) => void;
   onRename: (key: string, label: string) => void;
-  onAddFolder: () => void;
   onNewInWorkspace?: (cwd: string) => void;
+  /** start a chat and drop it straight into this task group */
+  onNewInGroup?: (group: string) => void;
+  sessionGroups: SessionGroups;
+  onSessionGroups: (next: SessionGroups) => void;
   cwd?: string;
+  homeDir?: string;
 }) {
   // collapsed by default: an empty map means every workspace starts closed
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -256,6 +361,11 @@ export function WorkspaceList({
     /** set after the first click on Delete — the row becomes the confirm */
     confirming?: boolean;
   } | null>(null);
+  const [dragPath, setDragPath] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState<string | null>(null);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [groupDraft, setGroupDraft] = useState("");
+  const [groupMenu, setGroupMenu] = useState<{ name: string; x: number; y: number; confirming?: boolean } | null>(null);
 
   /* Archived workspaces */
   const [archived, setArchived] = useState<Record<string, boolean>>(() => {
@@ -267,6 +377,26 @@ export function WorkspaceList({
     }
   });
   const [showArchived, setShowArchived] = useState(false);
+
+  /* Folders opened on this machine that no session scan can vouch for yet. */
+  const [knownFolders, setKnownFolders] = useState<string[]>(loadWorkspaceFolders);
+  useEffect(() => {
+    try {
+      localStorage.setItem(WORKSPACE_FOLDERS_KEY, JSON.stringify(knownFolders));
+    } catch {}
+  }, [knownFolders]);
+
+  /* Whatever folder the session is bound to *is* a workspace on this machine.
+   * Registering it here covers every route into a folder — the greeting
+   * switcher, the sidebar's add, the palette — without each of them having to
+   * remember to report back. */
+  useEffect(() => {
+    if (!cwd) return;
+    const key = normalizeFolder(cwd);
+    setKnownFolders((current) =>
+      current.some((path) => normalizeFolder(path) === key) ? current : [cwd, ...current].slice(0, 30),
+    );
+  }, [cwd]);
 
   /* Archived sessions — hidden from every workspace list; the marker persists
    * so a rescan does not resurrect them */
@@ -314,6 +444,24 @@ export function WorkspaceList({
   }, [contextMenu]);
 
   useEffect(() => {
+    if (!groupMenu) return;
+    const onDown = (e: PointerEvent) => {
+      if (!(e.target as Element).closest("[data-ws-context-menu]")) {
+        setGroupMenu(null);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setGroupMenu(null);
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [groupMenu]);
+
+  useEffect(() => {
     if (!picked) return;
     rowRefs.current.get(picked)?.focus({ preventScroll: true });
     const timer = window.setTimeout(() => setPicked(null), 1200);
@@ -348,6 +496,11 @@ export function WorkspaceList({
   const handleDeleteWorkspace = async (workspace: Workspace) => {
     try {
       await window.pi.deleteWorkspace(workspace.path || workspace.key);
+      /* A folder registered before its first session flushed has nothing on
+       * disk for the host to delete — there the registry entry *is* the
+       * workspace, so removing it here is the whole deletion. */
+      const key = normalizeFolder(workspace.path || workspace.key);
+      setKnownFolders((current) => current.filter((path) => normalizeFolder(path) !== key));
     } catch (err) {
       console.error("Failed to delete workspace:", err);
     }
@@ -358,46 +511,130 @@ export function WorkspaceList({
     onSelect(path);
   };
 
-  const workspaces = useMemo(() => groupSessions(sessions, prefs, renamed), [sessions, prefs, renamed]);
-  const activeWorkspaces = useMemo(() => workspaces.filter((w) => !archived[w.key]), [workspaces, archived]);
-  const archivedWorkspaces = useMemo(() => workspaces.filter((w) => Boolean(archived[w.key])), [workspaces, archived]);
+  const workspaces = useMemo(
+    () => groupSessions(sessions, prefs, renamed, sessionGroups, knownFolders, homeDir),
+    [sessions, prefs, renamed, sessionGroups, knownFolders, homeDir],
+  );
+
+  /* Task-group mode: flat and always expanded, so every group renders its rows
+   * unconditionally and the collapse state below is never consulted. */
+  const isGroups = prefs.group === "groups";
+
+  const assignSession = (path: string, group: string | null) => {
+    const assign = { ...sessionGroups.assign };
+    if (group) assign[path] = group;
+    else delete assign[path];
+    onSessionGroups({ ...sessionGroups, assign });
+  };
+
+  const createGroup = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed || sessionGroups.order.includes(trimmed)) return;
+    onSessionGroups({ order: [...sessionGroups.order, trimmed], assign: { ...sessionGroups.assign } });
+  };
+
+  const renameGroup = (from: string, to: string) => {
+    const trimmed = to.trim();
+    if (!trimmed || trimmed === from || sessionGroups.order.includes(trimmed)) return;
+    const assign = { ...sessionGroups.assign };
+    for (const [path, name] of Object.entries(assign)) {
+      if (name === from) assign[path] = trimmed;
+    }
+    onSessionGroups({
+      order: sessionGroups.order.map((name) => (name === from ? trimmed : name)),
+      assign,
+    });
+  };
+
+  const deleteGroup = (name: string) => {
+    const assign = { ...sessionGroups.assign };
+    for (const [path, group] of Object.entries(assign)) {
+      if (group === name) delete assign[path];
+    }
+    onSessionGroups({ order: sessionGroups.order.filter((group) => group !== name), assign });
+  };
+
+  const activeWorkspaces = useMemo(
+    () => workspaces.filter((w) => !archived[w.key] || Boolean(homeDir && sameFolder(w.path || w.key, homeDir))),
+    [workspaces, archived, homeDir],
+  );
+  const archivedWorkspaces = useMemo(
+    () => workspaces.filter((w) => Boolean(archived[w.key]) && !(homeDir && sameFolder(w.path || w.key, homeDir))),
+    [workspaces, archived, homeDir],
+  );
   const allOpen = activeWorkspaces.length > 0 && activeWorkspaces.every((workspace) => open[workspace.key]);
 
-  if (!sessions.length) {
-    return (
-      <div className="flex flex-col gap-2 px-3 py-4">
-        <span className="text-[11.5px] text-ink-3">{t("No sessions yet.")}</span>
-        <button
-          type="button"
-          onClick={onAddFolder}
-          className="pressable inline-flex h-7 w-fit items-center gap-1.5 rounded-chip bg-field px-2 text-[11.5px] text-ink-2 hover:bg-hover-2"
-        >
-          <PlusIcon size={11} />
-          {t("Add a folder")}
-        </button>
-      </div>
-    );
+  /* Home is a real, always-available entry in workspace mode, even before the
+   * first prompt creates a session file. Other grouping modes can still show a
+   * quiet empty state without offering a second folder-opening control. */
+  if (!sessions.length && prefs.group !== "workspace") {
+    return <div className="px-3 py-4 text-ui-sm text-ink-3">{t("No sessions yet.")}</div>;
   }
 
   const unread = sessions.filter((session) => Date.parse(session.modified) > (readAt[session.path] ?? 0)).length;
 
   const renderWorkspace = (workspace: Workspace, groupIndex: number, isArchived = false) => {
-    const isOpen = Boolean(open[workspace.key]);
+    const isOpen = isGroups || Boolean(open[workspace.key]);
     const sorted = workspace.sessions.filter((session) => !archivedSessions[session.path]);
-    const limit = prefs.show === 0 ? sorted.length : prefs.show;
+    /* task groups have no "show N more" gate — the mode exists to lay every
+     * chat out flat, so the whole bucket renders */
+    const limit = isGroups ? sorted.length : prefs.show === 0 ? sorted.length : prefs.show;
     const isExpanded = Boolean(expanded[workspace.key]);
     const visible = isExpanded ? sorted : sorted.slice(0, limit);
     const hidden = sorted.length - visible.length;
-    const running = sorted.some((session) => session.status === "running");
+    const isHome = Boolean(homeDir && sameFolder(workspace.path || workspace.key, homeDir));
 
     return (
       <section key={workspace.key} className="mb-1.5" style={stagger(groupIndex)}>
         {/* one hover surface for the whole row: the folder toggle and the
             new-chat button ride in it, so the two read as a single component */}
+        {isGroups ? (
+          <div
+            className={cn("group/ws flex items-center rounded-chip px-1 hover:bg-hover-2", dragOver === workspace.key && "bg-hover-2 shadow-hairline")}
+            onContextMenu={(event) => {
+              if (workspace.key === "group:__ungrouped") return;
+              event.preventDefault();
+              setGroupMenu({ name: workspace.label, x: event.clientX, y: event.clientY });
+            }}
+            onDragOver={(event) => {
+              if (!dragPath) return;
+              event.preventDefault();
+              setDragOver(workspace.key);
+            }}
+            onDragLeave={() => setDragOver((key) => (key === workspace.key ? null : key))}
+            onDrop={(event) => {
+              event.preventDefault();
+              const path = dragPath ?? event.dataTransfer.getData("text/plain");
+              setDragOver(null);
+              setDragPath(null);
+              if (path) assignSession(path, workspace.key === "group:__ungrouped" ? null : workspace.label);
+            }}
+          >
+            <div className="flex h-8 min-w-0 flex-1 items-center gap-1.5 px-1">
+              <span className="flex size-3.5 shrink-0 items-center justify-center text-ink-3">
+                <LayersIcon size={13} />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-ui-base text-ink-2">{workspace.label}</span>
+              <span className="shrink-0 text-ui-xs text-ink-3 tabular-nums">{sorted.length}</span>
+            </div>
+            {workspace.key !== "group:__ungrouped" ? (
+              <button
+                type="button"
+                title={t("New chat in this group")}
+                aria-label={t("New chat in this group")}
+                onClick={() => onNewInGroup?.(workspace.label)}
+                className="pressable flex size-5.5 shrink-0 items-center justify-center rounded-chip text-ink-3 opacity-0 hover:bg-hover hover:text-ink group-hover/ws:opacity-100"
+              >
+                <PlusIcon size={12} />
+              </button>
+            ) : null}
+          </div>
+        ) : (
         <div
-          className="group/ws flex items-center rounded-[7px] px-1 hover:bg-hover-2"
+          className="group/ws flex items-center rounded-chip px-1 hover:bg-hover-2"
           onContextMenu={(event) => {
             event.preventDefault();
+            if (isHome) return;
             setContextMenu({
               x: event.clientX,
               y: event.clientY,
@@ -412,20 +649,25 @@ export function WorkspaceList({
             className="pressable flex h-8 min-w-0 flex-1 items-center gap-1.5 px-1 text-left"
           >
             <span className="relative flex size-3.5 shrink-0 items-center justify-center text-ink-3">
-              <FolderIcon
-                size={13}
-                className="absolute transition-opacity duration-150 group-hover/ws:opacity-0"
-              />
-              <ChevronDownIcon
-                size={12}
-                strokeWidth={2.2}
-                className="absolute opacity-0 transition-[opacity,transform] duration-150 group-hover/ws:opacity-100"
-                style={{ transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)" }}
-              />
+              {isHome ? (
+                <HomeIcon size={13} />
+              ) : (
+                <>
+                  <FolderIcon
+                    size={13}
+                    className="absolute transition-opacity duration-150 group-hover/ws:opacity-0"
+                  />
+                  <ChevronDownIcon
+                    size={12}
+                    strokeWidth={2.2}
+                    className="absolute opacity-0 transition-[opacity,transform] duration-150 group-hover/ws:opacity-100"
+                    style={{ transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)" }}
+                  />
+                </>
+              )}
             </span>
-            <span className="min-w-0 flex-1 truncate text-[13px] text-ink-2">{workspace.label}</span>
-            {running ? <StatusGlyph status="running" /> : null}
-            <span className="shrink-0 text-[10.5px] text-ink-3 tabular-nums">{sorted.length}</span>
+            <span className="min-w-0 flex-1 truncate text-ui-base text-ink-2">{isHome ? t("Home") : workspace.label}</span>
+            <span className="shrink-0 text-ui-xs text-ink-3 tabular-nums">{sorted.length}</span>
           </button>
           {/* hover affordances on the workspace row: open the folder itself
               (with an opener menu), then start a chat inside it */}
@@ -441,19 +683,21 @@ export function WorkspaceList({
               event.stopPropagation();
               onNewInWorkspace?.(workspace.path || workspace.key);
             }}
-            className="pressable flex size-5.5 shrink-0 items-center justify-center rounded-[5px] text-ink-3 opacity-0 hover:bg-hover hover:text-ink group-hover/ws:opacity-100"
+            className="pressable flex size-5.5 shrink-0 items-center justify-center rounded-chip text-ink-3 opacity-0 hover:bg-hover hover:text-ink group-hover/ws:opacity-100"
           >
             <PlusIcon size={12} />
           </button>
         </div>
+        )}
 
         {renaming?.key === workspace.key ? (
           <form
-            className="mx-1 mb-1.5 flex items-center gap-1 rounded-[7px] bg-surface p-1 shadow-hairline"
-            style={{ animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both" }}
+            className="mx-1 mb-1.5 flex items-center gap-1 rounded-chip bg-surface p-1 shadow-hairline"
+            style={{ animation: "pop-in 180ms var(--ease-out-strong-css) both" }}
             onSubmit={(event) => {
               event.preventDefault();
-              onRename(workspace.key, draft.trim() || workspace.label);
+              if (isGroups) renameGroup(workspace.label, draft.trim() || workspace.label);
+              else onRename(workspace.key, draft.trim() || workspace.label);
               setRenaming(null);
             }}
           >
@@ -465,9 +709,9 @@ export function WorkspaceList({
                 if (event.key === "Escape") setRenaming(null);
               }}
               aria-label={t("Workspace name")}
-              className="h-6 min-w-0 flex-1 rounded-[5px] bg-field px-1.5 text-[11.5px] text-ink outline-none"
+              className="h-6 min-w-0 flex-1 rounded-chip bg-field px-1.5 text-ui-sm text-ink outline-none"
             />
-            <button type="submit" className="pressable h-6 rounded-[5px] bg-ink px-2 text-[11px] text-canvas">
+            <button type="submit" className="pressable h-6 rounded-chip bg-ink px-2 text-ui-sm text-canvas">
               {t("Save")}
             </button>
           </form>
@@ -476,18 +720,33 @@ export function WorkspaceList({
         {/* collapsed workspaces render nothing at all — no preload */}
         <div className="collapse-grid" data-open={isOpen}>
           <div className="min-h-0 overflow-hidden">
-            {/* no container indent: the row's own pl-[24px] supplies the visual
-                indent, so the hover glide, the picked surface and the row share
-                the same left and right edges */}
+            {/* no container indent: the row's own left padding supplies the
+                visual indent, so the hover glide, the picked surface and the
+                row share the same left and right edges */}
             {isOpen ? (
               <GlideList className="flex flex-col gap-0.5 pt-0.5">
+                {/* a registered folder has no rows to lay out yet — say so, so
+                    expanding it does not read as a broken toggle */}
+                {!sorted.length ? (
+                  <div className="py-1 pl-7 text-ui-sm text-ink-3">{t("No chats here yet")}</div>
+                ) : null}
                 {visible.map((session, index) => {
                   const isUnread = Date.parse(session.modified) > (readAt[session.path] ?? 0);
                   const active = session.path === activePath || session.path === picked;
                   return (
                     /* the archive affordance overlays the row's right edge, so
                        the row and its hover action share one wrapper */
-                    <div key={session.path} className="group/srow relative">
+                    <div
+                      key={session.path}
+                      className="group/srow relative"
+                      draggable={isGroups}
+                      onDragStart={(event) => {
+                        setDragPath(session.path);
+                        event.dataTransfer.setData("text/plain", session.path);
+                        event.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragEnd={() => setDragPath(null)}
+                    >
                       <button
                         data-row
                         data-picked={session.path === picked ? "true" : undefined}
@@ -499,26 +758,33 @@ export function WorkspaceList({
                         onClick={() => choose(session.path)}
                         style={stagger(index)}
                         className={cn(
-                          "glide-row pressable flex w-full items-center gap-2 rounded-[6px] py-1.5 pr-2 pl-[24px] text-left outline-none",
+                          "glide-row pressable flex w-full items-center gap-1.5 rounded-chip py-1.5 pr-2 pl-2 text-left outline-none",
                           "focus-visible:bg-surface focus-visible:shadow-hairline",
                           active && "row-picked bg-surface shadow-hairline",
                         )}
                       >
-                        {/* the unread dot lives on the message it belongs to —
-                            and the slot is permanent, so the titles of read and
-                            unread rows stay on the same vertical line */}
-                        <span className="flex size-1.5 shrink-0 items-center justify-center">
-                          {isUnread ? <span className="size-1.5 rounded-full bg-accent" /> : null}
+                        {/* the left slot carries the run state: a spinner while
+                            the task is live, the unread dot only once it has
+                            finished and not been opened yet. The slot is the
+                            same width as the workspace row's icon slot above,
+                            so both rows put their glyphs and their labels on
+                            one column */}
+                        <span className="flex size-3.5 shrink-0 items-center justify-center">
+                          {session.status === "running" ? (
+                            <LoaderIcon size={11} className="spin-fast shrink-0 text-accent" />
+                          ) : isUnread ? (
+                            <span className="size-1.5 rounded-full bg-accent" />
+                          ) : null}
                         </span>
                         <span
                           className={cn(
-                            "min-w-0 flex-1 truncate text-[13px]",
+                            "min-w-0 flex-1 truncate text-ui-base",
                             active ? "font-medium text-ink" : isUnread ? "text-ink" : "text-ink-2",
                           )}
                         >
                           {session.name || session.firstMessage || "New session"}
                         </span>
-                        <span className="shrink-0 font-mono text-[10px] text-ink-3 tabular-nums group-hover/srow:opacity-0">
+                        <span className="shrink-0 font-mono text-ui-xs text-ink-3 tabular-nums group-hover/srow:opacity-0">
                           {relativeTime(session.modified)}
                         </span>
                       </button>
@@ -532,7 +798,7 @@ export function WorkspaceList({
                           event.stopPropagation();
                           archiveSession(session.path);
                         }}
-                        className="pressable absolute top-1/2 right-1 flex size-5.5 -translate-y-1/2 items-center justify-center rounded-[5px] text-ink-3 opacity-0 hover:bg-hover hover:text-ink group-hover/srow:opacity-100"
+                        className="pressable absolute top-1/2 right-1 flex size-5.5 -translate-y-1/2 items-center justify-center rounded-chip text-ink-3 opacity-0 hover:bg-hover hover:text-ink group-hover/srow:opacity-100"
                       >
                         <ArchiveIcon size={12} />
                       </button>
@@ -543,9 +809,11 @@ export function WorkspaceList({
                   <button
                     type="button"
                     onClick={() => setExpanded((current) => ({ ...current, [workspace.key]: true }))}
-                    className="pressable flex items-center gap-1.5 rounded-[6px] px-2 py-1 text-[11.5px] text-ink-3 hover:bg-hover hover:text-ink-2"
+                    className="pressable flex items-center gap-1.5 rounded-chip py-1 pr-2 pl-2 text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
                   >
-                    <ChevronDownIcon size={10} />
+                    <span className="flex size-3.5 shrink-0 items-center justify-center">
+                      <ChevronDownIcon size={10} />
+                    </span>
                     {tf("Show {count} more", { count: hidden })}
                   </button>
                 ) : null}
@@ -553,9 +821,11 @@ export function WorkspaceList({
                   <button
                     type="button"
                     onClick={() => setExpanded((current) => ({ ...current, [workspace.key]: false }))}
-                    className="pressable flex items-center gap-1.5 rounded-[6px] px-2 py-1 text-[11.5px] text-ink-3 hover:bg-hover hover:text-ink-2"
+                    className="pressable flex items-center gap-1.5 rounded-chip py-1 pr-2 pl-2 text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
                   >
-                    <ChevronDownIcon size={10} className="rotate-180" />
+                    <span className="flex size-3.5 shrink-0 items-center justify-center">
+                      <ChevronDownIcon size={10} className="rotate-180" />
+                    </span>
                     {t("Show less")}
                   </button>
                 ) : null}
@@ -573,7 +843,7 @@ export function WorkspaceList({
           folder opener on its right. The pane's collapse toggle lives at the
           very top of the sidebar, above New Agent, not here. */}
       <div className="flex items-center gap-1 px-2.5 pb-1">
-        <span className="text-[11px] tracking-[0.3px] text-ink-3">{t("Workspaces")}</span>
+        <span className="text-ui-sm tracking-[0.3px] text-ink-3">{t(isGroups ? "Groups" : "Workspaces")}</span>
         <span className="flex-1" />
         <div className="relative">
           <button
@@ -583,7 +853,7 @@ export function WorkspaceList({
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((value) => !value)}
             className={cn(
-              "pressable flex size-5.5 items-center justify-center rounded-[5px]",
+              "pressable flex size-5.5 items-center justify-center rounded-chip",
               menuOpen ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
             )}
           >
@@ -594,11 +864,24 @@ export function WorkspaceList({
               <MenuRow
                 label={t("Grouping")}
                 value={
-                  prefs.group === "workspace" ? t("Workspace") : prefs.group === "date" ? t("Date") : t("Status")
+                  prefs.group === "workspace"
+                    ? t("Workspace")
+                    : prefs.group === "date"
+                      ? t("Date")
+                      : prefs.group === "status"
+                        ? t("Status")
+                        : t("Groups")
                 }
                 onClick={() =>
                   onPrefs({
-                    group: prefs.group === "workspace" ? "date" : prefs.group === "date" ? "status" : "workspace",
+                    group:
+                      prefs.group === "workspace"
+                        ? "date"
+                        : prefs.group === "date"
+                          ? "status"
+                          : prefs.group === "status"
+                            ? "groups"
+                            : "workspace",
                   })
                 }
               />
@@ -613,7 +896,7 @@ export function WorkspaceList({
                 onClick={() => onPrefs({ show: prefs.show === 3 ? 5 : prefs.show === 5 ? 0 : 3 })}
               />
 
-              <div className="my-1 border-t border-line px-2 pt-1.5 pb-0.5 text-[10.5px] tracking-[0.4px] text-ink-3">
+              <div className="my-1 border-t border-line px-2 pt-1.5 pb-0.5 text-ui-xs tracking-[0.4px] text-ink-3">
                 {t("FILTERS")}
               </div>
               <MenuRow
@@ -651,12 +934,54 @@ export function WorkspaceList({
       <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 pb-1">
         {activeWorkspaces.map((workspace, groupIndex) => renderWorkspace(workspace, groupIndex, false))}
 
+        {isGroups ? (
+          creatingGroup ? (
+            <form
+              className="mx-1 mt-1 flex items-center gap-1 rounded-chip bg-surface p-1 shadow-hairline"
+              style={{ animation: "pop-in 180ms var(--ease-out-strong-css) both" }}
+              onSubmit={(event) => {
+                event.preventDefault();
+                createGroup(groupDraft);
+                setGroupDraft("");
+                setCreatingGroup(false);
+              }}
+            >
+              <input
+                autoFocus
+                value={groupDraft}
+                onChange={(event) => setGroupDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setCreatingGroup(false);
+                    setGroupDraft("");
+                  }
+                }}
+                aria-label={t("Group name")}
+                placeholder={t("Group name")}
+                className="h-6 min-w-0 flex-1 rounded-chip bg-field px-1.5 text-ui-sm text-ink outline-none"
+              />
+              <button type="submit" className="pressable h-6 rounded-chip bg-ink px-2 text-ui-sm text-canvas">
+                {t("Save")}
+              </button>
+            </form>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setCreatingGroup(true)}
+              className="pressable flex items-center gap-1.5 rounded-chip px-2 py-1 text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
+            >
+              <PlusIcon size={11} />
+              {t("New group")}
+            </button>
+          )
+        ) : null}
+
         {archivedWorkspaces.length > 0 ? (
           <div className="mt-2.5 border-t border-line/60 pt-2">
             <button
               type="button"
               onClick={() => setShowArchived((v) => !v)}
-              className="pressable flex h-6 w-full items-center gap-1.5 rounded-[5px] px-1 text-left text-[11px] text-ink-3 hover:bg-hover-2 hover:text-ink-2"
+              className="pressable flex h-6 w-full items-center gap-1.5 rounded-chip px-1 text-left text-ui-sm text-ink-3 hover:bg-hover-2 hover:text-ink-2"
             >
               <ChevronDownIcon
                 size={10}
@@ -673,19 +998,63 @@ export function WorkspaceList({
         ) : null}
       </div>
 
+      {groupMenu && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              data-ws-context-menu
+              className="fixed z-50 w-44 overflow-hidden rounded-control border border-line bg-surface p-1 shadow-overlay"
+              style={{
+                left: Math.min(groupMenu.x, window.innerWidth - 186),
+                top: Math.min(groupMenu.y, window.innerHeight - 130),
+                animation: "pop-in 140ms var(--ease-out-strong-css) both",
+                transformOrigin: "top left",
+              }}
+            >
+              <div className="mb-1 truncate border-b border-line px-2 py-1.5 font-mono text-ui-xs text-ink-3">
+                {groupMenu.name}
+              </div>
+              <ContextRow
+                icon={<PencilIcon size={12} />}
+                label={t("Rename")}
+                onClick={() => {
+                  setRenaming({ key: `group:${groupMenu.name}`, label: groupMenu.name });
+                  setDraft(groupMenu.name);
+                  setGroupMenu(null);
+                }}
+              />
+              <div className="my-1 h-px bg-line" />
+              <ContextRow
+                danger
+                armed={groupMenu.confirming}
+                icon={<TrashIcon size={12} />}
+                label={groupMenu.confirming ? t("Click again to delete") : t("Delete group")}
+                onClick={() => {
+                  if (!groupMenu.confirming) {
+                    setGroupMenu({ ...groupMenu, confirming: true });
+                    return;
+                  }
+                  deleteGroup(groupMenu.name);
+                  setGroupMenu(null);
+                }}
+              />
+            </div>,
+            document.body,
+          )
+        : null}
+
       {contextMenu && typeof document !== "undefined"
         ? createPortal(
             <div
               data-ws-context-menu
-              className="fixed z-50 w-48 overflow-hidden rounded-[10px] border border-line bg-surface p-1 shadow-overlay"
+              className="fixed z-50 w-48 overflow-hidden rounded-control border border-line bg-surface p-1 shadow-overlay"
               style={{
                 left: Math.min(contextMenu.x, window.innerWidth - 202),
                 top: Math.min(contextMenu.y, window.innerHeight - 226),
-                animation: "pop-in 140ms cubic-bezier(0.23,1,0.32,1) both",
+                animation: "pop-in 140ms var(--ease-out-strong-css) both",
                 transformOrigin: "top left",
               }}
             >
-              <div className="mb-1 truncate border-b border-line px-2 py-1.5 font-mono text-[10.5px] text-ink-3">
+              <div className="mb-1 truncate border-b border-line px-2 py-1.5 font-mono text-ui-xs text-ink-3">
                 {contextMenu.workspace.label}
               </div>
               <ContextRow
@@ -767,7 +1136,7 @@ function ContextRow({
       type="button"
       onClick={onClick}
       className={cn(
-        "pressable flex h-8 w-full items-center gap-2 rounded-[6px] px-2 text-left text-[12.5px]",
+        "pressable flex h-8 w-full items-center gap-2 rounded-chip px-2 text-left text-ui-caption",
         danger ? (armed ? "bg-red-tint font-medium text-red" : "text-red hover:bg-red-tint") : "text-ink hover:bg-hover",
       )}
     >

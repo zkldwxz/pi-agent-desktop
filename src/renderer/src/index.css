@@ -48,10 +48,110 @@
   --plan-tint: oklch(0.815 0.145 86 / 0.16);
 }
 
+/* ── usage charts ───────────────────────────────────────
+ * A categorical scale: these six have to stay distinguishable *next to each
+ * other*, not merely on their own, which is why there is one blue and not two.
+ * Dark mode raises lightness and lowers chroma rather than inverting anything —
+ * a saturated hue on a dark surface vibrates against the text beside it.
+ *
+ * The ramp is ZCode's usage palette, copied value for value: the series hues
+ * step one sky family down on the dark theme, and the heat ramp mixes the sky
+ * series into `--surface` so an empty cell is the card it sits on, not a tint
+ * of it. Both scales are declared once per theme block — the mixes name
+ * concrete sky stops, so a `:root`-only declaration would not re-resolve.
+ */
+:root {
+  --chart-1: #0284c7;
+  --chart-2: #0d9488;
+  --chart-3: #7c3aed;
+  --chart-4: #f43f5e;
+  --chart-5: #6366f1;
+  --chart-6: #0891b2;
+
+  /* GitHub-style presence ramp. Level 0 is a day with no sessions, but the
+     reference still paints it — a faint tile is what makes the year read as a
+     grid instead of floating data. Each level mixes its sky stop INTO that
+     base, so an active cell keeps a whisper of the tile under the colour.
+     `in oklab`, not `in oklch`: interpolating in oklch swings the ramp through
+     magenta on its way from the sky hue to a neutral; oklab holds the hue. */
+  --heat-base: rgb(9 9 11 / 0.05);
+  --heat-0: var(--heat-base);
+  --heat-1: color-mix(in oklab, #0ea5e9 18%, var(--heat-base));
+  --heat-2: color-mix(in oklab, #0ea5e9 36%, var(--heat-base));
+  --heat-3: color-mix(in oklab, #0284c7 58%, var(--heat-base));
+  --heat-4: color-mix(in oklab, #0369a1 82%, var(--heat-base));
+}
+
+.dark {
+  --chart-1: #0ea5e9;
+  --chart-2: #2dd4bf;
+  --chart-3: #a78bfa;
+  --chart-4: #fb7185;
+  --chart-5: #818cf8;
+  --chart-6: #22d3ee;
+
+  /* the dark ramp walks back up the same family: lighter hues at lower
+     saturation, so activity glows against a dark card instead of sinking in */
+  --heat-base: rgb(255 255 255 / 0.06);
+  --heat-0: var(--heat-base);
+  --heat-1: color-mix(in oklab, #38bdf8 24%, var(--heat-base));
+  --heat-2: color-mix(in oklab, #38bdf8 42%, var(--heat-base));
+  --heat-3: color-mix(in oklab, #38bdf8 62%, var(--heat-base));
+  --heat-4: color-mix(in oklab, #7dd3fc 78%, var(--heat-base));
+}
+
+/* ── interface type scale ───────────────────────────────────
+ * Eight roles, all derived from one variable, so "make the text bigger" is a
+ * setting rather than a search-and-replace. The steps were chosen to land within
+ * 0.5px of what the interface already drew: 12.5 and 12 collapse onto caption,
+ * 11.5 and 11 onto sm, and 10.5 / 10 / 9.5 / 9 onto xs. Anything outside these
+ * eight is a defect, not a size.
+ *
+ * `inline` matters: it keeps each utility pointing at the live variable instead
+ * of baking the computed value in, so writing --ui-font-size once re-scales the
+ * whole shell. Icons, spacing and radii deliberately do not follow it.
+ */
+:root {
+  /* ZCode's base: 14px. Everything below derives, so the whole shell moves
+     with this one number — at 13px every token sat a full step below the
+     reference, which read as cramped next to it. */
+  --ui-font-size: 14px;
+}
+
 @theme inline {
+  /* the floor of the radius scale: 16px icons, <kbd> glyphs and 12px avatars.
+     Below this, an element is smaller than the scale and rounds by its own size
+     instead — see the radius section of DESIGN.md. */
+  --radius-tiny: 4px;
+
+  --text-ui-xl: calc(var(--ui-font-size) + 4px);
+  --text-ui-display: calc(var(--ui-font-size) + 7px);
+  --text-ui-stat: calc(var(--ui-font-size) + 4px);
+  --text-ui-lg: calc(var(--ui-font-size) + 2px);
+  --text-ui-base: var(--ui-font-size);
+  --text-ui-caption: calc(var(--ui-font-size) - 1px);
+  --text-ui-sm: calc(var(--ui-font-size) - 2px);
+  --text-ui-xs: calc(var(--ui-font-size) - 4px);
+  /* the floor: glyphs inside a fixed 14px badge, and axis furniture. Nothing that
+     carries meaning may sit here, which is why it is the last step. */
+  --text-ui-2xs: calc(var(--ui-font-size) - 5px);
+
   --color-plan: var(--plan);
   --color-plan-ink: var(--plan-ink);
   --color-plan-tint: var(--plan-tint);
+
+  /* the foundation's ink ramp stops at three levels; the fourth is the
+     "empty" one (placeholders, dimmed affordances) declared above */
+  --color-ink-4: var(--ink-4);
+
+  /* `--chart-*` are consumed as raw `var()` in SVG attributes and inline styles,
+     where an index is computed at runtime; only the heat ramp needs utilities,
+     because the heatmap picks its level from a literal class list. */
+  --color-heat-0: var(--heat-0);
+  --color-heat-1: var(--heat-1);
+  --color-heat-2: var(--heat-2);
+  --color-heat-3: var(--heat-3);
+  --color-heat-4: var(--heat-4);
 }
 
 :root {
@@ -89,6 +189,43 @@ body {
   height: 100vh;
 }
 
+/* ── dark-mode rendering ────────────────────────────────────
+ * Two corrections the dark theme needs, both about light-on-dark text reading
+ * dimmer than the same pixels do on a light page.
+ *
+ * WEIGHT — the foundation asks the whole shell for
+ * `-webkit-font-smoothing: antialiased`, which is a light-surface habit: it
+ * drops stem darkening, so every glyph is drawn from thinner coverage. Over
+ * dark text on a light page that is invisible; over light text on a dark page it
+ * costs about a quarter of the ink measured on screen, and white reads as grey.
+ * Dark surfaces hand smoothing back to the platform; the light theme keeps the
+ * crisper edges it was tuned for.
+ *
+ * RAMP — the foundation's dark ramp was stepped for a lighter page: at 0.768 and
+ * 0.628 the second and third levels sat so far under the primary that a row
+ * label, a workspace name and a timestamp all arrived as the same grey wash.
+ * The levels below lift the two that carry the grey — secondary and tertiary —
+ * and leave the primary where it was: with smoothing handed back to the platform
+ * above, 0.968 already renders whiter than it used to, and taking the primary to
+ * a true 0.985 as well turned the whole window into glare. A fourth level
+ * carries what has to read as *empty* rather than as quiet, which is why
+ * placeholders moved to it: at the old third level they were quieter than a
+ * label, at the new one they would be as loud as a value.
+ */
+:root {
+  --ink-4: oklch(0.79 0.008 264.5);
+}
+
+.dark {
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+
+  --ink: oklch(0.968 0.002 248);
+  --ink-2: oklch(0.828 0.008 261);
+  --ink-3: oklch(0.722 0.009 264);
+  --ink-4: oklch(0.478 0.008 264);
+}
+
 /* Electron chrome */
 .titlebar-drag {
   -webkit-app-region: drag;
@@ -110,18 +247,19 @@ body {
   --ease-link-css: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* The `--ease-*` theme namespace does not emit a utility for custom names, and
- * these curves are the whole motion system — so declare them explicitly. */
+/* The `--ease-*` theme namespace does not emit a utility for custom names, so
+ * the classes are declared here — but they read the same :root variables the
+ * inline styles use, so a curve is written exactly once in this file. */
 .ease-out-strong {
-  transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+  transition-timing-function: var(--ease-out-strong-css);
 }
 
 .ease-in-out-strong {
-  transition-timing-function: cubic-bezier(0.77, 0, 0.175, 1);
+  transition-timing-function: var(--ease-in-out-strong-css);
 }
 
 .ease-link {
-  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  transition-timing-function: var(--ease-link-css);
 }
 
 /* Every clickable control shares one press grammar. Opacity runs on 120ms
@@ -157,6 +295,109 @@ body {
 
 .view-enter {
   animation: view-enter 220ms var(--ease-out-strong-css) both;
+}
+
+/* The new-conversation entrance. `backwards` is the whole design: the delay
+ * holds the blurred first frame, and when the run ends the properties return to
+ * the cascade, so whatever else styles this subtree — the folder picker dim,
+ * for one — keeps working after the entrance instead of being outranked by an
+ * inline style that never came off. */
+@keyframes home-reveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 23px, 0);
+    filter: blur(17px);
+  }
+}
+
+/* The pixel-grid loader's single cell: the wavefront eases up to full ink and
+ * back while the resting cells hold their dim state, so a 3×3 grid reads as
+ * one light driving across it rather than nine blinking dots. */
+@keyframes pixel-on {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: scale(0.8);
+  }
+  40%,
+  55% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.home-reveal {
+  animation: home-reveal 800ms var(--ease-link-css) backwards;
+}
+
+/* The folder switcher's focus field: shade only at the edges of the view, with
+ * the centre left clear. The switcher's popover (z-30) shares the view's
+ * stacking context with this layer (z-20) and sits above it, so a vignette is
+ * not just softer than a scrim — it is the shape that can keep the menu itself
+ * crisp while everything toward the frame recedes. */
+.folder-scrim {
+  background: radial-gradient(ellipse 85% 72% at 50% 42%, transparent 52%, rgb(0 0 0 / 0.13) 100%);
+}
+.dark .folder-scrim {
+  background: radial-gradient(ellipse 85% 72% at 50% 42%, transparent 52%, rgb(0 0 0 / 0.34) 100%);
+}
+
+/* A tool call landing: the check arrives with a little overshoot, holds, then
+ * steps aside for the icon it was covering. `both` is right here — the element
+ * is mounted for exactly this animation and its final frame is invisible, so
+ * there is nothing left to outrank afterwards. */
+@keyframes step-settle {
+  0% {
+    opacity: 0;
+    transform: scale(0.45);
+  }
+  28% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  44% {
+    transform: scale(1);
+  }
+  72% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+.step-settle {
+  animation: step-settle 1.1s var(--ease-out-strong-css) both;
+  transform-origin: center;
+}
+
+/* A trend line draws itself rather than fading in, because the thing being
+ * introduced is a path — left to right is how it is read. `pathLength={1}` on
+ * the path makes the dash span unit-independent of the real length. */
+.chart-draw {
+  stroke-dasharray: 1;
+  animation: chart-draw 620ms var(--ease-out-strong-css) both;
+}
+
+@keyframes chart-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* A hovered week column bands, so a Tuesday in the middle of fifty-two can be
+ * traced up to its month label without counting cells. In CSS rather than
+ * state: the alternative is re-rendering every cell on every hover. */
+.heat-column:hover .heat-cell {
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+
+.heat-column:hover .heat-cell:hover {
+  transform: scale(1.35);
 }
 
 .row-enter {
@@ -243,6 +484,35 @@ body {
   background-clip: text;
   color: transparent;
   animation: shimmer-text 1.4s linear infinite;
+}
+
+/* A running call's chip carries a light travelling left to right — the same
+ * read as an executing command line, without a second progress widget. One
+ * shared keyframe: every running chip animates in lockstep instead of each
+ * mounting its own timeline. */
+.chip-sweep {
+  position: relative;
+  overflow: hidden;
+}
+
+.chip-sweep::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--ink) 14%, transparent), transparent);
+  animation: chip-sweep 1.5s var(--ease-in-out-strong-css) infinite;
+}
+
+@keyframes chip-sweep {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(290%);
+  }
 }
 
 .spin-fast {
@@ -381,10 +651,38 @@ body {
   }
 }
 
-/* Thin scrollbars for transcript and side panels. */
-.scrollbar-thin {
+/* Native UI that the theme tokens cannot reach — the overlay scrollbar, form
+ * controls, iframe canvases — is painted from `color-scheme`. The theme is a
+ * class toggle on <html>, not the system appearance, so each theme declares its
+ * own scheme: without it the transcript grows a light scrollbar on a dark page.
+ * Only this block may set it — per-component `color-scheme` would flip native
+ * parts mid-window. */
+:root {
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+/* Thin scrollbars for transcript and side panels.
+ *
+ * macOS is left out on purpose: styling a scrollbar in Chromium replaces the
+ * platform's overlay bar with a classic one, which costs every panel a
+ * permanent 10px gutter and never hides — the opposite of what a Mac window
+ * does. The native overlay bar is already thin and already themed by the
+ * system, so only Windows and Linux get the custom treatment. */
+html:not(.os-mac) .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
+}
+
+/* `scrollbar-thin` is also a utility the shadow plugin contributes, and that
+ * copy arrives inside Tailwind's utilities layer with no platform guard — so
+ * macOS has to take it back off, or the native overlay bar never returns. */
+html.os-mac .scrollbar-thin {
+  scrollbar-width: auto;
+  scrollbar-color: auto;
 }
 
 /* Long transcripts: offscreen turns skip layout and paint entirely, which is
@@ -396,31 +694,188 @@ body {
   contain-intrinsic-size: auto 220px;
 }
 
-/* Crisp text reveal: eliminate GPU-heavy blur & gradient masks */
+/* The resolving leading edge of streamed text — upstream's mechanism: the last
+ * few characters are blurred and masked, and they sharpen by being pushed out
+ * of the tail as more arrive, so a paused stream has nothing left to resolve.
+ *
+ * A region-based fade (masking the bottom of the last block) was tried and is
+ * wrong: it fades wherever growth happens to stop, so a finished thought keeps
+ * a permanently soft last line. The tail is a property of the leading edge, not
+ * of the block.
+ *
+ * Plain-text surfaces only — Markdown emits block elements, so an inline tail
+ * cannot follow a paragraph without dropping onto its own line. */
 .stream-tail {
-  filter: none !important;
-  -webkit-mask-image: none !important;
-  mask-image: none !important;
+  filter: blur(1.6px);
+  -webkit-mask-image: linear-gradient(to right, oklch(0 0 0) 20%, oklch(0 0 0 / 0.2));
+  mask-image: linear-gradient(to right, oklch(0 0 0) 20%, oklch(0 0 0 / 0.2));
 }
 
-.scrollbar-thin::-webkit-scrollbar {
+/* ── transcript scrollbar and turn rail ─────────────────────
+ * Two things that have to agree on a number: the bar's width.
+ *
+ * The transcript keeps a *visible* scrollbar rather than hiding it, and reserves
+ * its width (`scrollbar-gutter: stable`) so the turn rail can sit a fixed 12px
+ * to its left. Styling `::-webkit-scrollbar` at all is what takes the element
+ * off macOS' overlay bar, which is the point: an overlay bar has no width, so
+ * "12px to its left" would mean two different places on two platforms.
+ *
+ * The rail is a column of 2px bars, 10px apart. When a session has more turns
+ * than fit, the rail scrolls itself: its own bar is hidden — the fades at each
+ * end already say the same thing, and a second scrollbar 28px from the first
+ * reads as a rendering fault.
+ */
+/* The width comes from the pseudo-element below and *only* from there: setting
+ * the standard `scrollbar-width` as well hands the bar back to the platform's
+ * own sizing — Chromium gives `thin` 11px on macOS, and the standard property
+ * wins over `::-webkit-scrollbar` — which is three times the width the rail is
+ * positioned against. Chromium is the only engine this window runs in, so the
+ * legacy pseudo-element is the whole story. */
+.scrollbar-pill {
+  scrollbar-gutter: stable;
+}
+
+.scrollbar-pill::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.scrollbar-pill::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-pill::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 999px;
+}
+
+.scrollbar-pill::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-3);
+}
+
+.rail-scroll {
+  scrollbar-width: none;
+}
+
+.rail-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* A turn that is still running breathes. Opacity only: the bar's *length* is
+ * what says "current turn", and pulsing the scale too would make the one mark
+ * that must stay readable the one that keeps changing size. */
+@keyframes rail-busy {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.rail-busy {
+  animation: rail-busy 1s ease-in-out infinite;
+}
+
+/* The rail's preview card. Four pixels of travel in 120ms: it is a label for
+ * one mark, not a panel, and anything slower reads as a surface opening. There
+ * is no exit animation — the card is gone the moment the pointer leaves. */
+@keyframes rail-preview-in {
+  from {
+    opacity: 0;
+    transform: translateX(4px);
+  }
+}
+
+/* The caret carries a short comet while text is arriving. It is the only
+ * leading-edge affordance that works on the markdown answer too: Markdown
+ * emits block elements, so a per-character fade cannot be appended after them
+ * without dropping onto its own line — but the caret is already inline at
+ * exactly the point the new text appears. */
+.stream-caret {
+  position: relative;
+}
+
+.stream-caret.is-streaming::before {
+  content: "";
+  position: absolute;
+  right: 100%;
+  width: 14px;
+  height: 100%;
+  border-radius: 1px;
+  background: linear-gradient(to left, color-mix(in oklab, var(--ink) 34%, transparent), transparent);
+}
+
+/* ── loading surfaces ───────────────────────────────────────
+ * One muted block with a highlight crossing it, and every block on the same
+ * clock. The previous version ran `animate-pulse` per block with a 60ms delay
+ * between them, so a loading view breathed out of phase — twelve small
+ * flickers read as a page that is broken, not a page that is slow.
+ */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--hover-2);
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklch, var(--canvas) 62%, transparent),
+    transparent
+  );
+  animation: skeleton-sweep 1.45s ease-in-out infinite;
+}
+
+@keyframes skeleton-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+    opacity: 0;
+  }
+  .home-reveal {
+    animation: none;
+  }
+}
+
+html:not(.os-mac) .scrollbar-thin::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
-.scrollbar-thin::-webkit-scrollbar-thumb {
+html:not(.os-mac) .scrollbar-thin::-webkit-scrollbar-thumb {
   background: color-mix(in oklch, var(--line-strong) 80%, transparent);
   border: 3px solid transparent;
   border-radius: 999px;
   background-clip: content-box;
 }
 
-.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+html:not(.os-mac) .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: var(--line-strong);
   background-clip: content-box;
 }
 
 /* The vendored foundation dims scrollbars for the gallery; restore them here. */
-.records-scroll {
+html:not(.os-mac) .records-scroll {
   scrollbar-width: thin;
+}
+
+/* And undo the vendored block's own overrides on macOS, where `scrollbar-color`
+ * would replace the native bar and `scrollbar-gutter` reserves a lane for a
+ * scrollbar that is not there. */
+html.os-mac .records-scroll {
+  scrollbar-color: auto;
+  scrollbar-gutter: auto;
 }
