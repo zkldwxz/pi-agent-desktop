@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { app } from "electron";
+import { app, shell } from "electron";
 import { dirname } from "node:path";
 import {
   type ExtensionAPI,
@@ -14,6 +14,9 @@ import {
   createAgentSessionFromServices,
   createAgentSessionRuntime,
   createAgentSessionServices,
+  createCodemodeExtension,
+  createMcpExtension,
+  createToolSearchExtension,
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import type {
@@ -49,8 +52,18 @@ import {
   writeModelEdit,
 } from "./model-config";
 import { channelIdOf } from "../shared/channel.ts";
-import { deletePlugin, listPlugins, setPluginEnabled, createRule } from "./plugins";
-import { serializeMessage, serializeMessages, serializeModel, serializeSessionList, textFromContent, thinkingLevelsFor, withUltra } from "./serialize";
+import {
+  mcpFile,
+  patchMcpServer as patchMcpServerFile,
+  readMcpConfig,
+  removeMcpServer as removeMcpServerFile,
+  writeMcpServer as writeMcpServerFile,
+  type McpConfigView,
+  type McpScope,
+} from "./mcp";
+import type { McpExposure, McpServerConfig } from "@earendil-works/pi-coding-agent";
+import { createRule, deletePlugin, listPlugins, readPluginText, setPluginEnabled, writePluginText } from "./plugins";
+import { toolDisplayDetails, serializeMessage, serializeMessages, serializeModel, serializeSessionList, textFromContent, thinkingLevelsFor, withUltra } from "./serialize";
 import { registerBrowserTools } from "./browser-extension";
 import { registerDesktopBridge } from "./desktop-bridge-extension";
 import { registerSubagentTools, type NamedExtensionFactory } from "./subagent-tools-extension";
@@ -63,6 +76,10 @@ import { readConfig, writeConfig } from "./install";
 import { UiBridge } from "./ui-bridge";
 import type { UiAnswer, UiNotification, UiRequest } from "@shared/ui";
 import type { BrowserHost } from "./browser";
+import type { WorkspaceStore } from "./workspaces";
+import type { SshHost } from "./remote-ssh";
+import type { WorkspaceInfo } from "../shared/workspaces";
+import { registerRemoteTools, registerWorkspaceContext } from "./workspace-tools";
 
 export type HostListener = (payload: HostUpdate) => void;
 
@@ -159,7 +176,9 @@ export class PiHost {
   private slotBridges = new Map<string, { reannounce: () => void; emit: (channel: string, data: unknown) => void }>();
   readonly ui = new UiBridge((request, notifications) => this.listener?.({ state: this.buildState(), messages: this.messages(), tools: this.toolActivity(), uiRequest: request, notifications }));
 
-  constructor(cwd: string, private readonly getBrowser: () => BrowserHost | null = () => null) {
+  private workspace?: WorkspaceInfo;
+
+  constructor(cwd: string, private readonly getBrowser: () => BrowserHost | null = () => null, private readonly workspaceServices?: { store: WorkspaceStore; ssh: SshHost }) {
     this.cwd = cwd;
     this.settingsManager = SettingsManager.create(cwd, this.agentDir);
   }
@@ -170,6 +189,16 @@ export class PiHost {
 
   getCwd(): string {
     return this.cwd;
+  }
+
+  assertWorkspaceIdle(): void {
+    if (this.runtime?.session.isStreaming || this.runtime?.session.isCompacting || this.runtime?.session.isBashRunning || this.detachedRunning.size || this.fleet.some((agent) => agent.status === "running")) throw new Error("Wait for active tasks to finish before changing workspace folders.");
+  }
+
+  async refreshWorkspace(): Promise<void> {
+    this.assertWorkspaceIdle();
+    this.workspace = await this.workspaceServices?.store.get(this.cwd);
+    await this.reload();
   }
 
   /** Agent bash configuration is independent of interactive terminal shells. */
@@ -211,6 +240,9 @@ export class PiHost {
   async setCwd(cwd: string): Promise<void> {
     const nextCwd = cwd === "~" ? this.homeDir : cwd;
     if (nextCwd === this.cwd && this.runtime) return;
+    // dispose aborts the active agent and its fleet. A folder change must not
+    // silently cancel work; same-workspace new chats can still park their turn.
+    this.assertWorkspaceIdle();
     this.cwd = nextCwd;
     await this.dispose();
     this.settingsManager = SettingsManager.create(nextCwd, this.agentDir);
@@ -227,6 +259,7 @@ export class PiHost {
 
   async prompt(payload: PromptPayload): Promise<void> {
     const session = this.requireSession();
+    if (this.workspace?.sshId) this.workspaceServices?.ssh.connection(this.workspace.sshId);
     const text = payload.text.trim();
     if (!text) return;
     /* A bundled extension command typed while its plugin is missing or disabled
@@ -452,6 +485,23 @@ export class PiHost {
   async switchSession(sessionPath: string): Promise<void> {
     const active = this.requireRuntime();
     if (active.session.sessionFile === sessionPath) return;
+    const targetManager = SessionManager.open(sessionPath);
+    const targetCwd = targetManager.getCwd();
+    if (targetCwd !== this.cwd) {
+      // Local and SSH sessions have different tool transports. Reusing the old
+      // service loader would execute a reopened remote conversation locally.
+      const previous = active.session.sessionFile;
+      const parked = this.parkActiveIfNeeded();
+      if (!parked) { this.unsubscribe?.(); await active.dispose(); }
+      this.cwd = targetCwd;
+      this.settingsManager = SettingsManager.create(targetCwd, this.agentDir);
+      this.workspace = await this.workspaceServices?.store.get(targetCwd);
+      const target = this.detached.get(sessionPath);
+      if (target) { this.detached.delete(sessionPath); this.detachedRunning.delete(sessionPath); target.unsubscribe(); await this.activateRuntime(target.runtime, target.slotId); }
+      else await this.openRuntimeFor(targetManager, previous);
+      this.refreshSessionsInBackground();
+      return;
+    }
 
     const parked = this.parkActiveIfNeeded();
     const target = this.detached.get(sessionPath);
@@ -863,15 +913,90 @@ export class PiHost {
   }
 
   async deletePlugin(path: string, kind: PluginInfo["kind"]): Promise<PluginInfo[]> {
-    deletePlugin(path, kind);
+    deletePlugin(this.cwd, path, kind);
     await this.reload();
     return this.plugins();
+  }
+
+  /** The rule / skill / theme file the in-app editor opened. */
+  readPluginText(path: string): string {
+    return readPluginText(this.cwd, path);
+  }
+
+  /** Prompt templates are cached by the resource loader; saving must refresh it. */
+  async writePluginText(path: string, text: string): Promise<void> {
+    this.assertWorkspaceIdle();
+    writePluginText(this.cwd, path, text);
+    await this.reload();
   }
 
   async createRule(scope: "global" | "project", name: string): Promise<PluginInfo[]> {
     createRule(this.cwd, scope, name);
     await this.reload();
     return this.plugins();
+  }
+
+  /* ── MCP servers ─────────────────────────────────────────────────────── */
+
+  /**
+   * The servers both `mcp.json` files define, for the management screen.
+   *
+   * This reads the files directly rather than asking the session, because the
+   * screen has to show entries the session will not load — a disabled server,
+   * one with a broken command, or a project entry in a project pi does not
+   * trust yet.
+   */
+  mcpConfig(): McpConfigView {
+    return readMcpConfig(this.cwd, this.agentDir);
+  }
+
+  /** Namespaces whose tools the session actually registered — i.e. connected. */
+  mcpConnectedNamespaces(): string[] {
+    const connected = new Set<string>();
+    for (const name of this.toolNames()) {
+      if (!name.startsWith("mcp__")) continue;
+      const end = name.indexOf("__", "mcp__".length);
+      if (end > 0) connected.add(name.slice("mcp__".length, end));
+    }
+    return [...connected];
+  }
+
+  /** Where a scope's file lives, so the screen can open or name it. */
+  mcpFilePath(scope: McpScope): string {
+    return mcpFile(this.cwd, this.agentDir, scope);
+  }
+
+  /**
+   * A pi slash command, run the way the composer runs one.
+   *
+   * MCP sign-in is the caller: `/mcp login <server>` is pi's own command, so
+   * nothing here reimplements OAuth — the extension opens the browser through
+   * the `openUrl` hook and waits for the loopback callback.
+   */
+  async runCommand(text: string): Promise<void> {
+    await this.requireSession().prompt(text);
+  }
+
+  async writeMcpServer(scope: McpScope, name: string, config: McpServerConfig): Promise<McpConfigView> {
+    writeMcpServerFile(this.cwd, this.agentDir, scope, name, config);
+    await this.reload();
+    return this.mcpConfig();
+  }
+
+  async patchMcpServer(
+    scope: McpScope,
+    name: string,
+    patch: { enabled?: boolean; exposure?: McpExposure },
+  ): Promise<McpConfigView> {
+    patchMcpServerFile(this.cwd, this.agentDir, scope, name, patch);
+    await this.reload();
+    return this.mcpConfig();
+  }
+
+  async removeMcpServer(scope: McpScope, name: string): Promise<McpConfigView> {
+    removeMcpServerFile(this.cwd, this.agentDir, scope, name);
+    await this.reload();
+    return this.mcpConfig();
   }
 
   /**
@@ -1141,6 +1266,7 @@ export class PiHost {
     const agentDir = this.agentDir;
     const settingsManager = this.settingsManager;
 
+    this.workspace = await this.workspaceServices?.store.get(this.cwd);
     const createRuntime = this.makeRuntimeFactory("boot", { agentDir, settingsManager });
 
     this.runtime = await createAgentSessionRuntime(createRuntime, {
@@ -1168,6 +1294,13 @@ export class PiHost {
     io: { agentDir: string; settingsManager: SettingsManager },
   ): CreateAgentSessionRuntimeFactory {
     return async ({ cwd, sessionManager, sessionStartEvent }) => {
+      const workspace = await this.workspaceServices?.store.get(cwd);
+      const sessionTools: NamedExtensionFactory[] = workspace?.sshId && this.workspaceServices
+        ? [
+            { name: "pi-desktop-web", factory: registerWebTools },
+            { name: "pi-desktop-remote-tools", factory: (pi) => registerRemoteTools(pi, this.workspaceServices!.ssh, workspace) },
+          ]
+        : SESSION_TOOLS;
       const services = await createAgentSessionServices({
         cwd,
         agentDir: io.agentDir,
@@ -1176,14 +1309,25 @@ export class PiHost {
         // in this process, so the tools call the embedded view directly.
         resourceLoaderOptions: {
           extensionFactories: [
+            /* The three built-in extensions the CLI loads and SDK sessions do
+               not. MCP servers come from `mcp.json` — the one in the agent
+               directory and, for a trusted project, the one under `.pi/`.
+               `codemode` and `tool_search` are registered inactive: they switch
+               on through `defaultTools`, or on their own when a server's
+               exposure needs them. `openUrl` hands an OAuth authorization page
+               to the real browser, which is what the CLI's own sign-in does. */
+            createCodemodeExtension(),
+            createToolSearchExtension(),
+            createMcpExtension({ openUrl: (url) => void shell.openExternal(url) }),
             /* The window's tools, in every session. A sub-agent session loads
                the same two factories — agent-team asks the provisioning
                listener below for them, so the sub-agent's surface is this
                list minus the team tools. */
-            ...SESSION_TOOLS,
+            ...sessionTools,
+            ...(workspace && this.workspaceServices ? [{ name: "pi-desktop-workspace-context", factory: (pi: ExtensionAPI) => registerWorkspaceContext(pi, workspace, () => this.workspaceServices!.store.get(cwd)) }] : []),
             {
               name: "pi-desktop-subagent-tools",
-              factory: (pi: ExtensionAPI) => registerSubagentTools(pi, SESSION_TOOLS),
+              factory: (pi: ExtensionAPI) => registerSubagentTools(pi, sessionTools),
             },
             // capabilities the user enabled on the welcome screen
             ...(this.desktop?.capabilities.browser
@@ -1305,13 +1449,14 @@ export class PiHost {
     }
     if (event.type === "tool_execution_update") {
       const current = this.tools.get(event.toolCallId);
+      const partial = event.partialResult as { content?: unknown; details?: unknown } | undefined;
       this.tools.set(event.toolCallId, {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
         args: event.args,
         status: "running",
-        resultText: current?.resultText,
-        details: current?.details,
+        resultText: partial ? summarizeToolResult(partial) : current?.resultText,
+        details: partial ? event.toolName.startsWith("mcp__") ? toolDisplayDetails(partial.details, partial.content) : partial.details : current?.details,
         startedAt: current?.startedAt ?? Date.now(),
       });
     }
@@ -1324,7 +1469,7 @@ export class PiHost {
         args: current?.args,
         status: event.isError ? "error" : "done",
         resultText: summarizeToolResult(result),
-        details: result?.details,
+        details: event.toolName.startsWith("mcp__") ? toolDisplayDetails(result?.details, result?.content) : result?.details,
         startedAt: current?.startedAt ?? Date.now(),
         endedAt: Date.now(),
       });
@@ -1612,6 +1757,7 @@ export class PiHost {
     const session = this.runtime?.session;
     return {
       cwd: this.cwd,
+      workspace: this.workspace,
       homeDir: this.homeDir,
       connected: this.connected,
       error: this.error ?? session?.state.errorMessage,
@@ -1680,7 +1826,7 @@ export class PiHost {
 
 function summarizeToolResult(result: { content?: unknown } | undefined): string | undefined {
   if (!result) return undefined;
-  if (typeof result.content === "string") return result.content.slice(0, 400);
+  if (typeof result.content === "string") return result.content.slice(0, 128 * 1024);
   if (!Array.isArray(result.content)) return undefined;
   return result.content
     .map((block) => {
@@ -1691,7 +1837,7 @@ function summarizeToolResult(result: { content?: unknown } | undefined): string 
     })
     .filter(Boolean)
     .join("\n")
-    .slice(0, 400);
+    .slice(0, 128 * 1024);
 }
 
 /** Rough tokens-from-characters. English and code land near 4; a JSON schema is denser. */

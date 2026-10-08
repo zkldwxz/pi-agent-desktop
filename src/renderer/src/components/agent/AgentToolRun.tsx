@@ -1,4 +1,5 @@
 import { memo, useMemo } from "react";
+import { mcpCallDisplay } from "@shared/mcp-tool";
 import ToolChips, {
   type ToolDiff,
   type ToolDiffLine,
@@ -34,16 +35,38 @@ export const AgentToolRun = memo(function AgentToolRun({ runs }: { runs: ToolRun
 });
 
 function GroupChips({ group, defaultOpen }: { group: ToolGroupView; defaultOpen: boolean }) {
-  const steps: ToolStep[] = group.runs.map((run) => ({
-    id: run.toolCallId || `${run.toolName}-${run.chip}`,
-    icon: run.icon,
-    label: run.label,
-    chip: run.chip,
-    mono: run.mono,
-    detailMono: run.detailMono,
-    detail: toolDetailLines(run),
-    status: run.status,
-  }));
+  const steps: ToolStep[] = group.runs.map((run) => {
+    /* An MCP call's second layer is the result itself: pi's text (JSON or
+       prose), the images and blob resources a forwarded content block carries,
+       the arguments it was called with, and where a truncated output was saved.
+       The parse is memoised in the display module — this map runs on every
+       streamed token, and a long result must not be re-parsed there. */
+    const mcp = mcpCallDisplay({
+      toolName: run.toolName,
+      args: run.args,
+      resultText: run.result,
+      details: run.details,
+      isError: run.status === "error",
+    });
+    const pane =
+      mcp && (mcp.sections.length > 0 || mcp.args || mcp.fullOutputPath)
+        ? { sections: mcp.sections, args: mcp.args, fullOutputPath: mcp.fullOutputPath }
+        : undefined;
+    return {
+      id: run.toolCallId || `${run.toolName}-${run.chip}`,
+      icon: mcp ? "mcp" : run.icon,
+      label: run.label,
+      chip: run.chip,
+      mono: run.mono,
+      detailMono: run.detailMono,
+      /* a rendered result is its own outcome; the generic "done" line under it
+         would only repeat the row */
+      detail: pane ? [] : toolDetailLines(run),
+      status: run.status,
+      ...(pane ? { pane } : {}),
+      ...(mcp ? { title: run.toolName } : {}),
+    };
+  });
 
   // ToolChips identifies a diff chip by its file string, so the string has to be
   // unique. A tool call whose arguments carry no path still needs a distinct
@@ -99,7 +122,7 @@ function GroupChips({ group, defaultOpen }: { group: ToolGroupView; defaultOpen:
             {/* the call count rides along even when the kind already carries
                 its own tally — the one number that answers "how much work was
                 this". Skipped when the label's ×N already is that number. */}
-            {group.runs.length > 1 && !group.label.includes(`×${group.runs.length}`) ? (
+            {group.runs.length > 1 && !group.runs.every((run) => run.toolName.startsWith("mcp__")) && !group.label.includes(`×${group.runs.length}`) ? (
               <span className="shrink-0 text-ink-3 tabular-nums">
                 · {tf("{count} calls", { count: group.runs.length })}
               </span>

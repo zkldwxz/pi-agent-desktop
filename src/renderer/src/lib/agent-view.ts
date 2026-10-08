@@ -1,4 +1,5 @@
 import type { ChatMessage, ToolActivity } from "@shared/types";
+import { mcpCallDisplay, parseMcpToolName } from "@shared/mcp-tool";
 import { getLocale, t, tf, type Locale } from "./i18n";
 
 /* ─────────────────────────────────────────────────────────
@@ -12,16 +13,19 @@ import { getLocale, t, tf, type Locale } from "./i18n";
 /**
  * The conversation column, ported from ZCode's conversationLayout: not a fixed
  * width but the area minus fixed margins — 6rem each side up to 864px of
- * container, capped at 4xl; 24rem of margin past 1280px, capped at 6xl, with
- * the status-panel lean riding the same breakpoint. The timeline and the
- * composer dock MUST render this same class — two different widths would put
- * the prompt bar out of line with the text it answers.
+ * container, capped at 4xl; 24rem of margin past 1280px, capped at 6xl. The
+ * status-panel lean is a CSS variable the conversation container sets from
+ * React state: with every right-hand dock closed the container goes full-width,
+ * the 1280px breakpoint still fires, and a fixed -translate-x-44 left the
+ * prompt bar stranded off-centre — the exact bug this replaced. The timeline
+ * and the composer dock MUST render this same class — two different widths
+ * would put the prompt bar out of line with the text it answers.
  */
 export const CONVERSATION_COLUMN =
   "mx-auto w-full shrink-0 transition-[width,max-width,transform] duration-150 ease-out " +
   "@min-[864px]/conversation:w-[calc(100%_-_6rem)] @min-[864px]/conversation:max-w-4xl " +
   "@min-[1280px]/conversation:w-[calc(100%_-_24rem)] @min-[1280px]/conversation:max-w-6xl " +
-  "@min-[1280px]/conversation:-translate-x-44";
+  "@min-[1280px]/conversation:translate-x-[var(--conversation-lean,0rem)]";
 
 export type TextSegment =
   | { kind: "text"; text: string }
@@ -49,6 +53,14 @@ export interface ToolRun {
   del?: number;
   /** parsed hunk lines, each carrying the line number it came from */
   diffLines?: DiffLine[];
+  /**
+   * The result text, and pi's result details, kept for the one row kind whose
+   * second layer renders them: MCP calls. Everything else summarises its result
+   * into `detail` here and drops the raw text. Both are references already held
+   * by the transcript message, so carrying them costs nothing.
+   */
+  result?: string;
+  details?: unknown;
 }
 
 export type DiffLineTone = "add" | "del" | "ctx";
@@ -275,6 +287,8 @@ export function buildToolRun(
     detail: [],
     status,
     path: file,
+    result: resultText,
+    details,
   };
 
   switch (name) {
@@ -355,11 +369,20 @@ export function buildToolRun(
       break;
     }
     default: {
-      if (SEARCH_TOOLS.has(name)) {
+      /* MCP tools arrive as `mcp__server__tool`; the row names the server and
+         what the tool does instead of showing the wire name. The result parse
+         itself happens where the row is rendered, not here — a collapsed group
+         must not pay for a result nobody opened. */
+      const mcp = mcpCallDisplay({ toolName: name, args: input });
+      if (mcp) {
+        run.label = tf("MCP · {server}", { server: mcp.serverLabel });
+        run.chip = mcp.chip;
+        run.mono = true;
+      } else if (SEARCH_TOOLS.has(name)) {
         run.label = t("Search the web");
         run.chip = target ? truncate(target, 40) : "web";
       } else {
-        // an unrecognised tool (an MCP or extension tool) reads as itself;
+        // an unrecognised tool (an extension tool) reads as itself;
         // no "call" filler — the row is already a call
         run.label = name;
         run.chip = target ? truncate(target, 40) : "";
@@ -537,7 +560,14 @@ function groupLabel(group: ToolGroupView): string {
     return `${t(editing ? "Editing" : "Edited")} ${plural(group.files || runs.length, "file")}`;
   }
 
-  if (bucket === "other") return plural(runs.length, "call");
+  if (bucket === "other") {
+    /* a run of MCP calls is still one family; saying "3 calls" would hide the
+       only thing the header is for */
+    if (runs.every((run) => parseMcpToolName(run.toolName))) {
+      return tf("MCP · {count} calls", { count: runs.length });
+    }
+    return plural(runs.length, "call");
+  }
 
   const parts: string[] = [];
   if (group.files) parts.push(plural(group.files, "file"));

@@ -173,26 +173,24 @@ try {
     assert.ok(bytes(full) >= 30000);
   });
 
-  await checkAsync("bash: a failure stays an error, with a bounded cleaned message", async () => {
-    await assert.rejects(
-      () => run("bash", { command: "printf 'boom\\n'; exit 3" }),
-      (error) => {
-        assert.match(error.message, /boom/);
-        assert.match(error.message, /Command exited with code 3/);
-        return true;
-      },
-    );
-    let failurePath;
-    await assert.rejects(
-      () => run("bash", { command: `printf '\\033[31m%s\\033[0m\\n' "$(printf 'q%.0s' $(seq 1 40000))"; exit 1` }),
-      (error) => {
-        assert(!error.message.includes(ESC), "the failure message is cleaned");
-        assert.ok(bytes(error.message) <= 20 * 1024 + 600, `the failure message is bounded (${bytes(error.message)})`);
-        failurePath = /Full output: ([^\]\n]+)/.exec(error.message)?.[1];
-        assert.ok(failurePath, "truncated failure has a full-output file");
-        return true;
-      },
-    );
+  /* pi 1.0 turned a non-zero exit from a thrown error into an error result, so
+     what used to be asserted on the exception is asserted on `isError` and the
+     result's own text — the desktop's cleaning and budget apply either way. */
+  await checkAsync("bash: a failure is an error result, with a bounded cleaned message", async () => {
+    const failed = await run("bash", { command: "printf 'boom\\n'; exit 3" });
+    assert.equal(failed.isError, true, "a non-zero exit is flagged on the result");
+    assert.match(failed.content[0].text, /boom/);
+    assert.match(failed.content[0].text, /Command exited with code 3/);
+
+    const noisy = await run("bash", {
+      command: `printf '\\033[31m%s\\033[0m\\n' "$(printf 'q%.0s' $(seq 1 40000))"; exit 1`,
+    });
+    assert.equal(noisy.isError, true, "the truncated failure is still an error");
+    const noisyText = noisy.content[0].text;
+    assert(!noisyText.includes(ESC), "the failure message is cleaned");
+    assert.ok(bytes(noisyText) <= 20 * 1024 + 600, `the failure message is bounded (${bytes(noisyText)})`);
+    const failurePath = noisy.details?.fullOutputPath;
+    assert.ok(failurePath && existsSync(failurePath), "truncated failure has a full-output file");
     assert.match(await readFile(failurePath, "utf8"), /q{40000}/);
   });
 

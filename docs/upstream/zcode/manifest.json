@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/zai-org/ZCode.git",
+  "commit": "29628c9acdb81b703bbd4080c207a0e7ce5e276e",
+  "retrievedAt": "2026-10-02T11:10:39.660Z",
+  "archive": "source.tar.gz",
+  "format": "git archive of complete source tree; excludes .git and installed dependencies"
+}

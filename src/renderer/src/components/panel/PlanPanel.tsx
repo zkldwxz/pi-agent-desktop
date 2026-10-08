@@ -133,9 +133,9 @@ export function PlanPanel({
     }
     let cancelled = false;
     void window.pi
-      .readFile(path)
+      .readPlan()
       .then((content) => {
-        if (!cancelled) setFile({ text: content.text ?? "", error: content.error });
+        if (!cancelled) setFile({ text: content?.text ?? "", error: content?.error });
       })
       .catch((error: unknown) => {
         if (!cancelled) setFile({ text: "", error: error instanceof Error ? error.message : String(error) });

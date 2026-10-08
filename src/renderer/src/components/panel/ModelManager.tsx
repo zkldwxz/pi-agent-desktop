@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ChannelApi, ChannelEdit, ChannelInfo, ModelEdit, ModelInfo } from "@shared/types";
 import { inferModelCapabilities, type ModelCapabilityGuess } from "@shared/model-capabilities";
 import { cn } from "../../lib/cn";
 import { formatContext } from "../../lib/format";
 import { t, tf } from "../../lib/i18n";
-import { useFocusTrap } from "../motion";
+import { buildCatalogue, modelSections } from "../../lib/model-list";
+import { GlideList, useFocusTrap } from "../motion";
 import {
   BrainIcon,
   CheckIcon,
@@ -13,11 +14,11 @@ import {
   ImageIcon,
   PencilIcon,
   PlusIcon,
+  SearchIcon,
   TrashIcon,
   XIcon,
 } from "../icons";
-import { Chip } from "../ui";
-import { Section } from "./SettingsParts";
+import { Card, Chip, EmptyState } from "../ui";
 import { THINKING_LEVELS } from "@shared/thinking";
 
 /**
@@ -125,9 +126,14 @@ export function ModelManagerSection({
   const [editing, setEditing] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /* the catalogue's filter — matches model name/id/provider and the channel it
+     sits on, the same fields the Customize ▸ Models search reads */
+  const [query, setQuery] = useState("");
   /* ZCode manages models per provider — "By provider" is the default view,
    * and the preference persists either way */
-  const [grouped, setGrouped] = useState(() => localStorage.getItem(GROUP_KEY) !== "off");
+  /* A flat default keeps every custom model ahead of pi's built-ins, even
+     when models.json overrides a shipped provider. Explicit grouping persists. */
+  const [grouped, setGrouped] = useState(() => localStorage.getItem(GROUP_KEY) === "on");
   /* the channel whose key list is open for editing, and the row awaiting a
      delete confirmation — endpoints carry spendable credentials, so neither
      action happens on a single click */
@@ -137,47 +143,24 @@ export function ModelManagerSection({
   const enabled = new Set(enabledKeys);
   const editingModel = editing && editing !== NEW ? models.find((model) => keyOf(model) === editing) ?? null : null;
 
-  /** Channels by the provider id a model row carries, so a row can name its
-   *  endpoint in either view. */
-  const channelOfModel = (model: ModelInfo) =>
-    channels.find((channel) => channel.id === model.channelId) ??
-    channels.find((channel) => channel.members.includes(model.provider));
-
   const customChannels = channels.filter((channel) => channel.custom);
+
+  /* The catalogue is indexed once per host update — the search then walks a
+     prebuilt lowercased haystack instead of rebuilding one per keystroke — and
+     the sections are regrouped only when the filter or the shape changes. */
+  const catalogue = useMemo(() => buildCatalogue(models, channels), [models, channels]);
+  const sections = useMemo(() => modelSections(catalogue, { grouped, query }), [catalogue, grouped, query]);
+
+  const nothingToMatch = !models.length && !customChannels.length;
+  /* a section with no rows can still be the answer — it is an endpoint the query
+     named, and "no models match" would be a lie about a channel that exists */
+  const noMatches =
+    Boolean(query.trim()) && !sections.some((section) => section.rows.length || section.channel);
 
   const setGroupView = (next: boolean) => {
     setGrouped(next);
     localStorage.setItem(GROUP_KEY, next ? "on" : "off");
   };
-
-  /**
-   * The list in whichever shape the view asks for.
-   *
-   * Grouped sorts by channel name so a channel's rows land together however the
-   * runtime ordered them, and a channel with no models yet still gets a section
-   * — otherwise the endpoint just created would look like it had not been saved.
-   */
-  const sections: Array<{ channel: ChannelInfo | null; rows: ModelInfo[] }> = [];
-  if (!grouped) {
-    sections.push({ channel: null, rows: models });
-  } else {
-    const byChannel = new Map<string, ModelInfo[]>();
-    for (const model of models) {
-      const id = channelOfModel(model)?.id ?? model.provider;
-      const bucket = byChannel.get(id);
-      if (bucket) bucket.push(model);
-      else byChannel.set(id, [model]);
-    }
-    for (const channel of [...channels].sort((a, b) => a.name.localeCompare(b.name))) {
-      const rows = byChannel.get(channel.id);
-      sections.push({ channel, rows: rows ? [...rows].sort((a, b) => a.name.localeCompare(b.name)) : [] });
-      byChannel.delete(channel.id);
-    }
-    /* endpoints the host reported no channel for still belong somewhere */
-    for (const [id, rows] of byChannel) {
-      sections.push({ channel: channels.find((channel) => channel.id === id) ?? null, rows });
-    }
-  }
 
   const run = async (job: () => Promise<void>) => {
     setBusy(true);
@@ -203,10 +186,14 @@ export function ModelManagerSection({
 
   return (
     <>
-      <Section
-        title={t("Model management")}
-        index={0}
-        actions={
+      {/* Hand-rolled card rather than SettingsParts' Section: the model list is
+          the one settings block that scrolls inside a capped box, and the shared
+          glide highlight is absolutely positioned — outside that box it would
+          paint over the search row whenever a row is half scrolled out. Keeping
+          it inside the scrolling element is what clips it. */}
+      <Card index={0} className="overflow-hidden">
+        <div className="flex items-center gap-3 border-b border-line px-4 py-3">
+          <span className="min-w-0 flex-1 truncate text-ui-base font-medium text-ink">{t("Model management")}</span>
           <div className="flex items-center gap-2">
             {/* two readings of one list: the flat catalogue, or a block per
                 endpoint with its keys named once above it */}
@@ -234,13 +221,55 @@ export function ModelManagerSection({
               {t("Add model")}
             </Chip>
           </div>
-        }
-      >
-        {!models.length && !customChannels.length ? (
+        </div>
+        {!nothingToMatch ? (
+          <div className="border-b border-line px-4 py-2">
+            <label className="flex h-7 min-w-0 items-center gap-2 rounded-control bg-field px-2.5 shadow-hairline transition-shadow duration-150 focus-within:shadow-[0_0_0_3px_var(--accent-tint)]">
+              <SearchIcon size={12} className="shrink-0 text-ink-3" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  /* a filter box, not an overlay: Escape empties it, the gesture
+                     the settings rail's own search already uses */
+                  if (event.key === "Escape") setQuery("");
+                }}
+                placeholder={t("Search models and channels")}
+                aria-label={t("Search models and channels")}
+                className="min-w-0 flex-1 bg-transparent text-ui-caption text-ink outline-none placeholder:text-ink-4"
+              />
+              {query ? (
+                <button
+                  type="button"
+                  aria-label={t("Clear search")}
+                  onClick={() => setQuery("")}
+                  className="pressable flex size-4 shrink-0 items-center justify-center rounded-tiny text-ink-3 hover:text-ink"
+                >
+                  <XIcon size={11} />
+                </button>
+              ) : null}
+            </label>
+          </div>
+        ) : null}
+
+        {nothingToMatch ? (
           <div className="px-4 py-3 text-ui-sm leading-snug text-ink-3">
             {t("No models are authenticated yet. Run `pi login`, then reload this page.")}
           </div>
         ) : null}
+        {!nothingToMatch && noMatches ? (
+          <div className="p-4">
+            <EmptyState title={t("No models match")} body={t("Clear the search or switch channel.")} />
+          </div>
+        ) : null}
+        {/* The catalogue is the tallest thing on this page and pi ships hundreds
+            of models; capping it keeps the rest of the page within reach instead
+            of behind a scroll of rows nobody asked to see. Empty channels are
+            kept in the default view on purpose — an endpoint just created must
+            not look like it failed to save. */}
+        {!nothingToMatch && !noMatches ? (
+        <div className="scrollbar-thin max-h-[52vh] overflow-y-auto">
+        <GlideList rowSelector="[data-row]" highlightClassName="bg-hover" radius={6}>
         {sections.map((section) => {
           const channel = section.channel;
           return (
@@ -370,7 +399,10 @@ export function ModelManagerSection({
           </div>
           );
         })}
-      </Section>
+        </GlideList>
+        </div>
+        ) : null}
+      </Card>
 
       {editing && typeof document !== "undefined"
         ? createPortal(

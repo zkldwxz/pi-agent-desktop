@@ -294,6 +294,8 @@ export interface QueueState {
 
 export interface HostState {
   cwd: string;
+  /** All project roots attached to this conversation, including remote identity. */
+  workspace?: import("./workspaces").WorkspaceInfo;
   /** The canonical OS home directory used by the Home/no-project workspace. */
   homeDir: string;
   connected: boolean;
@@ -348,6 +350,15 @@ export interface PluginInfo {
   enabled: boolean;
   /** false when the plugin is declared in settings and cannot be toggled by moving files */
   toggleable: boolean;
+  /**
+   * False when there is no file to move to the trash: entries that only exist
+   * as a line in settings.json have nothing to delete, and deleting the path
+   * they point at would be a surprise. Separate from `toggleable` because
+   * prompts, skills and themes are real files you can delete but never toggle
+   * — the old code reused `toggleable` for both and greyed out the trash icon
+   * on every rule the user had just created.
+   */
+  removable: boolean;
   sizeBytes?: number;
   modified?: string;
   error?: string;

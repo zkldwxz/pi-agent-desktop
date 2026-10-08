@@ -1,7 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, shell } from "electron";
 import { existsSync } from "node:fs";
+import { realpath } from "node:fs/promises";
 import { homedir, userInfo } from "node:os";
-import { isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { PiHost } from "./pi-host";
 import { BrowserHost } from "./browser";
 import { PtyHost } from "./pty";
@@ -11,10 +12,18 @@ import { gitBranches, gitCheckout, gitCommit, gitCreateBranch, gitDeleteBranch, 
 import { applyCatalog, bundledExtensionName, catalog, markOnboardingDone, readConfig, syncBundledExtensions, writeConfig } from "./install";
 import { discoverTerminalShells, resolveTerminalShell } from "./shells";
 import { pluginRoots } from "./plugins";
+import type { McpScope } from "./mcp";
+import type { McpExposure, McpServerConfig } from "@earendil-works/pi-coding-agent";
 import type { UiAnswer } from "@shared/ui";
 import { collectUsage } from "./usage";
 import type { ChannelEdit, ModelEdit, PlanAction, PluginInfo, PluginRoots, PromptPayload, RuntimeSettings } from "@shared/types";
 import type { BrowserBounds, DesignPick } from "@shared/browser";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { SshHost } from "./remote-ssh";
+import { RemoteGit } from "./remote-git";
+import { WorkspaceStore } from "./workspaces";
+import { parseRemotePath } from "../shared/workspaces.ts";
+import type { SshConnectInput } from "../shared/workspaces";
 
 app.setName("Pi Agent Desktop");
 
@@ -41,6 +50,15 @@ const ptyHost = new PtyHost(
   (id, data) => window?.webContents.send("pty:data", { id, data }),
   (id, exitCode) => window?.webContents.send("pty:exit", { id, exitCode }),
 );
+
+const sshHost = new SshHost(
+  getAgentDir(),
+  (id, data) => window?.webContents.send("pty:data", { id, data }),
+  (id, exitCode) => window?.webContents.send("pty:exit", { id, exitCode }),
+  () => window?.webContents.send("workspace:changed"),
+);
+const workspaceStore = new WorkspaceStore(getAgentDir(), sshHost);
+let remoteBash: AbortController | undefined;
 
 function sendHostUpdate(): void {
   if (!window || !host) return;
@@ -174,6 +192,58 @@ function registerIpc(): void {
     return { state: host.snapshot(), messages: host.messages(), tools: host.toolActivity() };
   });
 
+  /* Multi-folder membership and SSH metadata share the same stable session anchor. */
+  const activeCwd = () => host?.getCwd() ?? defaultCwd();
+  ipcMain.handle("workspace:get", () => workspaceStore.get(activeCwd()));
+  ipcMain.handle("workspace:list", () => workspaceStore.list());
+  ipcMain.handle("workspace:addFolder", async (_event, path?: string) => {
+    host?.assertWorkspaceIdle();
+    const workspace = await workspaceStore.get(activeCwd());
+    if (!path && !workspace.sshId) {
+      const picked = await dialog.showOpenDialog({ title: "Add folder to workspace", properties: ["openDirectory"] });
+      path = picked.filePaths[0];
+    }
+    if (!path) return workspace;
+    const result = await workspaceStore.add(activeCwd(), path);
+    await host?.refreshWorkspace();
+    window?.webContents.send("workspace:changed");
+    return result;
+  });
+  ipcMain.handle("workspace:removeFolder", async (_event, path: string) => {
+    host?.assertWorkspaceIdle();
+    const result = await workspaceStore.remove(activeCwd(), path);
+    await host?.refreshWorkspace();
+    window?.webContents.send("workspace:changed");
+    return result;
+  });
+  ipcMain.handle("workspace:rename", async (_event, name: string) => {
+    host?.assertWorkspaceIdle();
+    const result = await workspaceStore.rename(activeCwd(), name);
+    await host?.refreshWorkspace();
+    window?.webContents.send("workspace:changed");
+    return result;
+  });
+  ipcMain.handle("ssh:list", () => sshHost.profilesList());
+  ipcMain.handle("ssh:probe", (_event, host: string, port?: number) => sshHost.probe(host, port));
+  ipcMain.handle("ssh:connect", async (_event, input: SshConnectInput) => {
+    host?.assertWorkspaceIdle();
+    const connected = await sshHost.connect(input);
+    const workspace = await workspaceStore.remote(connected.profile.id, connected.profile.name, connected.folder);
+    await host?.setCwd(workspace.cwd);
+    window?.webContents.send("workspace:changed");
+    return workspace;
+  });
+  ipcMain.handle("ssh:disconnect", (_event, id: string) => sshHost.disconnect(id));
+  ipcMain.handle("ssh:remove", async (_event, id: string) => {
+    await workspaceStore.assertSshUnused(id);
+    await sshHost.remove(id);
+    window?.webContents.send("workspace:changed");
+  });
+  ipcMain.handle("ssh:pickKey", async () => {
+    const picked = await dialog.showOpenDialog({ title: "Select SSH private key", defaultPath: join(homedir(), ".ssh"), properties: ["openFile"] });
+    return picked.filePaths[0];
+  });
+
   ipcMain.handle("pi:prompt", async (_event, payload: PromptPayload) => {
     try {
       await host?.prompt(payload);
@@ -198,7 +268,8 @@ function registerIpc(): void {
   /** Switch the active project folder. `pickCwd` opens a dialog; this one takes
    *  a path, which is what the sidebar's workspace list needs. */
   ipcMain.handle("pi:setCwd", async (_event, cwd: string) => {
-    await host?.setCwd(cwd);
+    try { await host?.setCwd(cwd); }
+    catch (error) { reportError(error); throw error; }
   });
 
   ipcMain.handle("pi:setModel", async (_event, provider: string, modelId: string) => {
@@ -226,6 +297,15 @@ function registerIpc(): void {
       reportError(error);
       throw error;
     }
+  });
+
+  // Plan mode runs locally even in SSH workspaces. Only the active plan's
+  // host-reported path may use this local read, never an arbitrary IPC path.
+  ipcMain.handle("plan:read", async () => {
+    const path = host?.snapshot().plan.path;
+    if (!path) return undefined;
+    const target = await realpath(path);
+    return readFileForView(dirname(target), target);
   });
 
   ipcMain.handle("pi:reload", async () => {
@@ -304,7 +384,18 @@ function registerIpc(): void {
 
   ipcMain.handle("pi:listAllSessions", async () => (await host?.allSessions()) ?? []);
   ipcMain.handle("pi:deleteWorkspace", async (_event, cwd: string) => {
-    await host?.deleteWorkspace(cwd);
+    try {
+      host?.assertWorkspaceIdle();
+      const workspace = await workspaceStore.get(cwd);
+      if (workspace.sshId && resolve(activeCwd()) === resolve(cwd)) {
+        // Leave the remote anchor before deleting its identity. The agent and
+        // every panel must switch transport together, including the new chat.
+        await host?.setCwd(resolve(defaultCwd()) === resolve(cwd) ? homedir() : defaultCwd());
+      }
+      await host?.deleteWorkspace(cwd);
+      await workspaceStore.delete(cwd);
+      window?.webContents.send("workspace:changed");
+    } catch (error) { reportError(error); throw error; }
   });
 
   /** Sizes of what is filling the context window, for the model menu. */
@@ -413,6 +504,68 @@ function registerIpc(): void {
     }
   });
 
+  /* The in-app editor for rules, skills and themes. Both ends of this pair go
+     through the main process because a rule can live outside the workspace
+     (~/.pi/agent/prompts), which the renderer's own file APIs cannot see. */
+  ipcMain.handle("pi:readPluginText", (_event, path: string) => {
+    if (!host) throw new Error("Agent not started.");
+    return host.readPluginText(path);
+  });
+
+  ipcMain.handle("pi:writePluginText", async (_event, path: string, text: string) => {
+    if (!host) throw new Error("Agent not started.");
+    await host.writePluginText(path, text);
+  });
+
+  /* ── MCP servers ───────────────────────────────────────────────────────── */
+
+  ipcMain.handle("pi:mcpConfig", () => host?.mcpConfig() ?? { servers: [], errors: [], autoEnableCodemode: true });
+
+  /** namespaces whose tools the session registered — i.e. servers that connected */
+  ipcMain.handle("pi:mcpConnected", () => host?.mcpConnectedNamespaces() ?? []);
+
+  ipcMain.handle("pi:mcpFilePath", (_event, scope: McpScope) => host?.mcpFilePath(scope) ?? "");
+
+  ipcMain.handle("pi:writeMcpServer", async (_event, scope: McpScope, name: string, config: McpServerConfig) => {
+    if (!host) throw new Error("Agent not started.");
+    try {
+      return await host.writeMcpServer(scope, name, config);
+    } catch (error) {
+      reportError(error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle(
+    "pi:patchMcpServer",
+    async (_event, scope: McpScope, name: string, patch: { enabled?: boolean; exposure?: McpExposure }) => {
+      if (!host) throw new Error("Agent not started.");
+      try {
+        return await host.patchMcpServer(scope, name, patch);
+      } catch (error) {
+        reportError(error);
+        throw error;
+      }
+    },
+  );
+
+  ipcMain.handle("pi:removeMcpServer", async (_event, scope: McpScope, name: string) => {
+    if (!host) throw new Error("Agent not started.");
+    try {
+      return await host.removeMcpServer(scope, name);
+    } catch (error) {
+      reportError(error);
+      throw error;
+    }
+  });
+
+  /* Sign-in, sign-out and reconnect are pi's own `/mcp` subcommands — running
+     them through the session is what keeps the OAuth dance in one place. */
+  ipcMain.handle("pi:mcpCommand", async (_event, command: "login" | "logout" | "reconnect", name: string) => {
+    if (!host) throw new Error("Agent not started.");
+    await host.runCommand(`/mcp ${command} ${name}`);
+  });
+
   ipcMain.handle("pi:savePasteImage", async (_event, dataUrl: string, extension?: string) => {
     if (!host) throw new Error("Agent not started.");
     return host.savePasteImage(dataUrl, extension);
@@ -435,41 +588,60 @@ function registerIpc(): void {
     });
     const next = result.filePaths[0];
     if (!next) return undefined;
-    await host?.setCwd(next);
+    try { await host?.setCwd(next); }
+    catch (error) { reportError(error); throw error; }
     return next;
   });
 
   ipcMain.handle("pi:openPath", async (_event, target: string) => {
+    if ((await workspaceStore.get(target)).sshId) throw new Error("Remote files are opened in the workspace file viewer.");
     await shell.openPath(target);
   });
 
   /* ── workspace panels: file browser + terminal ─────────── */
 
   ipcMain.handle("fs:list", async (_event, dirPath: string, showAll: boolean) => {
-    const root = host?.getCwd() ?? defaultCwd();
-    return listDir(root, dirPath || root, showAll);
+    const cwd = activeCwd();
+    try {
+      const workspace = await workspaceStore.get(cwd);
+      if ((!dirPath || resolve(dirPath) === resolve(cwd)) && workspace.folders.length > 1) return { path: cwd, parent: null, entries: workspace.folders.map((folder) => ({ name: folder.name, path: folder.path, kind: "dir" as const })), truncated: false };
+      if (workspace.sshId) {
+        const target = dirPath === cwd || !dirPath ? workspace.folders[0].path : dirPath;
+        const remote = await workspaceStore.resolveRemote(cwd, target);
+        return sshHost.list(remote.id, remote.path, showAll);
+      }
+      const target = await workspaceStore.resolveLocal(cwd, dirPath || cwd);
+      return listDir(target.root, target.path, showAll);
+    } catch (error) { return { path: dirPath, parent: null, entries: [], truncated: false, error: error instanceof Error ? error.message : String(error) }; }
   });
 
   ipcMain.handle("fs:search", async () => {
-    const root = host?.getCwd() ?? defaultCwd();
-    return searchFiles(root);
+    const workspace = await workspaceStore.get(activeCwd());
+    if (workspace.sshId) return sshHost.search(workspace.sshId, workspace.folders.map((folder) => parseRemotePath(folder.path)!.path));
+    const rows = await Promise.all(workspace.folders.map(async (folder) => (await searchFiles(folder.path, Math.floor(4000 / workspace.folders.length))).map((row) => ({ ...row, path: workspace.folders.length > 1 ? join(folder.path, row.path) : row.path }))));
+    return rows.flat().slice(0, 4000);
   });
 
   ipcMain.handle("fs:read", async (_event, filePath: string) => {
-    const root = host?.getCwd() ?? defaultCwd();
-    return readFileForView(root, filePath);
+    const cwd = activeCwd();
+    try {
+      const workspace = await workspaceStore.get(cwd);
+      if (workspace.sshId) { const remote = await workspaceStore.resolveRemote(cwd, filePath); return sshHost.fileView(remote.id, remote.path); }
+      const target = await workspaceStore.resolveLocal(cwd, filePath);
+      return readFileForView(target.root, target.path);
+    } catch (error) { return { path: filePath, name: filePath.split(/[\\/]/).at(-1) || filePath, lang: "txt", text: "", size: 0, truncated: false, binary: false, error: error instanceof Error ? error.message : String(error) }; }
   });
 
   ipcMain.handle("fs:reveal", async (_event, filePath: string) => {
-    const root = host?.getCwd() ?? defaultCwd();
-    /* a diff opened from the changes list carries the path the tool call used,
-       which is relative; anything else here is already absolute */
-    shell.showItemInFolder(isAbsolute(filePath) ? filePath : resolve(root, filePath));
+    if (parseRemotePath(filePath)) throw new Error("Remote files are opened in the workspace file viewer.");
+    const target = await workspaceStore.resolveLocal(activeCwd(), filePath);
+    shell.showItemInFolder(target.path);
   });
 
   /* ── "Open with": the applications registered for this file type ── */
 
   ipcMain.handle("fs:openers", async (_event, filePath: string) => {
+    if ((await workspaceStore.get(activeCwd())).sshId) return [];
     try {
       return await listOpeners(filePath);
     } catch (error) {
@@ -479,6 +651,7 @@ function registerIpc(): void {
   });
 
   ipcMain.handle("fs:openWith", async (_event, filePath: string, openerId: string) => {
+    if ((await workspaceStore.get(activeCwd())).sshId) return { ok: false, error: "Use the remote workspace file viewer." };
     try {
       return await openWith(filePath, openerId);
     } catch (error) {
@@ -492,10 +665,12 @@ function registerIpc(): void {
    * cannot ask for someone else's repository. */
 
   const gitCwd = (): string => host?.getCwd() ?? defaultCwd();
+  const remoteGit = async () => { const workspace = await workspaceStore.get(gitCwd()); return workspace.sshId ? new RemoteGit(sshHost, workspace.sshId, parseRemotePath(workspace.folders[0].path)!.path) : undefined; };
 
   ipcMain.handle("git:status", async () => {
     try {
-      return await gitStatus(gitCwd());
+      const remote = await remoteGit();
+      return remote ? remote.status() : gitStatus(gitCwd());
     } catch {
       return noRepoState();
     }
@@ -503,30 +678,34 @@ function registerIpc(): void {
 
   ipcMain.handle("git:branches", async () => {
     try {
-      return await gitBranches(gitCwd());
+      const remote = await remoteGit();
+      return remote ? remote.branches() : gitBranches(gitCwd());
     } catch {
       return noRepoBranches();
     }
   });
 
-  ipcMain.handle("git:checkout", (_event, name: string) => gitCheckout(gitCwd(), name));
-  ipcMain.handle("git:createBranch", (_event, name: string) => gitCreateBranch(gitCwd(), name));
-  ipcMain.handle("git:deleteBranch", (_event, name: string) => gitDeleteBranch(gitCwd(), name));
-  ipcMain.handle("git:commit", (_event, message: string) => gitCommit(gitCwd(), message));
-  ipcMain.handle("git:push", () => gitPush(gitCwd()));
+  ipcMain.handle("git:checkout", async (_event, name: string) => { const remote = await remoteGit(); return remote ? remote.mutate("checkout", name) : gitCheckout(gitCwd(), name); });
+  ipcMain.handle("git:createBranch", async (_event, name: string) => { const remote = await remoteGit(); return remote ? remote.mutate("create", name) : gitCreateBranch(gitCwd(), name); });
+  ipcMain.handle("git:deleteBranch", async (_event, name: string) => { const remote = await remoteGit(); return remote ? remote.mutate("delete", name) : gitDeleteBranch(gitCwd(), name); });
+  ipcMain.handle("git:commit", async (_event, message: string) => { const remote = await remoteGit(); return remote ? remote.mutate("commit", message) : gitCommit(gitCwd(), message); });
+  ipcMain.handle("git:push", async () => { const remote = await remoteGit(); return remote ? remote.mutate("push") : gitPush(gitCwd()); });
 
   ipcMain.handle("term:run", async (_event, command: string) => {
     if (!host) throw new Error("Pi agent is not connected yet.");
-    return host.runBash(command, (delta) => {
-      window?.webContents.send("term:chunk", { runId: "live", delta });
-    });
+    const workspace = await workspaceStore.get(activeCwd());
+    if (workspace.sshId) {
+      if (remoteBash) throw new Error("A remote terminal command is already running.");
+      const controller = new AbortController();
+      remoteBash = controller;
+      try { return await sshHost.exec(workspace.sshId, parseRemotePath(workspace.folders[0].path)!.path, command, { signal: controller.signal, onData: (delta) => window?.webContents.send("term:chunk", { runId: "live", delta }) }); }
+      finally { if (remoteBash === controller) remoteBash = undefined; }
+    }
+    return host.runBash(command, (delta) => window?.webContents.send("term:chunk", { runId: "live", delta }));
   });
 
-  ipcMain.handle("term:abort", () => {
-    host?.abortBash();
-  });
-
-  ipcMain.handle("term:state", () => host?.bashState() ?? { running: false });
+  ipcMain.handle("term:abort", () => { remoteBash?.abort(); host?.abortBash(); });
+  ipcMain.handle("term:state", () => remoteBash ? { running: true } : host?.bashState() ?? { running: false });
 
   /* ── real terminals: one PTY per tab, grouped by folder ── */
 
@@ -544,6 +723,8 @@ function registerIpc(): void {
   /* a spawn names its shell: an explicit id from the menu, or nothing for the
      preference chain (custom path → preferred entry → first available) */
   ipcMain.handle("pty:spawn", async (_event, cwd: string, shellId?: string) => {
+    const workspace = await workspaceStore.get(cwd);
+    if (workspace.sshId) return sshHost.spawn(workspace.sshId, parseRemotePath(workspace.folders[0].path)!.path, cwd);
     const shells = await discoverTerminalShells();
     const config = await readConfig();
     const shell = shellId
@@ -554,17 +735,14 @@ function registerIpc(): void {
     return ptyHost.spawn(cwd, shell ? { path: shell.path, args: shell.args, name: shell.name } : undefined);
   });
 
-  ipcMain.handle("pty:list", (_event, cwd: string) => ptyHost.list(cwd));
+  ipcMain.handle("pty:list", async (_event, cwd: string) => (await workspaceStore.get(cwd)).sshId ? sshHost.listTerminals(cwd) : ptyHost.list(cwd));
 
-  ipcMain.handle("pty:replay", (_event, id: string) => ptyHost.replay(id));
+  ipcMain.handle("pty:replay", (_event, id: string) => id.startsWith("ssh-") ? sshHost.replay(id) : ptyHost.replay(id));
 
-  /* keystrokes and resizes are one-way: awaiting an acknowledgement for every
-     character typed is how a terminal starts to feel laggy */
-  ipcMain.on("pty:write", (_event, id: string, data: string) => ptyHost.write(id, data));
-
-  ipcMain.on("pty:resize", (_event, id: string, cols: number, rows: number) => ptyHost.resize(id, cols, rows));
-
-  ipcMain.handle("pty:kill", (_event, id: string) => ptyHost.kill(id));
+  /* Terminal keystrokes stay one-way on either transport. */
+  ipcMain.on("pty:write", (_event, id: string, data: string) => id.startsWith("ssh-") ? sshHost.writeTerminal(id, data) : ptyHost.write(id, data));
+  ipcMain.on("pty:resize", (_event, id: string, cols: number, rows: number) => id.startsWith("ssh-") ? sshHost.resize(id, cols, rows) : ptyHost.resize(id, cols, rows));
+  ipcMain.handle("pty:kill", (_event, id: string) => id.startsWith("ssh-") ? sshHost.kill(id) : ptyHost.kill(id));
 
   /* ── embedded browser ─────────────────────────────────── */
 
@@ -651,7 +829,7 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
-  host = new PiHost(defaultCwd(), () => browser);
+  host = new PiHost(defaultCwd(), () => browser, { store: workspaceStore, ssh: sshHost });
   // Bundled extensions (plan mode, agent team) only ever installed from the
   // onboarding checklist — a machine onboarded before they shipped would never
   // see /plan work. Install what is missing before the runtime loads plugins.
@@ -697,5 +875,6 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   browser?.destroy();
   ptyHost.dispose();
+  sshHost.dispose();
   void host?.dispose();
 });

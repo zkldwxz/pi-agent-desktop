@@ -1,16 +1,10 @@
 import { createHash } from "node:crypto";
 
-const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+// publicUrl moved to url.ts together with the keyless SSRF checks; the
+// re-export keeps the original import site working for callers and tests.
+export { publicUrl } from "./url";
 
-export function publicUrl(raw: string): string {
-  const url = new URL(raw);
-  if (!/^https?:$/.test(url.protocol) || url.username || url.password) {
-    throw new Error("Use an HTTP(S) URL without embedded credentials.");
-  }
-  // Fragments do not change the HTTP resource. Paths, queries and schemes do.
-  url.hash = "";
-  return url.href;
-}
+const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 
 export class TavilyClient {
   constructor(private readonly fetcher: typeof fetch = fetch, private readonly getKey = () => process.env.TAVILY_API_KEY?.trim()) {}

@@ -225,12 +225,12 @@ export function PluginsView({
                     ) : (
                       <button
                         type="button"
-                        title={t("Delete")}
-                        disabled={!plugin.toggleable}
+                        title={plugin.removable ? t("Delete") : t("Declared in settings.json — remove it there")}
+                        disabled={!plugin.removable}
                         onClick={() => setConfirming(plugin.id)}
                         className={cn(
                           "pressable flex size-7 items-center justify-center rounded-control text-ink-3 hover:bg-red-tint hover:text-red",
-                          !plugin.toggleable && "opacity-40",
+                          !plugin.removable && "opacity-40",
                         )}
                       >
                         <TrashIcon size={14} />

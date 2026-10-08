@@ -240,11 +240,13 @@ function openFolderDirect(path: string) {
   try {
     last = localStorage.getItem("pi-last-folder-opener") || null;
   } catch {}
-  if (last && last !== "reveal") {
-    void window.pi.openWith(path, last).catch(() => void window.pi.revealFile(path));
-    return;
-  }
-  void window.pi.revealFile(path);
+  void (async () => {
+    if (last && last !== "reveal") {
+      const opened = await window.pi.openWith(path, last);
+      if (opened.ok) return;
+    }
+    await window.pi.revealFile(path);
+  })().catch(() => undefined);
 }
 
 function FolderOpenButton({ path, className }: { path?: string; className?: string }) {
@@ -380,6 +382,14 @@ export function WorkspaceList({
 
   /* Folders opened on this machine that no session scan can vouch for yet. */
   const [knownFolders, setKnownFolders] = useState<string[]>(loadWorkspaceFolders);
+  const [savedWorkspaces, setSavedWorkspaces] = useState<import("@shared/workspaces").WorkspaceInfo[]>([]);
+  useEffect(() => {
+    let active = true;
+    const refresh = () => void window.pi.listWorkspaces().then((rows) => { if (active) setSavedWorkspaces(rows); }).catch(() => {});
+    refresh();
+    const unsubscribe = window.pi.onWorkspaceChange(refresh);
+    return () => { active = false; unsubscribe(); };
+  }, [cwd, sessions.length]);
   useEffect(() => {
     try {
       localStorage.setItem(WORKSPACE_FOLDERS_KEY, JSON.stringify(knownFolders));
@@ -478,8 +488,9 @@ export function WorkspaceList({
     });
   };
 
+  const isRemoteFolder = (path?: string) => Boolean(path && savedWorkspaces.some((workspace) => workspace.sshId && normalizeFolder(workspace.cwd) === normalizeFolder(path)));
   const openInIde = async (path?: string) => {
-    if (!path) return;
+    if (!path || isRemoteFolder(path)) return;
     try {
       const openers = await window.pi.listOpeners(path);
       const ide = openers.find((o) => /cursor|code|windsurf/i.test(o.id) || /cursor|code|windsurf/i.test(o.name));
@@ -512,8 +523,12 @@ export function WorkspaceList({
   };
 
   const workspaces = useMemo(
-    () => groupSessions(sessions, prefs, renamed, sessionGroups, knownFolders, homeDir),
-    [sessions, prefs, renamed, sessionGroups, knownFolders, homeDir],
+    () => {
+      const names = { ...renamed };
+      for (const row of savedWorkspaces) names[row.cwd] = row.sshId ? `SSH · ${row.name}` : row.name;
+      return groupSessions(sessions, prefs, names, sessionGroups, [...new Set([...knownFolders, ...savedWorkspaces.map((row) => row.cwd)])], homeDir);
+    },
+    [sessions, prefs, renamed, sessionGroups, knownFolders, homeDir, savedWorkspaces],
   );
 
   /* Task-group mode: flat and always expanded, so every group renders its rows
@@ -671,8 +686,10 @@ export function WorkspaceList({
           </button>
           {/* hover affordances on the workspace row: open the folder itself
               (with an opener menu), then start a chat inside it */}
+          {/* SSH cwd is only a local session anchor. Local folder openers
+              must not reveal it as though it were the remote project. */}
           <FolderOpenButton
-            path={workspace.path || workspace.key}
+            path={isRemoteFolder(workspace.path || workspace.key) ? undefined : workspace.path || workspace.key}
             className="opacity-0 group-hover/ws:opacity-100"
           />
           <button
@@ -928,7 +945,7 @@ export function WorkspaceList({
         </div>
         {/* the session's own folder, opened with whatever the machine has —
             the file manager, an IDE, the default handler */}
-        <FolderOpenButton path={cwd} />
+        <FolderOpenButton path={isRemoteFolder(cwd) ? undefined : cwd} />
       </div>
 
       <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 pb-1">
@@ -1074,14 +1091,14 @@ export function WorkspaceList({
                   setContextMenu(null);
                 }}
               />
-              <ContextRow
+              {!isRemoteFolder(contextMenu.workspace.path || contextMenu.workspace.key) ? <ContextRow
                 icon={<FolderOpenIcon size={12} />}
                 label={t("Open in IDE")}
                 onClick={() => {
                   void openInIde(contextMenu.workspace.path || contextMenu.workspace.key);
                   setContextMenu(null);
                 }}
-              />
+              /> : null}
               <ContextRow
                 icon={<FolderIcon size={12} />}
                 label={contextMenu.isArchived ? t("Unarchive") : t("Archive workspace")}

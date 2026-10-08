@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+const WorkspaceDialog = lazy(() => import("../agent/WorkspaceDialog"));
 import type { FileEntry } from "@shared/workspace";
 import { cn } from "../../lib/cn";
 import { ChevronDownIcon, EyeIcon, FolderIcon, RefreshIcon } from "../icons";
@@ -36,6 +37,10 @@ export function FileBrowser({
   onShowAll?: (showAll: boolean) => void;
 }) {
   const [entries, setEntries] = useState<FileEntry[]>([]);
+  const [manage, setManage] = useState(false);
+  const request = useRef(0);
+  const [rootLabel, setRootLabel] = useState(root);
+  useEffect(() => { let active = true; void window.pi.getWorkspace().then((workspace) => { if (active) setRootLabel(workspace.sshId || workspace.folders.length > 1 ? workspace.name : root); }).catch(() => {}); return () => { active = false; }; }, [root, manage]);
   const [expanded, setExpanded] = useState<Record<string, FileEntry[]>>({});
   const [loading, setLoading] = useState(true);
   const [localShowAll, setLocalShowAll] = useState(false);
@@ -46,18 +51,23 @@ export function FileBrowser({
   useLocale();
 
   const loadRoot = useCallback(async () => {
+    const sequence = ++request.current;
     setLoading(true);
     setError(undefined);
-    const listing = await window.pi.listDir(root, showAll);
-    setEntries(listing.entries);
-    setError(listing.error);
-    setLoading(false);
-    loadedFor.current = root;
+    try {
+      const listing = await window.pi.listDir(root, showAll);
+      if (request.current !== sequence) return;
+      setEntries(listing.entries);
+      setError(listing.error);
+      loadedFor.current = root;
+    } catch (error) { if (request.current === sequence) setError(error instanceof Error ? error.message : String(error)); }
+    finally { if (request.current === sequence) setLoading(false); }
   }, [root, showAll]);
 
   useEffect(() => {
     void loadRoot();
     setExpanded({});
+    return () => { request.current++; };
   }, [loadRoot]);
 
   const toggle = async (dir: FileEntry) => {
@@ -139,7 +149,8 @@ export function FileBrowser({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-[40px] shrink-0 items-center gap-[8px] border-b border-line px-[12px]">
-        <span className="min-w-0 flex-1 truncate font-mono text-ui-sm text-ink-3">{root}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-ui-sm text-ink-3" title={root}>{rootLabel}</span>
+        <button type="button" onClick={() => setManage(true)} className="pressable rounded-chip px-2 py-1 text-ui-xs text-ink-2 hover:bg-hover">{t("Manage workspace folders")}</button>
         <button
           type="button"
           title={showAll ? t("Hide ignored folders") : t("Show ignored folders")}
@@ -184,6 +195,7 @@ export function FileBrowser({
           </div>
         )}
       </div>
+      {manage ? <Suspense fallback={null}><WorkspaceDialog onClose={() => { setManage(false); void loadRoot(); setExpanded({}); }} /></Suspense> : null}
     </div>
   );
 }

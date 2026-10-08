@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { basename, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { PluginInfo, PluginKind, PluginRoots, PluginScope } from "@shared/types";
@@ -110,6 +110,7 @@ function scanDir(root: string, scope: PluginScope, kind: PluginKind, enabled: bo
       scope,
       enabled,
       toggleable: true,
+      removable: true,
       sizeBytes: size.bytes,
       modified: size.modified ? new Date(size.modified).toISOString() : undefined,
     });
@@ -150,6 +151,7 @@ function scanResourceDir(root: string, scope: PluginScope, kind: PluginKind): Pl
       scope,
       enabled: true,
       toggleable: false,
+      removable: true,
       sizeBytes: dirSize(full).bytes,
       modified: new Date(stat.mtimeMs).toISOString(),
     });
@@ -199,6 +201,7 @@ export function listPlugins(cwd: string): PluginInfo[] {
       scope: "configured",
       enabled: exists,
       toggleable: false,
+      removable: false,
       error: exists ? undefined : "Path not found",
     });
   }
@@ -216,6 +219,7 @@ export function listPlugins(cwd: string): PluginInfo[] {
       scope: "configured",
       enabled: true,
       toggleable: false,
+      removable: false,
     });
   }
 
@@ -257,7 +261,74 @@ export function setPluginEnabled(path: string, kind: PluginKind, enabled: boolea
   return [];
 }
 
-export function deletePlugin(path: string, kind: PluginKind): void {
+/**
+ * The folders whose contents this app may read, edit and delete.
+ *
+ * Everything listed is agent configuration, never user source code, and the
+ * caller is the renderer — so the check lives here, in the main process, rather
+ * than trusting whatever path arrives over IPC.
+ */
+function managedRoots(cwd: string): string[] {
+  const agentDir = getAgentDir();
+  const globalExtensions = join(agentDir, "extensions");
+  const projectExtensions = join(cwd, ".pi", "extensions");
+  return [
+    join(agentDir, "prompts"),
+    join(agentDir, "skills"),
+    join(agentDir, "themes"),
+    globalExtensions,
+    `${globalExtensions}${DISABLED_SUFFIX}`,
+    join(cwd, ".pi", "prompts"),
+    join(cwd, ".pi", "skills"),
+    join(cwd, ".agents", "skills"),
+    projectExtensions,
+    `${projectExtensions}${DISABLED_SUFFIX}`,
+  ];
+}
+
+function insideFolder(root: string, path: string): boolean {
+  const key = (value: string) => process.platform === "win32" ? resolve(value).toLowerCase() : resolve(value);
+  const base = key(root);
+  const target = key(path);
+  // A managed root itself is never a plugin, and following a symlink must not
+  // grant editor access to unrelated source or credential files.
+  return target !== base && target.startsWith(base.endsWith(sep) ? base : base + sep);
+}
+
+function assertManaged(cwd: string, path: string): void {
+  const target = realpathSync(path);
+  if (!managedRoots(cwd).some((root) => existsSync(root) && insideFolder(realpathSync(root), target))) {
+    throw new Error("This path is outside the folders this app manages.");
+  }
+}
+
+/**
+ * Read one rule / skill / theme file for the in-app editor.
+ *
+ * A directory is rejected with a readable message instead of EISDIR, because
+ * skill entries are folders and the renderer can only tell them apart by the
+ * failure.
+ */
+export function readPluginText(cwd: string, path: string): string {
+  assertManaged(cwd, path);
+  if (!existsSync(path)) throw new Error("File not found.");
+  if (!statSync(path).isFile()) throw new Error("This entry is a folder, not a file.");
+  if (statSync(path).size > 512 * 1024) throw new Error("This file exceeds the editor's 512KB limit.");
+  return readFileSync(path, "utf8");
+}
+
+/** Save what the editor holds. Editing only — this never creates a new file. */
+export function writePluginText(cwd: string, path: string, text: string): void {
+  assertManaged(cwd, path);
+  if (!existsSync(path)) throw new Error("File not found.");
+  if (!statSync(path).isFile()) throw new Error("This entry is a folder, not a file.");
+  if (Buffer.byteLength(text) > 512 * 1024) throw new Error("This file exceeds the editor's 512KB limit.");
+  writeFileSync(path, text, "utf8");
+}
+
+export function deletePlugin(cwd: string, path: string, kind: PluginKind): void {
+  assertManaged(cwd, path);
+  if (!existsSync(path)) throw new Error("File not found.");
   const trashRoot = join(getAgentDir(), "trash");
   if (!existsSync(trashRoot)) mkdirSync(trashRoot, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");

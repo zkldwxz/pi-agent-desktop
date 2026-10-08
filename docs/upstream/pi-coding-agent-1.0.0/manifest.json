@@ -1,0 +1,7 @@
+{
+  "package": "@earendil-works/pi-coding-agent",
+  "version": "1.0.0",
+  "recoveredFrom": "dist/**/*.js.map sourcesContent",
+  "sources": 244,
+  "docs": 40
+}

@@ -134,7 +134,7 @@ export function FolderOpener({ cwd, onBrowse }: { cwd: string; onBrowse: () => v
       localStorage.setItem(LAST_OPENER_KEY, opener.id);
     } catch {}
     if (opener.kind === "reveal") {
-      void window.pi.revealFile(cwd);
+      void window.pi.revealFile(cwd).catch(() => undefined);
       return;
     }
     void window.pi.openWith(cwd, opener.id).catch(() => undefined);
@@ -175,7 +175,7 @@ export function FolderOpener({ cwd, onBrowse }: { cwd: string; onBrowse: () => v
           aria-label={t("Open with")}
           aria-expanded={open}
           title={t("Open with")}
-          disabled={!cwd}
+          disabled={!cwd || openers?.length === 0}
           onClick={() => {
             const next = !open;
             setOpen(next);

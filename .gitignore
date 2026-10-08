@@ -17,3 +17,8 @@ i18n-review.json
 
 # pi agent local working notes (plans)
 .pi/
+
+# vendored upstream source archives: 39MB of binary that `npm run vendor:zcode`
+# rebuilds on demand — committing it would sit in history forever and slow
+# every clone down. The README and manifest beside it stay tracked.
+docs/upstream/zcode/source.tar.gz

@@ -3,7 +3,8 @@ import type { HostState, ModelEdit, ModelInfo } from "@shared/types";
 import { formatContext } from "../lib/format";
 import { cn } from "../lib/cn";
 import { t, tf } from "../lib/i18n";
-import { BrainIcon, CheckIcon, ImageIcon, PlusIcon, RefreshIcon, SearchIcon, TrashIcon } from "../components/icons";
+import { buildCatalogue, customFirst, filterCatalogue, isCustomModel, providerIdsCustomFirst } from "../lib/model-list";
+import { BrainIcon, CheckIcon, ImageIcon, PlusIcon, RefreshIcon, SearchIcon, TrashIcon, XIcon } from "../components/icons";
 import { Card, Chip, EmptyState, Skeleton, ViewHeader } from "../components/ui";
 import { stagger } from "../components/motion";
 import { THINKING_LEVELS } from "@shared/thinking";
@@ -149,15 +150,22 @@ export function ModelsView({
   const isNew = selectedKey === NEW_KEY;
 
   const models = state.models;
+  const channels = state.channels;
+
+  /* The catalogue is indexed once per host update — the filter then walks a
+     prebuilt lowercased haystack rather than rebuilding one per keystroke. */
+  const catalogue = useMemo(() => buildCatalogue(models, channels), [models, channels]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return models.filter((model) => {
-      if (provider !== "all" && model.provider !== provider) return false;
-      if (!q) return true;
-      return `${model.name} ${model.id} ${model.provider}`.toLowerCase().includes(q);
-    });
-  }, [models, query, provider]);
+    const matched = filterCatalogue(catalogue, query);
+    const forProvider =
+      provider === "all" ? matched : matched.filter((entry) => entry.model.provider === provider);
+    /* the models the user can edit come before the ones pi ships */
+    return customFirst(
+      forProvider.map((entry) => entry.model),
+      isCustomModel,
+    );
+  }, [catalogue, query, provider]);
 
   const current = state.snapshot?.model;
 
@@ -171,7 +179,11 @@ export function ModelsView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedKey, models.length]);
 
-  const providerIds = useMemo(() => [...new Set(models.map((model) => model.provider))], [models]);
+  const providerIds = useMemo(() => providerIdsCustomFirst(models, channels), [models, channels]);
+
+  /* the table below the grid reads provider rows, so its own custom-first order
+     comes from `editable` — the provider-row spelling of models.json-owned */
+  const providerRows = useMemo(() => customFirst(state.providers, (row) => row.editable), [state.providers]);
 
   /** A new record: seeded with the channel you are already filtering by, and a
    *  1M window because that is the answer for every current frontier model. */
@@ -200,13 +212,29 @@ export function ModelsView({
         actions={
           <div className="flex items-center gap-1.5">
             <div className="flex h-6 items-center gap-1.5 rounded-chip bg-field px-2">
-              <SearchIcon size={12} className="text-ink-3" />
+              <SearchIcon size={12} className="shrink-0 text-ink-3" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  /* a filter box, not an overlay: Escape empties it, the gesture
+                     the settings rail's own search already uses */
+                  if (event.key === "Escape") setQuery("");
+                }}
                 placeholder={t("Filter")}
+                aria-label={t("Filter")}
                 className="w-24 bg-transparent text-ui-sm text-ink outline-none placeholder:text-ink-4"
               />
+              {query ? (
+                <button
+                  type="button"
+                  aria-label={t("Clear search")}
+                  onClick={() => setQuery("")}
+                  className="pressable flex size-4 shrink-0 items-center justify-center rounded-tiny text-ink-3 hover:text-ink"
+                >
+                  <XIcon size={10} />
+                </button>
+              ) : null}
             </div>
             <Chip onClick={onRefresh} title={t("Reload models.json")}>
               <RefreshIcon size={12} />
@@ -241,8 +269,11 @@ export function ModelsView({
               />
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2.5 p-4">
-              {filtered.map((model, index) => {
+            /* the grid is the tallest block on this view; capping it keeps the
+               channel table below within reach instead of behind the rows */
+            <div className="scrollbar-thin max-h-[52vh] overflow-y-auto p-4">
+              <div className="grid grid-cols-2 gap-2.5">
+                {filtered.map((model, index) => {
                 const key = `${model.provider}/${model.id}`;
                 const active = selectedKey === key;
                 const inUse = current?.provider === model.provider && current?.id === model.id;
@@ -306,10 +337,11 @@ export function ModelsView({
                   <EmptyState title={t("No models match")} body={t("Clear the search or switch channel.")} />
                 </div>
               ) : null}
+              </div>
             </div>
           )}
 
-          {state.providers.length ? (
+          {providerRows.length ? (
             <div className="px-4 pb-4">
               <Card index={2} className="overflow-hidden">
                 <div className="border-b border-line px-3 py-2 text-ui-caption font-medium text-ink">{t("Channels")}</div>
@@ -324,7 +356,7 @@ export function ModelsView({
                     </tr>
                   </thead>
                   <tbody>
-                    {state.providers.map((row) => (
+                    {providerRows.map((row) => (
                       <tr key={row.id} className="border-b border-line last:border-0 hover:bg-hover">
                         <td className="px-3 py-2 text-ink">
                           {row.name}

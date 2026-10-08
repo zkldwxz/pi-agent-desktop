@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+const WorkspaceDialog = lazy(() => import("./WorkspaceDialog"));
 import { CheckIcon, ChevronDownIcon, FolderIcon, FolderOpenIcon, GlobeIcon, HomeIcon, SearchIcon } from "../icons";
 import { Popover } from "../motion";
 import { folderName } from "../../lib/format";
@@ -24,6 +25,9 @@ export function FolderPicker({
   onOpenChange?: (open: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [manage, setManage] = useState<"folders" | "ssh" | null>(null);
+  const [workspaceName, setWorkspaceName] = useState("");
+  useEffect(() => { let active = true; void window.pi.getWorkspace().then((workspace) => { if (active) setWorkspaceName(workspace.sshId || workspace.folders.length > 1 ? workspace.name : ""); }).catch(() => {}); return () => { active = false; }; }, [cwd, manage]);
   const [query, setQuery] = useState("");
   const [folders, setFolders] = useState<string[]>([]);
 
@@ -94,7 +98,7 @@ export function FolderPicker({
     void startFreshAt(path).catch(() => undefined);
   };
 
-  const displayName = sameFolder(cwd, homeDir) ? t("Home") : folderName(cwd) || cwd || t("No workspace");
+  const displayName = workspaceName || (sameFolder(cwd, homeDir) ? t("Home") : folderName(cwd) || cwd || t("No workspace"));
 
   return (
     <span className="relative inline-block" data-folder-picker>
@@ -180,16 +184,17 @@ export function FolderPicker({
             <FolderOpenIcon size={13} className="shrink-0 text-ink-3" />
             <span className="min-w-0 flex-1 truncate text-ui-caption text-ink">{t("New workspace")}</span>
           </button>
+          <button type="button" data-row onClick={() => { close(); setManage("folders"); }} className="glide-row pressable flex h-8 w-full items-center gap-2 rounded-chip px-2 text-left">
+            <span className="min-w-0 flex-1 truncate text-ui-caption text-ink">{t("Manage workspace folders")}</span>
+          </button>
           <button
             type="button"
             data-row
-            disabled
-            title={t("SSH connections are coming soon")}
-            className="glide-row flex h-8 w-full cursor-default items-center gap-2 rounded-chip px-2 text-left opacity-40"
+            onClick={() => { close(); setManage("ssh"); }}
+            className="glide-row pressable flex h-8 w-full items-center gap-2 rounded-chip px-2 text-left"
           >
             <GlobeIcon size={13} className="shrink-0 text-ink-3" />
             <span className="min-w-0 flex-1 truncate text-ui-caption text-ink">{t("New SSH connection")}</span>
-            <span className="shrink-0 font-mono text-ui-xs text-ink-3">soon</span>
           </button>
           <button
             type="button"
@@ -205,6 +210,7 @@ export function FolderPicker({
           </button>
         </div>
       </Popover>
+      {manage ? <Suspense fallback={null}><WorkspaceDialog initialTab={manage} onClose={() => setManage(null)} /></Suspense> : null}
     </span>
   );
 }

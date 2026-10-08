@@ -40,9 +40,12 @@ import {
  * for the model to read, not a stored answer.
  *
  * Cancellation is pi's: `signal` goes to the definition untouched, and the local
- * shell backend kills the process tree with it. Failure is pi's too — a non-zero
- * exit throws, so the failure stays an error result; only the message is cleaned
- * and bounded the same way the output is.
+ * shell backend kills the process tree with it. Failure is pi's too. Since pi
+ * 1.0 a non-zero exit comes back as an error *result* (`isError: true`) rather
+ * than a thrown error, so it travels the same cleaning and budget path as any
+ * other output. Only the failures pi still throws — an aborted or timed-out
+ * command, a missing shell, a process that died without an exit code — reach
+ * `tightenError`, which bounds and cleans their message the same way.
  */
 
 const SHELL_ENV = { NO_COLOR: "1", TERM: "dumb", FORCE_COLOR: "0" };

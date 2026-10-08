@@ -971,7 +971,7 @@ function terminalCommand(tool: ToolActivity): string {
               void (async () => {
                 await window.pi.setCwd(cwd);
                 await window.pi.newSession();
-              })();
+              })().catch(() => undefined);
             }}
             collapsed={sidebarCollapsed}
             onCollapsedChange={setSidebarCollapsed}
@@ -1015,7 +1015,14 @@ function terminalCommand(tool: ToolActivity): string {
               <div
                 ref={columnRef}
                 className="@container/conversation flex min-w-0 flex-1 flex-col"
-                style={lockedColumnWidth === null ? undefined : { width: lockedColumnWidth, flex: "0 0 auto" }}
+                style={{
+                  /* the lean only makes sense while a right-hand panel actually
+                     claims width; with every dock closed the container spans the
+                     window and the column must sit dead-centre instead of the
+                     stale off-centre shift */
+                  "--conversation-lean": dockOpen || monitorOpen || browserDockOpen ? "-11rem" : "0rem",
+                  ...(lockedColumnWidth === null ? {} : { width: lockedColumnWidth, flex: "0 0 auto" }),
+                } as React.CSSProperties}
               >
                 {/* no conversation header — Cursor runs the thread straight to
                     the top edge; the session name lives on its sidebar row and
@@ -1051,11 +1058,13 @@ function terminalCommand(tool: ToolActivity): string {
                         Same body size as the line above it — the two read as
                         one heading, not a heading and a caption. */}
                     <Reveal at={HOME_STEPS.question} className="mt-3 w-full">
-                      <p className="mx-auto max-w-[620px] text-center text-ui-display leading-[1.5] tracking-[-0.02em] text-ink-3">
+                      {/* The picker renders block-level menu content; a paragraph
+                          parent creates invalid nesting when the menu opens. */}
+                      <div className="mx-auto max-w-[620px] text-center text-ui-display leading-[1.5] tracking-[-0.02em] text-ink-3">
                         {greetingBefore}
                         <FolderPicker cwd={state.cwd} homeDir={state.homeDir} onOpenChange={setPickingFolder} />
                         {greetingAfter}
-                      </p>
+                      </div>
                     </Reveal>
                     <Reveal at={HOME_STEPS.composer} className="mt-12 w-full">
                       <div className="flex w-full justify-center">{composer}</div>
@@ -1272,6 +1281,7 @@ function terminalCommand(tool: ToolActivity): string {
                   onSetDefaultModel={(provider, modelId) =>
                     void window.pi.updateSettings({ defaultProvider: provider, defaultModel: modelId }).catch(() => undefined)
                   }
+                  onUpdateSettings={(patch) => void window.pi.updateSettings(patch).catch(() => undefined)}
                   onReload={() => void window.pi.reload()}
                   onBack={() => setView("chat")}
                   onCreateRule={async (scope, name) => {

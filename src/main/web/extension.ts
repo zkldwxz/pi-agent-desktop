@@ -10,7 +10,7 @@ export function registerWebTools(pi: ExtensionAPI, service = sharedService): voi
     label: "Search web",
     executionMode: "parallel",
     promptSnippet: "Search the web for ranked source links and snippets.",
-    description: "Search public web pages through Tavily. Returns ranked titles, URLs and snippets; use web_fetch for source text. Results are cached for 5 minutes. Queries are sent to Tavily. Use refresh for current information.",
+    description: "Search public web pages. Tavily is used when TAVILY_API_KEY is set; without a key a configured SEARXNG_URL instance, Tavily's keyless mode, or DuckDuckGo serve the query in that order. Returns ranked titles, URLs and snippets; use web_fetch for source text. Results are cached for 5 minutes. Queries leave the machine to the selected provider. Use refresh for current information.",
     parameters: Type.Object({
       query: Type.String({ minLength: 1, maxLength: 2000, description: "Focused search query; include site:domain for a preferred source." }),
       max_results: Type.Optional(Type.Integer({ minimum: 1, maximum: 10, description: "Number of results (default 5)." })),
@@ -24,7 +24,7 @@ export function registerWebTools(pi: ExtensionAPI, service = sharedService): voi
         : "No web results found. Try a more specific or differently worded query.";
       return {
         content: [{ type: "text", text }],
-        details: { cache: result.cache, elapsedMs: Math.round(performance.now() - started), results: result.value },
+        details: { cache: result.cache, elapsedMs: Math.round(performance.now() - started), provider: result.provider, results: result.value },
       };
     },
   });
@@ -34,7 +34,7 @@ export function registerWebTools(pi: ExtensionAPI, service = sharedService): voi
     label: "Read web page",
     executionMode: "parallel",
     promptSnippet: "Read a web source as paginated Markdown; continue with snapshot and next_offset.",
-    description: "Read public page Markdown through Tavily, preserving headings, links and code where extraction supports them. URLs are sent to Tavily. The complete extraction is cached for 15 minutes in bounded memory. Continue with the same url, snapshot and next_offset. Cache eviction/expiry requires restarting. Use the browser for pages that cannot be extracted.",
+    description: "Read public page content as Markdown. Tavily extraction is preferred when TAVILY_API_KEY is set; without a key the page is fetched directly and converted locally, falling back to Tavily keyless extraction. The complete extraction is cached for 15 minutes in bounded memory. Continue with the same url, snapshot and next_offset. Cache eviction/expiry requires restarting. Use the browser for pages that cannot be fetched.",
     parameters: Type.Object({
       url: Type.String({ description: "Absolute public HTTP(S) URL, without embedded credentials." }),
       offset: Type.Optional(Type.Integer({ minimum: 0, description: "UTF-16 character offset; use next_offset from the previous page (default 0)." })),
@@ -44,7 +44,7 @@ export function registerWebTools(pi: ExtensionAPI, service = sharedService): voi
     }),
     async execute(_id, params, signal) {
       const started = performance.now();
-      const { document, page, cache } = await service.read(params, signal);
+      const { document, page, cache, provider } = await service.read(params, signal);
       const continuation = page.next_offset === null
         ? "End of extracted content."
         : `Continue web_fetch with url=${JSON.stringify(params.url)}, snapshot=${JSON.stringify(document.snapshot)}, offset=${page.next_offset}.`;
@@ -53,7 +53,7 @@ export function registerWebTools(pi: ExtensionAPI, service = sharedService): voi
         details: {
           url: document.url, snapshot: document.snapshot, fetchedAt: document.fetchedAt,
           offset: page.offset, next_offset: page.next_offset, total_chars: page.total_chars,
-          cache, elapsedMs: Math.round(performance.now() - started),
+          cache, elapsedMs: Math.round(performance.now() - started), provider,
         },
       };
     },

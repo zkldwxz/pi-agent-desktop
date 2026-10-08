@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { highlightCode, languageFromFilename } from "../../../lib/highlight";
+import type { McpResultSection, McpTextBlock } from "@shared/mcp-tool";
+import { highlightCode, highlightLines, languageFromFilename } from "../../../lib/highlight";
+import { t, tf } from "../../../lib/i18n";
 
 /* ─────────────────────────────────────────────────────────
  * TOOL CHIPS
@@ -19,9 +21,26 @@ const Icons: Record<string, React.ReactNode> = {
   write: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z" /></g>,
   run: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 17l6-5-6-5M12 19h8" /></g>,
   read: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></g>,
+  /* an MCP call is not a terminal: it reaches a server, so it gets the plug. */
+  mcp: <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 8V3m6 5V3m3 5v4a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5V8Z" /><path d="M12 17v4" /></g>,
 };
 
 export type ToolDetailLine = { text: string; tone?: "add" | "del" };
+
+/**
+ * The structured second layer for a call whose result is more than a few lines.
+ *
+ * Rows with `pane` render it inside the same expanded boundary as `detail` —
+ * one scroll region per row, never a card inside a card. Sections arrive already
+ * bounded and parsed (`@shared/mcp-tool`); the pane only draws them.
+ */
+export type ToolRowPane = {
+  sections: McpResultSection[];
+  /** the call's arguments as pretty JSON */
+  args?: McpTextBlock;
+  /** pi saved the full text of a truncated result here */
+  fullOutputPath?: string;
+};
 
 export type ToolStep = {
   /** stable identity — several calls can share a label */
@@ -35,6 +54,10 @@ export type ToolStep = {
   /** the call's own state. Without it a running call inside an open group is
    *  indistinguishable from a finished one until you read its detail text. */
   status?: "running" | "done" | "error";
+  /** structured second layer — see {@link ToolRowPane} */
+  pane?: ToolRowPane;
+  /** the unformatted call name, kept as the row's native tooltip */
+  title?: string;
 };
 
 export type ToolDiff = { file: string; add: number; del: number };
@@ -52,6 +75,166 @@ const DEFAULT_LABELS: ToolChipsLabels = {
   header: "4 tool calls, 2 messages",
   more: "+2 more",
 };
+
+/**
+ * The structured second layer of one call.
+ *
+ * Everything here renders flat into the row's own scroll boundary: the result
+ * sections, the arguments, and the pointer pi leaves when it truncated a long
+ * output. There is deliberately no nested collapsible — a card that folds inside
+ * a card that folds is where "expand the tool" turns into three clicks.
+ */
+function ToolRowPaneView({ pane, rowKey }: { pane: ToolRowPane; rowKey: string }) {
+  const [copied, setCopied] = useState<string | null>(null);
+
+  /* A copy button that copies: the clipboard is the one the rest of the shell
+     already writes to, and the label flips only after the write resolves. */
+  const copy = (key: string, text: string) => {
+    void navigator.clipboard
+      ?.writeText(text)
+      .then(() => {
+        setCopied(key);
+        window.setTimeout(() => setCopied((current) => (current === key ? null : current)), 1400);
+      })
+      .catch(() => undefined);
+  };
+
+  const copyButton = (key: string, text: string) => (
+    <button
+      type="button"
+      aria-label={t("Copy")}
+      title={t("Copy")}
+      onClick={() => copy(key, text)}
+      className={`-mr-0.5 flex h-5 shrink-0 items-center gap-1 rounded-chip px-1.5 text-ui-xs font-medium transition-colors duration-100 hover:bg-hover ${
+        copied === key ? "text-green" : "text-ink-3 hover:text-ink"
+      }`}
+    >
+      {copied === key ? (
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+      ) : (
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.5" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+      )}
+      {copied === key ? t("Copied") : t("Copy")}
+    </button>
+  );
+
+  const moreLine = (count: number) => (
+    <span className="pt-1 text-ui-xs text-ink-3">{tf("… {count} more lines", { count })}</span>
+  );
+
+  return (
+    <>
+      {pane.sections.map((section, index) => {
+        const key = `${rowKey}-s${index}`;
+        if (section.kind === "error") {
+          return (
+            <div key={key} className="flex min-w-0 flex-col">
+              {section.lines.length ? (
+                <pre className="m-0 max-w-full rounded-control bg-red-tint px-2 py-1.5 font-mono text-ui-sm leading-[1.6] whitespace-pre-wrap break-words text-red">
+                  {section.lines.join("\n")}
+                </pre>
+              ) : (
+                <span className="text-ui-sm text-red">{t("failed")}</span>
+              )}
+              {section.more > 0 ? moreLine(section.more) : null}
+            </div>
+          );
+        }
+
+        if (section.kind === "json" || section.kind === "text") {
+          /* JSON gets the grammar; the lines are already the bounded slice, so
+             the highlight pass never sees the whole 20KB result. */
+          const html = section.kind === "json" ? highlightLines(section.lines.join("\n"), "json") : null;
+          return (
+            <div key={key} className="flex min-w-0 flex-col">
+              <div className="flex h-5 items-center justify-between gap-2">
+                <span className="truncate text-ui-xs text-ink-3">{section.kind === "json" ? t("JSON") : t("Text")}</span>
+                {copyButton(key, section.text)}
+              </div>
+              <div className="min-w-0 rounded-control bg-field px-2 py-1.5 font-mono text-ui-sm leading-[1.6] text-ink-2">
+                {section.lines.map((line, lineIndex) => (
+                  <div key={lineIndex} className="whitespace-pre-wrap break-words">
+                    {html ? (
+                      // eslint-disable-next-line react/no-danger -- highlight.js escapes its input
+                      <span dangerouslySetInnerHTML={{ __html: html[lineIndex] ?? "" }} />
+                    ) : (
+                      line || " "
+                    )}
+                  </div>
+                ))}
+                {section.more > 0 ? moreLine(section.more) : null}
+              </div>
+            </div>
+          );
+        }
+
+        if (section.kind === "image") {
+          /* bounded by height: a screenshot in a tool row must not push the
+             answer off screen */
+          return (
+            <img
+              key={key}
+              src={section.src}
+              alt={t("Image")}
+              className="max-h-56 max-w-full self-start rounded-control bg-field"
+            />
+          );
+        }
+
+        if (section.kind === "resource") {
+          return (
+            <div key={key} className="flex min-w-0 flex-col gap-0.5 rounded-control bg-field px-2 py-1.5">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate text-ui-sm text-ink-2" title={section.uri}>
+                  {section.label}
+                </span>
+                {section.mimeType ? (
+                  <span className="shrink-0 font-mono text-ui-xs text-ink-3">{section.mimeType}</span>
+                ) : null}
+              </div>
+              <span className="truncate font-mono text-ui-xs text-ink-3">{section.uri}</span>
+              {section.description ? <span className="text-ui-xs text-ink-3">{section.description}</span> : null}
+              {section.text ? (
+                <pre className="m-0 mt-1 max-w-full font-mono text-ui-xs leading-[1.6] whitespace-pre-wrap break-words text-ink-2">
+                  {section.text}
+                </pre>
+              ) : null}
+            </div>
+          );
+        }
+
+        return section.text ? (
+          <span key={key} className="truncate font-mono text-ui-xs text-ink-3" title={section.text}>
+            {section.text}
+          </span>
+        ) : null;
+      })}
+
+      {pane.fullOutputPath ? (
+        <span className="truncate font-mono text-ui-xs text-ink-3" title={pane.fullOutputPath}>
+          {tf("Full output: {path}", { path: pane.fullOutputPath })}
+        </span>
+      ) : null}
+
+      {pane.args ? (
+        <div className="flex min-w-0 flex-col">
+          <div className="flex h-5 items-center justify-between gap-2">
+            <span className="truncate text-ui-xs text-ink-3">{t("Arguments")}</span>
+            {copyButton(`${rowKey}-args`, pane.args.text)}
+          </div>
+          <div className="min-w-0 rounded-control bg-field px-2 py-1.5 font-mono text-ui-sm leading-[1.6] text-ink-2">
+            {pane.args.lines.map((line, lineIndex) => (
+              <div key={lineIndex} className="whitespace-pre-wrap break-words">
+                {line || " "}
+              </div>
+            ))}
+            {pane.args.more > 0 ? moreLine(pane.args.more) : null}
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
 
 const ROWS: ToolStep[] = [
   {
@@ -145,6 +328,12 @@ export default function ToolChips({
   const [manualOpen, setManualOpen] = useState<boolean | null>(null);
   const open = manualOpen ?? defaultOpen;
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
+  /* A row that was opened once keeps its structured pane mounted. Unmounting it
+   * with the close would drop the 1fr content before the grid transition ran,
+   * collapsing the row instantly instead of animating it; re-parsing and
+   * re-mounting the pane on every toggle is also the churn this avoids. Rows
+   * the user never opened never mount one. */
+  const [drawnRows, setDrawnRows] = useState<Set<string>>(new Set());
   /* Rendered in a body portal so animated/translated reply wrappers cannot
    * redefine the fixed-position coordinate system. */
   const [preview, setPreview] = useState<{
@@ -175,13 +364,19 @@ export default function ToolChips({
     return () => clearTimeout(t);
   }, [step, total, instant]);
 
-  const toggleRow = (label: string) =>
+  const toggleRow = (label: string) => {
+    /* read from the rendered state, not from inside an updater: two updaters
+       would each run twice under StrictMode, and the pane's mount is derived
+       from this same decision */
+    const opening = !openRows.has(label);
     setOpenRows((current) => {
       const next = new Set(current);
-      next.has(label) ? next.delete(label) : next.add(label);
-      onToggleRow?.(label, next.has(label));
+      opening ? next.add(label) : next.delete(label);
       return next;
     });
+    if (opening) setDrawnRows((drawn) => (drawn.has(label) ? drawn : new Set(drawn).add(label)));
+    onToggleRow?.(label, opening);
+  };
 
   return (
     <div className={`w-full${className ? ` ${className}` : ""}`}>
@@ -217,13 +412,16 @@ export default function ToolChips({
             const rowOpen = openRows.has(rowKey);
             /* a call with nothing to show is not a disclosure. Without this the
                row still offered a chevron and opened onto an empty rule — the
-               shell of a detail pane with no detail in it. */
-            const hasDetail = row.detail.length > 0;
+               shell of a detail pane with no detail in it. A structured pane
+               counts as something to show even when it has no text lines. */
+            const hasPane = Boolean(row.pane && (row.pane.sections.length > 0 || row.pane.args || row.pane.fullOutputPath));
+            const hasDetail = row.detail.length > 0 || hasPane;
             return (
             <div key={rowKey} style={{ animation: "fade-up 300ms var(--ease-out-strong-css) both" }}>
               <button
                 type="button"
                 aria-expanded={hasDetail ? rowOpen : undefined}
+                title={row.title}
                 onClick={() => {
                   if (hasDetail) toggleRow(rowKey);
                 }}
@@ -290,14 +488,25 @@ export default function ToolChips({
               </button>
 
               {/* expanded detail — the rule sits just past the row icon and the
-                  text lands on the row label's x, so detail reads as a child. */}
+                  text lands on the row label's x, so detail reads as a child.
+                  One scroll boundary per row: the structured pane and the plain
+                  lines share it instead of each bringing their own. */}
               {hasDetail ? (
               <div
                 className="grid transition-[grid-template-rows,opacity] duration-300"
                 style={{ gridTemplateRows: rowOpen ? "1fr" : "0fr", opacity: rowOpen ? 1 : 0, transitionTimingFunction: "var(--ease-out-strong-css)" }}
               >
                 <div className="min-h-0 overflow-hidden">
-                  <div className="scrollbar-thin mt-0.5 mb-1 ml-[18px] flex max-h-[320px] flex-col gap-0.5 overflow-y-auto border-l border-line py-0.5 pl-[7px]">
+                  <div
+                    className={`scrollbar-thin mt-0.5 mb-1 ml-[18px] flex flex-col overflow-y-auto border-l border-line py-0.5 pl-[7px] ${
+                      hasPane ? "max-h-[440px] gap-2" : "max-h-[320px] gap-0.5"
+                    }`}
+                  >
+                    {/* the pane mounts when the row is first opened and stays
+                        mounted after that — see `drawnRows` */}
+                    {row.pane && (rowOpen || drawnRows.has(rowKey)) ? (
+                      <ToolRowPaneView pane={row.pane} rowKey={rowKey} />
+                    ) : null}
                     {row.detail.map((line, lineIndex) => (
                       <span
                         key={`${rowKey}-d${lineIndex}`}

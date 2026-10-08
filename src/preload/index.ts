@@ -18,13 +18,27 @@ import type {
 } from "@shared/types";
 import type { DirListing, FileContent, TerminalChunk, TerminalResult } from "@shared/workspace";
 import type { AppOpener, GitBranches, GitResult, GitState } from "@shared/workspace";
+import type { McpConfigView, McpExposure, McpScope, McpServerConfig } from "@shared/mcp";
 import type { PtyData, PtyExit, PtySession, TerminalShell } from "@shared/terminal";
 import type { BrowserBounds, BrowserState, DesignPick } from "@shared/browser";
 import type { UiAnswer } from "@shared/ui";
+import type { WorkspaceInfo, SshProfile, SshProbe, SshConnectInput } from "@shared/workspaces";
 
 
 export interface PiBridge {
   getState: () => Promise<HostSnapshot>;
+  getWorkspace: () => Promise<WorkspaceInfo>;
+  listWorkspaces: () => Promise<WorkspaceInfo[]>;
+  addWorkspaceFolder: (path?: string) => Promise<WorkspaceInfo>;
+  removeWorkspaceFolder: (path: string) => Promise<WorkspaceInfo>;
+  renameWorkspace: (name: string) => Promise<WorkspaceInfo>;
+  listSsh: () => Promise<SshProfile[]>;
+  probeSsh: (host: string, port?: number) => Promise<SshProbe>;
+  connectSsh: (input: SshConnectInput) => Promise<WorkspaceInfo>;
+  disconnectSsh: (id: string) => Promise<void>;
+  removeSsh: (id: string) => Promise<void>;
+  pickSshKey: () => Promise<string | undefined>;
+  onWorkspaceChange: (listener: () => void) => () => void;
   prompt: (payload: PromptPayload) => Promise<void>;
   abort: () => Promise<void>;
   newSession: () => Promise<void>;
@@ -39,6 +53,7 @@ export interface PiBridge {
   fleetInterrupt: (name?: string) => Promise<void>;
   /** plan mode: the plugin's subcommands, with the model the build runs on */
   planAction: (payload: PlanAction) => Promise<void>;
+  readPlan: () => Promise<FileContent | undefined>;
   updateSettings: (patch: Partial<RuntimeSettings>) => Promise<void>;
   saveModel: (edit: ModelEdit) => Promise<void>;
   deleteModel: (provider: string, modelId: string) => Promise<void>;
@@ -73,6 +88,24 @@ export interface PiBridge {
   deletePlugin: (path: string, kind: PluginInfo["kind"]) => Promise<PluginInfo[]>;
   /** create a rule stub (global ~/.pi/agent/prompts or project .pi/prompts) and rescan */
   createRule: (scope: "global" | "project", name: string) => Promise<PluginInfo[]>;
+  /** the text of one rule / skill / theme file, for the in-app editor */
+  readPluginText: (path: string) => Promise<string>;
+  /** overwrite that file with the editor's contents */
+  writePluginText: (path: string, text: string) => Promise<void>;
+  /* MCP servers, from both `mcp.json` files: the agent directory's and the project's */
+  getMcpConfig: () => Promise<McpConfigView>;
+  /** namespaces whose tools the session registered — i.e. servers that connected */
+  getMcpConnected: () => Promise<string[]>;
+  mcpFilePath: (scope: McpScope) => Promise<string>;
+  writeMcpServer: (scope: McpScope, name: string, config: McpServerConfig) => Promise<McpConfigView>;
+  patchMcpServer: (
+    scope: McpScope,
+    name: string,
+    patch: { enabled?: boolean; exposure?: McpExposure },
+  ) => Promise<McpConfigView>;
+  removeMcpServer: (scope: McpScope, name: string) => Promise<McpConfigView>;
+  /** pi's own `/mcp login|logout|reconnect <server>`, run inside the session */
+  mcpCommand: (command: "login" | "logout" | "reconnect", name: string) => Promise<void>;
   /** persist a pasted image (data URL) into the app's paste dir; returns its path */
   savePasteImage: (dataUrl: string, extension?: string) => Promise<string>;
   /** the absolute path of a File from the clipboard (Electron webUtils) */
@@ -141,6 +174,18 @@ export interface PiBridge {
 
 const api: PiBridge = {
   getState: () => ipcRenderer.invoke("pi:getState"),
+  getWorkspace: () => ipcRenderer.invoke("workspace:get"),
+  listWorkspaces: () => ipcRenderer.invoke("workspace:list"),
+  addWorkspaceFolder: (path) => ipcRenderer.invoke("workspace:addFolder", path),
+  removeWorkspaceFolder: (path) => ipcRenderer.invoke("workspace:removeFolder", path),
+  renameWorkspace: (name) => ipcRenderer.invoke("workspace:rename", name),
+  listSsh: () => ipcRenderer.invoke("ssh:list"),
+  probeSsh: (host, port) => ipcRenderer.invoke("ssh:probe", host, port),
+  connectSsh: (input) => ipcRenderer.invoke("ssh:connect", input),
+  disconnectSsh: (id) => ipcRenderer.invoke("ssh:disconnect", id),
+  removeSsh: (id) => ipcRenderer.invoke("ssh:remove", id),
+  pickSshKey: () => ipcRenderer.invoke("ssh:pickKey"),
+  onWorkspaceChange: (listener) => { const handler = () => listener(); ipcRenderer.on("workspace:changed", handler); return () => ipcRenderer.removeListener("workspace:changed", handler); },
   prompt: (payload) => ipcRenderer.invoke("pi:prompt", payload),
   abort: () => ipcRenderer.invoke("pi:abort"),
   newSession: () => ipcRenderer.invoke("pi:newSession"),
@@ -152,6 +197,7 @@ const api: PiBridge = {
   reload: () => ipcRenderer.invoke("pi:reload"),
   fleetInterrupt: (name) => ipcRenderer.invoke("pi:fleetInterrupt", name),
   planAction: (payload) => ipcRenderer.invoke("pi:planAction", payload),
+  readPlan: () => ipcRenderer.invoke("plan:read"),
   updateSettings: (patch) => ipcRenderer.invoke("pi:updateSettings", patch),
   saveModel: (edit) => ipcRenderer.invoke("pi:saveModel", edit),
   deleteModel: (provider, modelId) => ipcRenderer.invoke("pi:deleteModel", provider, modelId),
@@ -181,6 +227,15 @@ const api: PiBridge = {
   setPluginEnabled: (path, kind, enabled) => ipcRenderer.invoke("pi:setPluginEnabled", path, kind, enabled),
   deletePlugin: (path, kind) => ipcRenderer.invoke("pi:deletePlugin", path, kind),
   createRule: (scope, name) => ipcRenderer.invoke("pi:createRule", scope, name),
+  readPluginText: (path) => ipcRenderer.invoke("pi:readPluginText", path),
+  writePluginText: (path, text) => ipcRenderer.invoke("pi:writePluginText", path, text),
+  getMcpConfig: () => ipcRenderer.invoke("pi:mcpConfig"),
+  getMcpConnected: () => ipcRenderer.invoke("pi:mcpConnected"),
+  mcpFilePath: (scope) => ipcRenderer.invoke("pi:mcpFilePath", scope),
+  writeMcpServer: (scope, name, config) => ipcRenderer.invoke("pi:writeMcpServer", scope, name, config),
+  patchMcpServer: (scope, name, patch) => ipcRenderer.invoke("pi:patchMcpServer", scope, name, patch),
+  removeMcpServer: (scope, name) => ipcRenderer.invoke("pi:removeMcpServer", scope, name),
+  mcpCommand: (command, name) => ipcRenderer.invoke("pi:mcpCommand", command, name),
   savePasteImage: (dataUrl, extension) => ipcRenderer.invoke("pi:savePasteImage", dataUrl, extension),
   getPathForFile: (file) => {
     try {

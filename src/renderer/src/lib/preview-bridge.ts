@@ -5,6 +5,7 @@ import type {
   HostState,
   ModelInfo,
   PlanAction,
+  PluginInfo,
   ToolActivity,
   UsageBucket,
   UsageCacheStats,
@@ -18,6 +19,7 @@ import type {
 } from "@shared/types";
 import { cacheHitRate } from "@shared/cache-usage";
 import { endpointId } from "@shared/channel";
+import type { McpServerView } from "@shared/mcp";
 import type { BrowserState } from "@shared/browser";
 import type { AppOpener, FileContent, FileEntry } from "@shared/workspace";
 
@@ -38,6 +40,121 @@ import type { AppOpener, FileContent, FileEntry } from "@shared/workspace";
    process replaces or appends to this, and the preview has to derive from the
    same pristine ramp rather than from levels it already edited */
 const BASE_RAMP: Record<string, string[]> = {};
+
+/**
+ * Rules for the browser preview, keyed by path like the host's own map.
+ *
+ * The generic proxy below answers unknown methods with `undefined`, which makes
+ * the rules editor open a blank file and drop every save; a real fixture is the
+ * only way to iterate that screen in a plain browser tab. Deleting edits this
+ * map instead of the disk, and the list is derived from it, so list and editor
+ * cannot disagree.
+ */
+const PREVIEW_RULES = new Map<string, { scope: "global" | "project"; body: string }>([
+  [
+    "~/.pi/agent/prompts/review-checklist.md",
+    {
+      scope: "global",
+      body: "# Review checklist\n\nEvery change gets the same pass, in this order:\n\n1. Does it change behaviour? Then it needs a regression check.\n2. Does it touch the IPC bridge? Then both ends move together.\n3. Does it add UI text? Then the i18n dictionary gets the string.\n",
+    },
+  ],
+  [
+    "~/.pi/agent/prompts/commit-style.md",
+    {
+      scope: "global",
+      body: "# Commit style\n\nSubject line in the imperative, no trailing period, one line.\n",
+    },
+  ],
+  [
+    "F:/Projects/pi-agent-desktop/.pi/prompts/desktop-notes.md",
+    {
+      scope: "project",
+      body: "# Desktop notes\n\nThis checkout is the Electron shell, not the agent itself.\n",
+    },
+  ],
+]);
+
+/**
+ * The plugin list the preview shows: the rules above, plus one theme.
+ *
+ * The theme is here on purpose — a theme is a file-backed resource like a rule,
+ * and the Customize screen has to keep it out of the Rules tab while still
+ * listing it somewhere.
+ */
+function previewPlugins(): PluginInfo[] {
+  return [
+    ...[...PREVIEW_RULES.entries()].map(([path, rule]) => ({
+      id: `preview:prompt:${path}`,
+      kind: "prompt" as const,
+      name: path.split("/").pop()!.replace(/\.md$/, ""),
+      path,
+      scope: rule.scope,
+      enabled: true,
+      toggleable: false,
+      removable: true,
+      sizeBytes: rule.body.length,
+    })),
+    {
+      id: "preview:theme:~/.pi/agent/themes/pi-dark.json",
+      kind: "theme" as const,
+      name: "pi-dark",
+      description: "A terminal palette, loaded by pi like an extension",
+      path: "~/.pi/agent/themes/pi-dark.json",
+      scope: "global" as const,
+      enabled: true,
+      toggleable: false,
+      removable: true,
+      sizeBytes: 812,
+    },
+  ];
+}
+
+/**
+ * MCP servers for the browser preview.
+ *
+ * One of each transport, one disabled entry and one that never connects, so the
+ * list shows every state the screen can draw. `getMcpConnected` answers with the
+ * enabled ones, which is what makes the green pill appear; deleting and saving
+ * edit this object instead of a file.
+ */
+const PREVIEW_MCP = {
+  servers: [
+    {
+      name: "filesystem",
+      scope: "global",
+      file: "~/.pi/agent/mcp.json",
+      config: { type: "stdio", command: "npx", args: ["-y", "@modelcontextprotocol/server-filesystem", "."] },
+      enabled: true,
+      exposure: "codemode",
+    },
+    {
+      name: "docs",
+      scope: "global",
+      file: "~/.pi/agent/mcp.json",
+      config: { type: "http", url: "https://example.com/mcp", headers: { Authorization: "Bearer ${DOCS_TOKEN}" } },
+      enabled: true,
+      exposure: "deferred",
+    },
+    {
+      name: "sentry",
+      scope: "project",
+      file: "F:/Projects/pi-agent-desktop/.pi/mcp.json",
+      config: { type: "http", url: "https://mcp.sentry.dev/mcp" },
+      enabled: true,
+      exposure: "direct",
+    },
+    {
+      name: "scratch",
+      scope: "global",
+      file: "~/.pi/agent/mcp.json",
+      config: { type: "stdio", command: "uvx", args: ["scratch-mcp"] },
+      enabled: false,
+      exposure: "codemode",
+    },
+  ] as McpServerView[],
+  errors: [] as string[],
+  autoEnableCodemode: true,
+};
 
 const model = (
   id: string,
@@ -87,6 +204,7 @@ const MODELS: ModelInfo[] = [
   model("qwen3-plus", "Qwen3 Plus", "qwen", true, { contextWindow: 1_000_000 }),
   model("minimax-m3", "MiniMax M3", "minimax", true, { contextWindow: 1_000_000 }),
   model("kimi-k2.5", "Kimi K2.5", "moonshot", true, { contextWindow: 256_000 }),
+  { ...model("pi-builtin-chat", "Pi built-in chat", "pi-builtin"), source: "builtin" },
 ];
 
 const now = Date.now();
@@ -832,7 +950,22 @@ export function installPreviewBridge(): void {
   const listeners = new Set<(payload: unknown) => void>();
   /* mutable so `newSession` can clear it — the empty session is the greeting
      screen, and a frozen fixture means the preview can never reach it */
-  let messages: ChatMessage[] = MESSAGES;
+  let messages: ChatMessage[] = [...MESSAGES];
+  if (new URLSearchParams(location.search).has("qa-mcp")) {
+    messages = [
+      { key: "qa-mcp-user", role: "user", timestamp: now, text: "检查 MCP 返回的 JSON、图片、资源和错误", blocks: [] },
+      { key: "qa-mcp-assistant", role: "assistant", timestamp: now + 1, text: "", blocks: [
+        { type: "toolCall", id: "qa-mcp-1", name: "mcp__filesystem__read_file", arguments: { path: "/srv/project/package.json" } },
+        { type: "toolCall", id: "qa-mcp-2", name: "mcp__sentry__get_issue", arguments: { issue: "PROJ-42" } },
+      ] },
+      { key: "qa-mcp-result-1", role: "toolResult", timestamp: now + 2, text: '{"name":"pi-agent-desktop","private":true}', blocks: [], toolName: "mcp__filesystem__read_file", toolCallId: "qa-mcp-1", toolDetails: { server: "filesystem", tool: "read_file", content: [
+        { type: "text", text: '{"name":"pi-agent-desktop","private":true}' },
+        { type: "image", mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5GQAAAAASUVORK5CYII=" },
+        { type: "resource_link", uri: "https://example.com/result", name: "Result document" },
+      ] } },
+      { key: "qa-mcp-result-2", role: "toolResult", timestamp: now + 3, text: "404 Not Found: issue PROJ-42", blocks: [], isError: true, toolName: "mcp__sentry__get_issue", toolCallId: "qa-mcp-2", toolDetails: { server: "sentry", tool: "get_issue" } },
+    ];
+  }
   let tools: ToolActivity[] = TOOLS;
   const payload = () => ({
     state: STATE,
@@ -885,7 +1018,26 @@ export function installPreviewBridge(): void {
     };
     emit();
   };
+  const previewWorkspace = () => STATE.workspace ?? { id: "preview-workspace", name: "pi-agent-desktop", cwd: STATE.cwd, folders: [{ name: "pi-agent-desktop", path: STATE.cwd }] };
+  const previewProfiles: import("@shared/workspaces").SshProfile[] = [
+    /* carries `folder` so the reconnect-prefill behaviour is visible in a
+       plain browser tab — selecting it must fill the remote folder field */
+    { id: "preview-ssh", name: "demo-server", host: "demo.example", port: 22, username: "demo", privateKeyPath: "C:/Users/demo/.ssh/id_ed25519", fingerprint: "SHA256:previewOnlyNoRealConnection00000000000000000", folder: "/srv/app", status: "disconnected" },
+  ];
+  const workspaceListeners = new Set<() => void>();
   const table: Record<string, (...args: never[]) => unknown> = {
+    getWorkspace: async () => previewWorkspace(),
+    listWorkspaces: async () => [previewWorkspace()],
+    addWorkspaceFolder: async (path?: string) => { const current = previewWorkspace(); const next = path || "F:/Projects/pi-agent-api"; if (!current.folders.some((folder) => folder.path === next)) current.folders.push({ name: next.split(/[\\/]/).at(-1) || next, path: next }); STATE.workspace = current; emit(); for (const listener of workspaceListeners) listener(); return current; },
+    removeWorkspaceFolder: async (path: string) => { const current = previewWorkspace(); current.folders = current.folders.filter((folder, index) => index === 0 || folder.path !== path); STATE.workspace = current; emit(); for (const listener of workspaceListeners) listener(); return current; },
+    renameWorkspace: async (name: string) => { const current = previewWorkspace(); current.name = name; STATE.workspace = current; emit(); for (const listener of workspaceListeners) listener(); return current; },
+    listSsh: async () => previewProfiles,
+    probeSsh: async () => ({ fingerprint: "SHA256:previewOnlyNoRealConnection00000000000000000", algorithm: "ssh-ed25519" }),
+    connectSsh: async () => { throw new Error("浏览器预览仅展示界面；真实 SSH 连接请在 Electron 应用中验证。"); },
+    disconnectSsh: async () => {},
+    removeSsh: async () => {},
+    pickSshKey: async () => "C:/Users/demo/.ssh/id_ed25519",
+    onWorkspaceChange: (fn: () => void) => { workspaceListeners.add(fn); return () => workspaceListeners.delete(fn); },
     getState: async () => payload(),
     /* Where a prompt starts in the preview's transcript, counted the same way
        the host counts them — by position on the branch being shown, not by
@@ -912,6 +1064,7 @@ export function installPreviewBridge(): void {
     },
     setCwd: async (cwd: string) => {
       STATE.cwd = cwd === "~" ? STATE.homeDir : cwd;
+      STATE.workspace = undefined;
       if (STATE.snapshot) STATE.snapshot.cwd = STATE.cwd;
       emit();
     },
@@ -1013,6 +1166,7 @@ export function installPreviewBridge(): void {
     listDir: async (dirPath: string) =>
       ({ path: dirPath, entries: TREE[dirPath?.replace(STATE.cwd, "").replace(/^[\\/]/, "") ?? ""] ?? [] }),
     searchFiles: async () => PREVIEW_FILES.map((path) => ({ path, modified: 0 })),
+    readPlan: async () => ({ path: STATE.plan.path || "", name: "plan.md", lang: "md", text: PLAN_MD, size: PLAN_MD.length, truncated: false, binary: false }),
     readFile: async (filePath: string) => {
       /* a file the plan panel reads back is the plan — the document view is
          only worth previewing with the real thing in it */
@@ -1150,7 +1304,53 @@ export function installPreviewBridge(): void {
     },
     gitCommit: async () => ({ ok: true, output: "3 files changed, 148 insertions(+), 22 deletions(-)" }),
     gitPush: async () => ({ ok: true, output: "To github.com:pi/agent-desktop.git\n   8f1c2ab..b7d2ba2  master -> master" }),
-    getPlugins: async () => [],
+    getPlugins: async () => previewPlugins(),
+    getMcpConfig: async () => PREVIEW_MCP,
+    getMcpConnected: async () => PREVIEW_MCP.servers.filter((server) => server.enabled).map((server) => server.name.replace(/[^A-Za-z0-9_]/g, "_")),
+    mcpFilePath: async (scope: string) => (scope === "global" ? "~/.pi/agent/mcp.json" : "F:/Projects/pi-agent-desktop/.pi/mcp.json"),
+    writeMcpServer: async (scope: string, name: string, config: unknown) => {
+      const rest = PREVIEW_MCP.servers.filter((server) => server.name !== name);
+      PREVIEW_MCP.servers = [
+        ...rest,
+        {
+          name,
+          scope: scope as "global" | "project",
+          file: scope === "global" ? "~/.pi/agent/mcp.json" : "F:/Projects/pi-agent-desktop/.pi/mcp.json",
+          config: config as never,
+          enabled: (config as { enabled?: boolean }).enabled !== false,
+          exposure: (config as { exposure?: "codemode" }).exposure ?? "codemode",
+        },
+      ];
+      return PREVIEW_MCP;
+    },
+    patchMcpServer: async (scope: string, name: string, patch: { enabled?: boolean; exposure?: string }) => {
+      for (const server of PREVIEW_MCP.servers) {
+        if (server.name !== name) continue;
+        if (patch.enabled !== undefined) server.enabled = patch.enabled;
+        if (patch.exposure !== undefined) server.exposure = patch.exposure as never;
+      }
+      return PREVIEW_MCP;
+    },
+    removeMcpServer: async (_scope: string, name: string) => {
+      PREVIEW_MCP.servers = PREVIEW_MCP.servers.filter((server) => server.name !== name);
+      return PREVIEW_MCP;
+    },
+    readPluginText: async (path: string) => PREVIEW_RULES.get(path)?.body ?? "",
+    writePluginText: async (path: string, text: string) => {
+      const entry = PREVIEW_RULES.get(path);
+      if (entry) entry.body = text;
+    },
+    deletePlugin: async (path: string) => {
+      PREVIEW_RULES.delete(path);
+      return previewPlugins();
+    },
+    createRule: async (scope: "global" | "project", name: string) => {
+      const fileName = `${name.trim().toLowerCase().replace(/[\\/:*?"<>|]/g, "-")}.md`;
+      const path =
+        scope === "global" ? `~/.pi/agent/prompts/${fileName}` : `F:/Projects/pi-agent-desktop/.pi/prompts/${fileName}`;
+      PREVIEW_RULES.set(path, { scope, body: `# ${name.trim()}\n\n` });
+      return previewPlugins();
+    },
     getUsage: async (days: number) => previewUsage(days),
     getContextBreakdown: async () => ({ parts: [], used: null, contextWindow: 0, percent: null }),
     getZoomFactor: () => 1,

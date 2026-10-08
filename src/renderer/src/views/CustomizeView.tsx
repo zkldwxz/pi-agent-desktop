@@ -1,20 +1,23 @@
 import { useEffect, useState } from "react";
-import type { CatalogItem, HostState, ModelEdit, PluginInfo } from "@shared/types";
+import type { CatalogItem, HostState, ModelEdit, PluginInfo, RuntimeSettings } from "@shared/types";
 import { cn } from "../lib/cn";
 import { t } from "../lib/i18n";
 import { GlideList } from "../components/motion";
 import { ModelsView } from "./ModelsView";
+import { McpView } from "./McpView";
 import { PluginsView } from "./PluginsView";
+import { RulesView } from "./RulesView";
 import { ViewHeader } from "../components/ui";
 import { ExtensionFlow } from "./ExtensionFlow";
 import { ArrowLeftIcon, GlobeIcon, LayersIcon, ListChecksIcon, ListIcon, SparkIcon } from "../components/icons";
 
-type Tab = "plugins" | "skills" | "models" | "rules";
+type Tab = "plugins" | "skills" | "models" | "mcp" | "rules";
 
 const TABS: Array<{ key: Tab; label: string; hint: string }> = [
-  { key: "plugins", label: "Extensions", hint: "global and project extensions, plus configured packages" },
+  { key: "plugins", label: "Extensions", hint: "global and project extensions, packages and themes" },
   { key: "skills", label: "Skills", hint: "instruction sets the agent loads on demand" },
   { key: "models", label: "Models", hint: "thinking depth, image input, context window, output limits" },
+  { key: "mcp", label: "MCP", hint: "global and project MCP servers, and how their tools reach the model" },
   { key: "rules", label: "Rules", hint: "context files the agent reads at the start of every session" },
 ];
 
@@ -41,6 +44,7 @@ export function CustomizeView({
   onSaveModel,
   onDeleteModel,
   onSetDefaultModel,
+  onUpdateSettings,
   onReload,
   onBack,
   /** create a rule stub in the named scope, then rescan */
@@ -59,6 +63,7 @@ export function CustomizeView({
   onSaveModel: (edit: ModelEdit) => void;
   onDeleteModel: (provider: string, modelId: string) => void;
   onSetDefaultModel: (provider: string, modelId: string) => void;
+  onUpdateSettings: (patch: Partial<RuntimeSettings>) => void;
   onReload: () => void;
   /** leave this view — the sidebar no longer carries a Home row */
   onBack?: () => void;
@@ -89,12 +94,18 @@ export function CustomizeView({
     if (tab === "skills" && !plugins.some((plugin) => plugin.kind === "skill") && !loading) setTab("plugins");
   }, [tab, plugins, loading]);
 
-  const extensions = plugins.filter((plugin) => plugin.kind === "extension" || plugin.kind === "package");
+  /* Themes sit with the other file-backed resources rather than under Rules:
+     pi reads them at startup like extensions, and a rule that is really a
+     terminal palette would be listed, counted and edited in the wrong place.
+     `PluginsView` already groups by kind, so they keep their own heading. */
+  const extensions = plugins.filter(
+    (plugin) => plugin.kind === "extension" || plugin.kind === "package" || plugin.kind === "theme",
+  );
   const skills = plugins.filter((plugin) => plugin.kind === "skill");
-  const rules = plugins.filter((plugin) => plugin.kind === "prompt" || plugin.kind === "theme");
+  const rules = plugins.filter((plugin) => plugin.kind === "prompt");
   const active = TABS.find((entry) => entry.key === tab)!;
 
-  const counts: Record<Tab, number> = {
+  const counts: Partial<Record<Tab, number>> = {
     plugins: extensions.length,
     skills: skills.length,
     models: state.models.length,
@@ -152,7 +163,7 @@ export function CustomizeView({
                 )}
               >
                 <span className="min-w-0 flex-1 truncate text-ui-base">{t(entry.label)}</span>
-                <span className="shrink-0 font-mono text-ui-xs text-ink-3 tabular-nums">{counts[entry.key]}</span>
+                <span className="shrink-0 font-mono text-ui-xs text-ink-3 tabular-nums">{counts[entry.key] ?? ""}</span>
               </button>
             ))}
           </GlideList>
@@ -176,7 +187,7 @@ export function CustomizeView({
           ) : tab === "rules" ? (
             <>
               {/* rule creation: one name, two destinations */}
-              <div className="shrink-0 px-8 pt-8">
+              <div className="shrink-0 px-8 pt-8 pb-4">
                 <div className="flex items-center gap-2 rounded-card bg-surface p-2 shadow-hairline">
                   <input
                     value={ruleName}
@@ -210,18 +221,24 @@ export function CustomizeView({
                 </div>
                 {ruleError ? <div className="mt-1.5 px-1 text-ui-sm text-red">{ruleError}</div> : null}
               </div>
-              {rules.length ? (
-                <div className="mt-4 flex min-h-0 flex-1 flex-col px-8">
-                  <PluginsView plugins={rules} loading={loading} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} />
-                </div>
-              ) : (
-                <div className="px-8 pt-6">
-                  <div className="rounded-card border border-dashed border-line-strong px-6 py-12 text-center text-ui-caption text-ink-3">
-                    {t("No rules yet")}
-                  </div>
-                </div>
-              )}
+              {/* the list and its editor share one row: picking a rule on the
+                  left is how you get it into the editor on the right */}
+              <div className="flex min-h-0 flex-1 flex-col border-t border-line">
+                <RulesView
+                  rules={rules}
+                  loading={loading}
+                  onDelete={onDelete}
+                  onOpen={onOpen}
+                  onRefresh={onRefresh}
+                />
+              </div>
             </>
+          ) : tab === "mcp" ? (
+            /* the MCP list carries its own header and side panel, so it takes
+               the whole content column rather than a padded section */
+            <div className="flex min-h-0 flex-1 flex-col">
+              <McpView settings={state.settings} onUpdateSettings={onUpdateSettings} />
+            </div>
           ) : (
             <>
               {/* the bundled picks: extensions and skills this app ships, one

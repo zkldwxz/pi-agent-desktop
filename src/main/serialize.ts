@@ -113,7 +113,12 @@ export function serializeMessage(message: AgentMessageLike, index: number, strea
     chat.toolName = typeof record.toolName === "string" ? record.toolName : undefined;
     chat.toolCallId = typeof record.toolCallId === "string" ? record.toolCallId : undefined;
     chat.isError = Boolean(record.isError);
-    chat.toolDetails = record.details;
+    // MCP images/resources otherwise disappear at the IPC boundary: text-only
+    // flattening loses the blocks the card needs. Forward only display content,
+    // bounded independently from the SDK message and its model context.
+    chat.toolDetails = chat.toolName?.startsWith("mcp__")
+      ? toolDisplayDetails(record.details, content)
+      : record.details;
     if (!chat.text) chat.text = textFromContent(record.content);
   }
 
@@ -142,6 +147,26 @@ export function serializeMessage(message: AgentMessageLike, index: number, strea
   }
 
   return chat;
+}
+
+export function toolDisplayDetails(details: unknown, content: unknown): Record<string, unknown> {
+  const blocks: Record<string, unknown>[] = [];
+  let budget = 4 * 1024 * 1024;
+  for (const raw of Array.isArray(content) ? content.slice(0, 20) : []) {
+    const block = asRecord(raw);
+    if (block.type === "text" && typeof block.text === "string") {
+      const text = block.text.slice(0, Math.min(budget, 128 * 1024)); budget -= text.length; blocks.push({ type: "text", text });
+    } else if (block.type === "image" && typeof block.data === "string" && typeof block.mimeType === "string" && /^image\/(?:png|jpeg|gif|webp)$/.test(block.mimeType) && block.data.length <= budget) {
+      budget -= block.data.length; blocks.push({ type: "image", data: block.data, mimeType: block.mimeType });
+    } else if (block.type === "resource_link" && typeof block.uri === "string") {
+      blocks.push({ type: "resource_link", uri: block.uri, name: block.name, mimeType: block.mimeType });
+    } else if (block.type === "resource") {
+      const resource = asRecord(block.resource);
+      if (typeof resource.uri === "string") blocks.push({ type: "resource", resource: { uri: resource.uri, mimeType: resource.mimeType, text: typeof resource.text === "string" ? resource.text.slice(0, 128 * 1024) : undefined } });
+    }
+    if (budget <= 0) break;
+  }
+  return { ...asRecord(details), content: blocks };
 }
 
 export function serializeMessages(messages: readonly unknown[], streamingMessage?: unknown): ChatMessage[] {
