@@ -668,6 +668,7 @@ export function SettingsView({
           ) : null}
 
           {category === "data" ? (
+          <>
           <Section title={t("Data")} index={3}>
             <div className="px-4 py-1">
               <div className="border-b border-line">
@@ -717,6 +718,7 @@ export function SettingsView({
           <Section title={t("About")} index={4}>
             <AboutRows />
           </Section>
+          </>
           ) : null}
           </div>
           </div>
