@@ -120,6 +120,11 @@
 }
 
 @theme inline {
+  /* Spacing in px, not rem: with the root at 13.5px a rem-based unit made
+     `p-1.5` 5.06px instead of baocode's 6, every gap a little off. One unit is
+     4px, so the utilities read as baocode's numbers (1.5 = 6, 3 = 12, 6 = 24). */
+  --spacing: 4px;
+
   /* the floor of the radius scale: 16px icons, <kbd> glyphs and 12px avatars.
      Below this, an element is smaller than the scale and rounds by its own size
      instead — see the radius section of DESIGN.md. */
@@ -131,8 +136,12 @@
   --text-ui-lg: calc(var(--ui-font-size) + 2px);
   --text-ui-base: var(--ui-font-size);
   --text-ui-caption: calc(var(--ui-font-size) - 1px);
+  /* baocode's step rows ("Thought 2s", "Read 2 files…"): 13px */
+  --text-ui-step: calc(var(--ui-font-size) - 0.5px);
+  /* baocode's meta size: footers, pills' labels, code, timestamps-with-icons */
+  --text-ui-meta: calc(var(--ui-font-size) - 1.5px);
   --text-ui-sm: calc(var(--ui-font-size) - 2px);
-  --text-ui-xs: calc(var(--ui-font-size) - 3px);
+  --text-ui-xs: calc(var(--ui-font-size) - 2.5px);
   /* the floor: glyphs inside a fixed 14px badge, and axis furniture. Nothing that
      carries meaning may sit here, which is why it is the last step. */
   --text-ui-2xs: calc(var(--ui-font-size) - 4px);
@@ -914,5 +923,12 @@ html[data-sidebar-times="off"] [data-sidebar-time] {
   ::view-transition-old(root),
   ::view-transition-new(root) {
     animation: none;
+  }
+}
+
+/* baocode's ThinkingSpark turns once every 12s while it cycles its shapes */
+@keyframes spark-turn {
+  to {
+    transform: rotate(360deg);
   }
 }

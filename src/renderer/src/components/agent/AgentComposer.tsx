@@ -211,9 +211,8 @@ export function AgentComposer({
              with the text it answers. The greeting stays a centred hero. */
           messages.length > 0 ? CONVERSATION_COLUMN : "mx-auto w-full max-w-[720px]",
           "transition-transform duration-150 ease-out",
-          /* the same px-4 inset the timeline carries: the shell lines up
-             with the prompt cards above it, edge for edge */
-          messages.length > 0 && "px-4",
+          /* no inset: the shell spans the column, edge for edge with the
+             prompt cards above it */
         )}
       >
       {editingQueued ? (
@@ -261,7 +260,7 @@ export function AgentComposer({
                   title={hasPlan && planPhase !== "review" ? t("Open the plan") : t(PLAN_HINT[planPhase])}
                   onClick={onPlan}
                   className={cn(
-                    "pressable hidden h-[22px] items-center gap-1 rounded-full px-2 text-ui-sm",
+                    "pressable hidden h-[22px] items-center gap-1 rounded-full pr-2 pl-1.5 text-ui-meta",
                     "transition-[background-color,color] duration-150 sm:inline-flex",
                     planPhase === "planning"
                       ? "bg-accent-tint text-accent-ink hover:bg-accent-tint/80"
@@ -279,7 +278,7 @@ export function AgentComposer({
                   title={runningTerminal.title}
                   onClick={onOpenTerminal}
                   className={cn(
-                    "pressable hidden h-[22px] items-center gap-1.5 rounded-full px-2 text-ui-sm text-ink-2",
+                    "pressable hidden h-[22px] items-center gap-1 rounded-full pr-2 pl-1.5 text-ui-meta text-ink-2",
                     "transition-colors duration-150 hover:bg-hover hover:text-ink sm:inline-flex",
                   )}
                   style={{ animation: "pop-in 200ms var(--ease-out-strong-css) both" }}
@@ -288,7 +287,7 @@ export function AgentComposer({
                   <TerminalIcon size={12} className="shrink-0" />
                   {/* icon + count only — commands stretch the bar; the full
                       lines live in the dock and in the hover title */}
-                  <span className="shrink-0 text-ui-sm tabular-nums">{runningTerminal.count}</span>
+                  <span className="shrink-0 tabular-nums">{runningTerminal.count}</span>
                 </button>
               ) : null}
             </>

@@ -1,5 +1,5 @@
 import { memo, useState } from "react";
-import { ChevronDownIcon, SparkIcon } from "../icons";
+import { ChevronRightIcon } from "../icons";
 import { StreamText } from "../motion";
 import { Markdown } from "../Markdown";
 import { formatDuration } from "../../lib/format";
@@ -41,9 +41,10 @@ export const AgentTrace = memo(function AgentTrace({
 
   const expanded = manual ?? working;
 
+  /* thinking_section.dart: "Thought 2s", or "Thought briefly" */
   const settled =
-    durationMs && durationMs >= 2000
-      ? tf("Thought for {duration}", { duration: formatDuration(durationMs) })
+    durationMs && durationMs >= 1000
+      ? tf("Thought {duration}", { duration: formatDuration(durationMs) })
       : t("Thought briefly");
 
   return (
@@ -52,25 +53,24 @@ export const AgentTrace = memo(function AgentTrace({
         type="button"
         aria-expanded={expanded}
         onClick={() => setManual((current) => !(current ?? working))}
-        className="-mx-1.5 flex w-fit items-center gap-2 rounded-chip px-1.5 py-1 transition-colors duration-100 hover:bg-hover-2"
+        /* step_header.dart: 13px, vertical padding 3, no icon; the chevron
+           (16) after the text, shown while hovered or open, a quarter turn
+           when open */
+        className="group/step flex w-fit items-center gap-0.5 py-[3px]"
       >
-        <SparkIcon
-          size={13}
-          className={cn("shrink-0 transition-colors duration-200", working ? "text-ink-2" : "text-ink-3")}
-        />
         {working ? (
-          <span className="shimmer-text text-ui-base font-medium whitespace-nowrap">{t("Thinking")}</span>
+          <span className="shimmer-text text-ui-step whitespace-nowrap">{t("Thinking")}</span>
         ) : (
-          <span
-            className="text-ui-base font-medium whitespace-nowrap text-ink-2"
-            style={{ animation: "fade-in 300ms ease-out both" }}
-          >
+          <span className="text-ui-step whitespace-nowrap text-ink-2" style={{ animation: "fade-in 300ms ease-out both" }}>
             {settled}
           </span>
         )}
-        <ChevronDownIcon
-          size={12}
-          className={cn("shrink-0 text-ink-3 transition-transform duration-200", expanded ? "rotate-180" : "rotate-0")}
+        <ChevronRightIcon
+          size={16}
+          className={cn(
+            "shrink-0 text-ink-2 transition-[transform,opacity] duration-150 group-hover/step:text-ink",
+            expanded ? "rotate-90 opacity-100" : "opacity-0 group-hover/step:opacity-100",
+          )}
         />
       </button>
 
@@ -78,7 +78,7 @@ export const AgentTrace = memo(function AgentTrace({
       <div className="collapse-grid" data-open={expanded}>
         <div className="min-h-0 overflow-hidden">
           <div
-            className="relative mt-0.5 ml-[6px] border-l border-line py-1 pl-3.5"
+            className="mt-1.5 mb-0.5 text-ui-step leading-[1.6] text-ink-2"
             style={{ animation: "fade-up 300ms var(--ease-out-strong-css) both" }}
           >
             {working ? <StreamText markdown text={text} done={false} caret={false} /> : <Markdown>{text}</Markdown>}

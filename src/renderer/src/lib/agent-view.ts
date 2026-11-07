@@ -13,15 +13,15 @@ import { getLocale, t, tf, type Locale } from "./i18n";
 /**
  * The conversation column. The timeline and the composer dock MUST render this
  * same class — two different widths would put the prompt bar out of line with
- * the text it answers. Both add the same `px-4` inset inside it, so the user's
- * prompt card and the composer shell share their left and right edges.
+ * the text it answers. baocode's measure: 720 wide inside a 24px gutter; the
+ * prompt card and the composer span it, everything else sits 8px in.
  */
 export const CONVERSATION_COLUMN =
   /* One centred measure, baocode's: the column fills the pane up to a reading
    * width and sits dead-centre whatever opens beside it. The old breakpoints
    * (896 → 1152px) and the off-centre lean when a dock opened made the text
    * jump sideways and left a wide dead gutter on the left. */
-  "conversation-column mx-auto w-full max-w-[752px] shrink-0 transition-[max-width] duration-150 ease-out";
+  "conversation-column mx-auto w-full max-w-[720px] shrink-0 transition-[max-width] duration-150 ease-out";
 
 export type TextSegment =
   | { kind: "text"; text: string }

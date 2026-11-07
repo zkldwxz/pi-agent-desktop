@@ -120,9 +120,9 @@ async function createWindow(): Promise<void> {
     // the title bar is hidden, so the renderer's drag region takes its place.
     frame: !IS_MAC,
     titleBarStyle: "hidden",
-    /* the lights are ~12px tall and the renderer's header is 32px (baocode's
-     * Windows header height), so y=10 puts them on its centre line */
-    trafficLightPosition: { x: 16, y: 10 },
+    /* baocode's islands: the cards start 6px down and their header row is 30,
+     * so the row's centre line is at 21; the ~12px lights go at y=15 */
+    trafficLightPosition: { x: 16, y: 15 },
     webPreferences: {
       preload: join(__dirname, "../preload/index.mjs"),
       sandbox: false,

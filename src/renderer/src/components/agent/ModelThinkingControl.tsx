@@ -137,7 +137,7 @@ export function ModelThinkingControl({
         className={cn(
           /* baocode's composer pill: 22px, fully round, muted 12px text, a
              faint chevron; the depth rides as plain text ("· High") */
-          "pressable inline-flex h-[22px] min-w-0 items-center gap-1 rounded-full py-0 pr-[3px] pl-1.5 text-ui-sm",
+          "pressable inline-flex h-[22px] min-w-0 items-center gap-1 rounded-full py-0 pr-[3px] pl-1.5 text-ui-meta transition-colors duration-[120ms]",
           open ? "bg-hover-2 text-ink" : "text-ink-2 hover:bg-hover",
         )}
       >
@@ -148,7 +148,7 @@ export function ModelThinkingControl({
           </span>
         ) : null}
         <ChevronDownIcon
-          size={13}
+          size={15}
           className="shrink-0 text-ink-4 transition-transform duration-300 ease-out-strong"
           style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
         />

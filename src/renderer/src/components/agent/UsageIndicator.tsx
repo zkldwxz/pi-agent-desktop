@@ -5,7 +5,7 @@ import { effectiveUsed, tightestWindow, type PlanQuota, type QuotaWindow } from 
 import { cn } from "../../lib/cn";
 import { compactTokens, relativeTime } from "../../lib/format";
 import { t, tf, useLocale } from "../../lib/i18n";
-import { GaugeIcon, RefreshIcon } from "../icons";
+import { RefreshIcon } from "../icons";
 
 /**
  * The composer's one usage indicator.
@@ -108,16 +108,18 @@ function Meter({ used }: { used: number }) {
   );
 }
 
+/** baocode's ContextMeter: a 13px ring, stroke 2 with round caps, inset 1;
+ *  the track disabled-grey, the arc muted ink from 12 o'clock clockwise */
 function Ring({ percent }: { percent: number | null }) {
-  const size = 14;
+  const size = 13;
   const stroke = 2;
-  const radius = (size - stroke) / 2;
+  const radius = (size - stroke) / 2 - 1;
   const circumference = 2 * Math.PI * radius;
   const filled = percent === null ? 0 : Math.max(0, Math.min(100, percent)) / 100;
-  const tone = percent === null ? "var(--line-strong)" : percent >= 90 ? "var(--red)" : percent >= 80 ? "var(--orange)" : "var(--ink-3)";
+  const tone = percent !== null && percent >= 80 ? "var(--orange)" : "var(--ink-2)";
   return (
     <svg width={size} height={size} className="shrink-0 -rotate-90" aria-hidden>
-      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--line-strong)" strokeWidth={stroke} />
+      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--ink-4)" strokeWidth={stroke} />
       <circle
         cx={size / 2}
         cy={size / 2}
@@ -127,7 +129,7 @@ function Ring({ percent }: { percent: number | null }) {
         strokeWidth={stroke}
         strokeLinecap="round"
         strokeDasharray={`${circumference * filled} ${circumference}`}
-        style={{ transition: "stroke-dasharray 420ms var(--ease-out-strong-css)" }}
+        style={{ transition: "stroke-dasharray 400ms var(--ease-out-strong-css)" }}
       />
     </svg>
   );
@@ -271,13 +273,14 @@ export function UsageIndicator({
         aria-label={t("Usage")}
         onClick={() => setOpen((value) => !value)}
         className={cn(
-          "pressable flex h-[22px] items-center gap-1.5 rounded-full px-1.5 text-ui-sm tabular-nums transition-colors duration-150 hover:bg-hover",
-          open && "bg-hover",
+          /* ContextMeter's box: 23×22, radius 5; with a plan, the label */
+          "pressable flex h-[22px] min-w-[23px] items-center justify-center gap-[5px] rounded-[5px] px-[5px] text-ui-meta tabular-nums transition-colors duration-[120ms] hover:bg-hover",
+          open && "bg-hover-2",
         )}
       >
         {/* an empty ring read as a loading spinner: with nothing measured yet
             the button shows a gauge glyph instead */}
-        {contextPercent === null ? <GaugeIcon size={13} className="text-ink-3" /> : <Ring percent={contextPercent} />}
+        <Ring percent={contextPercent} />
         {worst ? (
           <span className={usedTone(worstUsed)}>
             {tf("{window} {percent}% left", { window: windowName(worst), percent: Math.round(100 - worstUsed) })}

@@ -487,6 +487,14 @@ const ZH: Record<string, string> = {
   /* ── appearance: code style ─────────────────────────── */
   "Code style": "代码风格",
   "the palette of code blocks; follows light and dark": "代码块的配色，跟随窗口明暗模式",
+  "Show more ({count})": "显示更多（{count}）",
+  "Duration": "用时",
+  "Output speed": "输出速度",
+  "{count} tok/s": "{count} tok/s",
+  "Thought {duration}": "思考 {duration}",
+  "Pondering": "斟酌中",
+  "Noodling": "琢磨中",
+  "Mulling it over": "反复考虑中",
   /* ── plan quota / usage indicator ───────────────────── */
   "5-hour": "5 小时",
   "Weekly Opus": "每周 Opus",

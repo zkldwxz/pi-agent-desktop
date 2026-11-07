@@ -35,7 +35,7 @@
   /* surfaces — warm neutrals */
   --page: #fcfbfa;
   --canvas: #f3f3f1;
-  --surface: #fefefd;
+  --surface: #f3f3f1;
   --inset: #f7f7f5;
   --hover: rgb(37 35 30 / 0.06);
   --hover-2: rgb(37 35 30 / 0.1);
@@ -61,6 +61,8 @@
   --accent-tint: rgb(226 179 115 / 0.22);
   --on-accent: #282624;
   --button: #e2b373;
+  /* baocode's AppColors.claude — the working spark; not the theme's */
+  --spark: #d97857;
 
   /* code — textCodeBlock / textPreformat backgrounds, chat.requestBorder */
   --code-block: #eeeeeb;
@@ -170,6 +172,7 @@
   --color-accent-strong: var(--accent-strong);
   --color-on-accent: var(--on-accent);
   --color-button: var(--button);
+  --color-spark: var(--spark);
   --color-code-block: var(--code-block);
   --color-code-inline: var(--code-inline);
   --color-code-border: var(--code-border);

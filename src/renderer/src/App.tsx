@@ -9,6 +9,7 @@ import { HOME_STEPS, Reveal, SuggestionRail } from "./components/agent/HomeRevea
 import { TerminalPanel } from "./components/panel/TerminalPanel";
 import type { FileEntry } from "@shared/workspace";
 import { cn } from "./lib/cn";
+import { CONVERSATION_COLUMN } from "./lib/agent-view";
 import { AlertIcon, GaugeIcon, ListChecksIcon, LoaderIcon, MessageIcon, PanelLeftIcon, TerminalIcon, XIcon } from "./components/icons";
 import { Skeleton } from "./components/ui";
 import { playDoneChime } from "./lib/sound";
@@ -789,6 +790,9 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, [emptySession]);
 
+  /* the sidebar stands down for Settings (its own rail) and when collapsed */
+  const sidebarShown = view !== "settings" && !sidebarCollapsed;
+
   /* what the header names: the conversation in the chat, the page elsewhere */
   const headerTitle =
     view === "chat"
@@ -902,100 +906,120 @@ function terminalCommand(tool: ToolActivity): string {
   );
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-page text-ink">
-      {/* One row is the title bar and the tool strip at once (baocode's window
-          header): the traffic lights' room on macOS, the sidebar toggle, what is
-          open, then the working controls and — off macOS — the window buttons.
-          Everything that is not a control drags the window. */}
-      <header className="titlebar-drag flex h-8 shrink-0 items-center gap-1 border-b border-line bg-canvas pr-1.5 pl-2">
-        {TRAFFIC_LIGHTS_WIDTH ? <div aria-hidden className="shrink-0" style={{ width: TRAFFIC_LIGHTS_WIDTH - 8 }} /> : null}
-        {view === "settings" ? null : (
-          <button
-            type="button"
-            aria-label={sidebarCollapsed ? t("Expand sidebar") : t("Collapse sidebar")}
-            title={sidebarCollapsed ? t("Expand sidebar") : t("Collapse sidebar")}
-            onClick={() => setSidebarCollapsed((value) => !value)}
-            className="titlebar-no-drag pressable flex size-6 shrink-0 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
-          >
-            <PanelLeftIcon size={15} />
-          </button>
-        )}
-        <div className="min-w-0 flex-1 truncate px-1.5 text-ui-caption text-ink-2">{headerTitle}</div>
-        <div className="titlebar-no-drag flex shrink-0 items-center gap-0.5">
-          <FolderOpener
-            cwd={state.cwd}
-            onBrowse={() => {
-              setDockTool("file");
-              setDockOpen(true);
-            }}
-          />
-          <button
-            type="button"
-            aria-label={t("Task monitor")}
-            title={t("Task monitor")}
-            aria-pressed={monitorOpen}
-            onClick={() => setMonitorOpen((value) => !value)}
-            className={cn(
-              "pressable flex size-6 items-center justify-center rounded-chip",
-              monitorOpen ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
+    /* baocode's agents window: the window is the sidebar's colour, the sidebar
+       sits on it bare, and each working part is an island — a card of the page
+       colour, radius 12, a 1px outline, 6px from the window's edges and from
+       each other (lib/workspace/islands.dart). */
+    <div className="flex h-screen overflow-hidden bg-canvas text-ink">
+      {/* Settings brings its own rail; a collapsed sidebar is gone entirely and
+          its toggle moves into the card's header, beside the traffic lights. */}
+      {sidebarShown ? (
+        <AgentSidebar
+          state={state}
+          view={view === "browser" ? "chat" : view}
+          onView={setView}
+          onNew={() => void window.pi.newSession()}
+          onSelect={(path) => {
+            setView("chat");
+            // the transcript shows a skeleton until this session lands —
+            // leaving the old conversation up felt like a misclick
+            setPendingSession(path);
+            void window.pi.switchSession(path);
+          }}
+          onSearch={() => setPaletteOpen(true)}
+          userName={userName}
+          onNewInWorkspace={(cwd) => {
+            setView("chat");
+            void (async () => {
+              await window.pi.setCwd(cwd);
+              await window.pi.newSession();
+            })().catch(() => undefined);
+          }}
+          collapsed={false}
+          onCollapsedChange={setSidebarCollapsed}
+        />
+      ) : null}
+      <div className={cn("relative flex min-w-0 flex-1 py-1.5 pr-1.5", sidebarShown ? "" : "pl-1.5")}>
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-window border border-line bg-page">
+          {/* The card's header (ChatScreen.cardHeaderHeight, 30): the title and
+              the actions keep to the conversation column, as baocode lays them;
+              the traffic lights' room and the sidebar toggle sit at its left
+              only while the sidebar is away. Off macOS the window buttons end
+              the row when nothing is open beside the card. */}
+          <header className="titlebar-drag relative flex h-[30px] shrink-0 items-center">
+            {sidebarShown ? null : (
+              <div className="absolute inset-y-0 left-0 flex items-center pl-2">
+                {TRAFFIC_LIGHTS_WIDTH ? <div aria-hidden className="shrink-0" style={{ width: TRAFFIC_LIGHTS_WIDTH - 8 }} /> : null}
+                {view === "settings" ? null : (
+                  <button
+                    type="button"
+                    aria-label={t("Expand sidebar")}
+                    title={t("Expand sidebar")}
+                    onClick={() => setSidebarCollapsed(false)}
+                    className="titlebar-no-drag pressable flex size-6 shrink-0 items-center justify-center rounded-[5px] text-ink-2 hover:bg-hover hover:text-ink"
+                  >
+                    <span className="codicon codicon-layout-sidebar-left text-[16px]" aria-hidden />
+                  </button>
+                )}
+              </div>
             )}
-          >
-            <ListChecksIcon size={14} />
-          </button>
-          <button
-            type="button"
-            aria-label={t("Terminal")}
-            title={t("Terminal")}
-            onClick={() => {
-              setDockTool((current) => (dockOpen && current === "terminal" ? null : "terminal"));
-              setDockOpen(true);
-            }}
-            className={cn(
-              "pressable flex size-6 items-center justify-center rounded-chip",
-              dockOpen && dockTool === "terminal" ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
-            )}
-          >
-            <TerminalIcon size={14} />
-          </button>
-          <DockToggle open={dockOpen} onToggle={() => setDockOpen((value) => !value)} />
-        </div>
-        <WindowControls />
-      </header>
-      <div className="relative flex min-h-0 flex-1">
-        {/* No icon rail: the sidebar's own rows are the navigation, so Views are
-            the three panes rather than five icon targets. Browser and Usage open
-            from inside Customize and Settings. */}
-        {/* Settings is the exception: it brings its own left rail (the category
-            list), so the session pane stands down rather than the app opening a
-            small settings panel inside the agent shell. */}
-        {view === "settings" ? null : (
-          <AgentSidebar
-            state={state}
-            view={view === "browser" ? "chat" : view}
-            onView={setView}
-            onNew={() => void window.pi.newSession()}
-            onSelect={(path) => {
-              setView("chat");
-              // the transcript shows a skeleton until this session lands —
-              // leaving the old conversation up felt like a misclick
-              setPendingSession(path);
-              void window.pi.switchSession(path);
-            }}
-            onSearch={() => setPaletteOpen(true)}
-            userName={userName}
-            onNewInWorkspace={(cwd) => {
-              setView("chat");
-              void (async () => {
-                await window.pi.setCwd(cwd);
-                await window.pi.newSession();
-              })().catch(() => undefined);
-            }}
-            collapsed={sidebarCollapsed}
-            onCollapsedChange={setSidebarCollapsed}
-          />
-        )}
-
-        <main className="flex min-w-0 flex-1 flex-col bg-page">
+            <div
+              className="flex h-full min-w-0 flex-1 items-center"
+              style={{
+                paddingLeft: sidebarShown ? 29 : TRAFFIC_LIGHTS_WIDTH + 34,
+                paddingRight: !dockOpen && !IS_MAC ? 100 : 29,
+              }}
+            >
+              <div className={cn("flex min-w-0 items-center gap-1", view === "chat" ? CONVERSATION_COLUMN : "w-full")}>
+                <div className="min-w-0 flex-1 truncate text-ui-caption font-medium text-ink-2">
+                  {headerTitle}
+                </div>
+                <div className="titlebar-no-drag flex shrink-0 items-center gap-0.5">
+                  <FolderOpener
+                    cwd={state.cwd}
+                    onBrowse={() => {
+                      setDockTool("file");
+                      setDockOpen(true);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    aria-label={t("Task monitor")}
+                    title={t("Task monitor")}
+                    aria-pressed={monitorOpen}
+                    onClick={() => setMonitorOpen((value) => !value)}
+                    className={cn(
+                      "pressable flex size-6 items-center justify-center rounded-[5px]",
+                      monitorOpen ? "bg-hover-2 text-ink" : "text-ink-2 hover:bg-hover hover:text-ink",
+                    )}
+                  >
+                    <ListChecksIcon size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={t("Terminal")}
+                    title={t("Terminal")}
+                    onClick={() => {
+                      setDockTool((current) => (dockOpen && current === "terminal" ? null : "terminal"));
+                      setDockOpen(true);
+                    }}
+                    className={cn(
+                      "pressable flex size-6 items-center justify-center rounded-[5px]",
+                      dockOpen && dockTool === "terminal" ? "bg-hover-2 text-ink" : "text-ink-2 hover:bg-hover hover:text-ink",
+                    )}
+                  >
+                    <TerminalIcon size={15} />
+                  </button>
+                  <DockToggle open={dockOpen} onToggle={() => setDockOpen((value) => !value)} />
+                </div>
+              </div>
+            </div>
+            {!dockOpen ? (
+              <div className="absolute inset-y-0 right-1.5 flex items-center">
+                <WindowControls />
+              </div>
+            ) : null}
+          </header>
           <div key={view} className="view-enter flex min-h-0 flex-1 flex-col">
             <Suspense fallback={<ViewSkeleton />}>
             {view === "browser" ? (
@@ -1094,7 +1118,10 @@ function terminalCommand(tool: ToolActivity): string {
                     key={state.snapshot?.sessionFile ?? "new"}
                     ref={scrollerRef}
                     onScroll={onTranscriptScroll}
-                    className="scrollbar-pill view-enter h-full overflow-y-auto px-6 pt-6 pb-10"
+                    /* baocode's list: 24 gutters, 12 under the title row, 24
+                       at the foot; the top 12px fade into the card's header,
+                       just above where a stuck prompt card rests */
+                    className="scrollbar-pill view-enter h-full overflow-y-auto px-6 pt-3 pb-6 [mask-image:linear-gradient(to_bottom,transparent,black_12px)]"
                   >
                     {pendingSession ? (
                       <TranscriptSkeleton />
@@ -1436,6 +1463,7 @@ function terminalCommand(tool: ToolActivity): string {
           onPlanAction={planAction}
           onFleetInterrupt={(name) => void window.pi.fleetInterrupt(name)}
           onAddToChat={addRefToChat}
+          windowControls={dockOpen ? <WindowControls /> : undefined}
         />
       </div>
 

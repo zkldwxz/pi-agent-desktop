@@ -22,7 +22,7 @@ const SIDEBAR_WIDTH_KEY = "pi-sidebar-width";
 
 const DEFAULT_PREFS: WorkspacePrefs = { group: "workspace", order: "recent", show: 3, statusFilter: "all" };
 
-const DEFAULT_SIDEBAR_WIDTH = 232;
+const DEFAULT_SIDEBAR_WIDTH = 260; // baocode workbench.dart:263
 const MIN_SIDEBAR_WIDTH = 180;
 const MAX_SIDEBAR_WIDTH = 480;
 const WIDTH_COLLAPSED = 52;
@@ -39,37 +39,49 @@ function load<T>(key: string, fallback: T): T {
   }
 }
 
-function RailRow({
+/** SidebarIconButton: 24px, radius 5, a codicon at 16 in muted ink */
+function SideIconButton({ label, icon, onClick }: { label: string; icon: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className="titlebar-no-drag pressable flex size-6 shrink-0 items-center justify-center rounded-[5px] text-ink-2 transition-colors duration-[120ms] hover:bg-hover hover:text-ink"
+    >
+      <span className={`codicon codicon-${icon} text-[16px]`} aria-hidden />
+    </button>
+  );
+}
+
+/** _NavRow: a 22px list row — codicon 15 in muted ink, 8px, the label at 12.5 */
+function SideNavRow({
   icon,
   label,
-  hint,
-  active = false,
   title,
+  selected = false,
   onClick,
 }: {
-  icon: React.ReactNode;
+  icon: string;
   label: string;
-  hint?: string;
-  active?: boolean;
-  /** the row's copy is hidden while collapsed — the tooltip carries it */
   title?: string;
+  selected?: boolean;
   onClick: () => void;
 }) {
-  /* the row itself is shared with the settings rail; the session pane adds the
-   * width and copy classes that let it collapse to a 52px strip */
   return (
-    <NavRow
-      icon={icon}
-      label={label}
-      hint={hint}
-      active={active}
-      title={title}
+    <button
+      type="button"
+      title={title ?? label}
+      aria-pressed={selected}
       onClick={onClick}
-      className="side-pane-row h-[30px]"
-      iconSize={14}
-      labelSize="text-ui-caption"
-      copyClassName="side-pane-copy"
-    />
+      className={cn(
+        "pressable flex h-[22px] w-full items-center gap-2 rounded-[5px] px-2 text-left text-ui-caption transition-colors duration-[120ms]",
+        selected ? "bg-accent-tint text-ink" : "text-ink hover:bg-hover",
+      )}
+    >
+      <span className={`codicon codicon-${icon} shrink-0 text-[15px] text-ink-2`} aria-hidden />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+    </button>
   );
 }
 
@@ -238,60 +250,53 @@ export function AgentSidebar({
   };
 
   return (
+    /* baocode's sidebar (lib/sidebar/sidebar.dart): bare on the window's
+       colour, no outline — the conversation's card beside it is the edge */
     <aside
-      data-side-pane={collapsed ? "collapsed" : "open"}
+      data-side-pane="open"
       aria-label="Sessions"
-      className="relative flex h-full shrink-0 flex-col overflow-hidden border-r border-line bg-canvas select-none"
-      style={{
-        width: collapsed ? WIDTH_COLLAPSED : sidebarWidth,
-        transition: isResizing ? "none" : "width 280ms var(--ease-link-css)",
-        willChange: railAnimating ? "width" : undefined,
-      }}
+      className="relative flex h-full shrink-0 flex-col overflow-hidden select-none"
+      style={{ width: sidebarWidth }}
     >
       <div className="flex min-h-0 flex-1 flex-col">
-        {/* views — this row of five is what the icon rail used to be. In the
-            collapsed strip the first row is the way back out. */}
-        <div className="flex flex-col gap-1 px-2 pt-2">
-          {/* the collapse toggle lives in the window header now, beside the
-              traffic lights — the pane starts straight with its rows */}
-          {/* New Agent starts the conversation immediately — the folder is
-              chosen inside the fresh session, which defaults to the folder of
-              the last conversation, so the click's cost is zero. */}
-          {/* the one primary action of the pane, drawn as a button (baocode's
-              "+ New Chat"); collapsed it falls back to the plain icon row */}
-          {collapsed ? (
-            <RailRow icon={<EditIcon size={15} />} label={t("New Agent")} onClick={onNew} />
-          ) : (
-            <button
-              type="button"
-              onClick={onNew}
-              className="pressable mb-1.5 flex h-[30px] w-full items-center gap-2 rounded-control border border-line bg-page px-2 text-left text-ui-caption text-ink hover:bg-hover"
-            >
-              <span className="flex size-4 shrink-0 items-center justify-center">
-                <PlusIcon size={14} className="text-ink-2" />
-              </span>
-              <span className="min-w-0 flex-1 truncate">{t("New Agent")}</span>
-            </button>
-          )}
-          <RailRow
-            icon={<SearchIcon size={15} />}
-            label={t("Search")}
-            hint={chords.palette ? formatChord(chords.palette) : ""}
-            onClick={onSearch}
-          />
-          <RailRow
-            icon={<PuzzleIcon size={15} />}
-            label={t("Customize")}
-            active={view === "customize"}
-            onClick={() => onView("customize")}
-          />
+        {/* _buildTopBar: under the traffic lights, 30px on the cards' first
+            line (6px gap + 30), the collapse button at its right end */}
+        <div className="titlebar-drag flex h-9 shrink-0 items-end justify-end pr-1.5">
+          <div className="flex h-[30px] items-center">
+            <SideIconButton
+              label={t("Collapse sidebar")}
+              icon="layout-sidebar-left"
+              onClick={() => setCollapsed(true)}
+            />
+          </div>
         </div>
 
-        {/* the conversation tree needs width — in the 52px strip it used to
-            render anyway and every row broke mid-word. Collapsed shows the
-            icon rail only, like Cursor's. */}
-        {collapsed ? null : (
-        <div className="mt-4 flex min-h-0 flex-1 flex-col">
+        {/* New Agent: padding 8 / contentInset 8 / 8 / 6 */}
+        <div className="px-2 pt-2 pb-1.5">
+          <button
+            type="button"
+            onClick={onNew}
+            title={t("New Agent")}
+            className="pressable flex h-[30px] w-full items-center gap-1.5 rounded-control border border-line bg-page px-2 text-left text-ui-caption text-ink transition-colors duration-[120ms] hover:bg-[color-mix(in_srgb,var(--ink)_7%,var(--page))]"
+          >
+            <PlusIcon size={16} className="shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{t("New Agent")}</span>
+          </button>
+        </div>
+
+        {/* _NavRow: 22px rows, 6px in from the pane, 8px inside; icon 15 muted */}
+        <div className="flex flex-col px-1.5">
+          <SideNavRow
+            icon="search"
+            label={t("Search")}
+            title={chords.palette ? `${t("Search")} (${formatChord(chords.palette)})` : t("Search")}
+            onClick={onSearch}
+          />
+          <SideNavRow icon="plug" label={t("Customize")} selected={view === "customize"} onClick={() => onView("customize")} />
+        </div>
+        <div className="h-1 shrink-0" />
+
+        <div className="flex min-h-0 flex-1 flex-col">
           <WorkspaceList
             sessions={all}
             prefs={prefs}
@@ -315,33 +320,16 @@ export function AgentSidebar({
             onSessionGroups={setSessionGroups}
           />
         </div>
-        )}
 
-        {/* account */}
-        <div className="side-pane-copy flex w-full shrink-0 items-center gap-2 border-t border-line/60 py-2.5 pr-3 pl-4">
-          {/* the person sitting here, not the vendor: initials avatar + the name
-              they were asked for at onboarding */}
-          <div
-            className="flex size-[22px] shrink-0 items-center justify-center rounded-full bg-ink text-ui-xs font-semibold text-canvas"
-            title={userName}
-          >
-            {initialsOf(userName)}
-          </div>
-          <span className="min-w-0 flex-1 truncate text-ui-caption text-ink-3">{userName || t("User")}</span>
-          <button
-            type="button"
-            title={t("Settings")}
-            aria-label={t("Settings")}
-            onClick={() => onView("settings")}
-            className="pressable flex size-7 shrink-0 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
-          >
-            <SettingsIcon size={14} />
-          </button>
+        {/* _buildFooterRow: no line over it; 26px of buttons, 6px in — the
+            settings gear at its end (no account row: baocode has none) */}
+        <div className="flex h-[26px] shrink-0 items-center justify-end px-1.5 mt-1.5 mb-px">
+          <SideIconButton label={t("Settings")} icon="settings-gear" onClick={() => onView("settings")} />
         </div>
       </div>
 
       {/* resizer handle */}
-      {!collapsed ? (
+      {true ? (
         <div
           onMouseDown={onStartResize}
           onDoubleClick={() => {
