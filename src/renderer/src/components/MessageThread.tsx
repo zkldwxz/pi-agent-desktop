@@ -320,6 +320,12 @@ function TurnFooter({
           {turn.usage.cacheRead
             ? ` (${Math.round(cacheHitRate(turn.usage) * 100)}% ${t("cached")})`
             : ""}
+          {turn.usage.cost ? ` · $${turn.usage.cost.toFixed(4)}` : ""}
+          {/* output speed, the other half of "how did that feel" — only worth
+              showing once the answer ran long enough to have a real rate */}
+          {long && turn.usage.output > 0 && turn.endedAt > turn.timestamp
+            ? ` · ${(turn.usage.output / ((turn.endedAt - turn.timestamp) / 1000)).toFixed(0)} tok/s`
+            : ""}
         </span>
       ) : null}
       <span className="flex-1" />

@@ -19,6 +19,7 @@ import {
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import type {
+  AsideState,
   ChannelEdit,
   ChannelInfo,
   ChatMessage,
@@ -229,6 +230,8 @@ export class PiHost {
     this.detached.clear();
     this.detachedRunning.clear();
     this.slotBridges.clear();
+    await this.disposeAside();
+    this.goal = null;
     this.teamBus = null;
     this.connected = false;
   }
@@ -251,6 +254,87 @@ export class PiHost {
       this.ui.context("host").notify(`Could not open ${nextCwd}: ${message}`, "error");
       throw error;
     }
+  }
+
+  /* ── session goal (`/goal`) ─────────────────────────────────────────── */
+
+  /** The goal the agent works toward — injected as a system-prompt section
+   *  by the desktop bridge while set, gone the run after it clears. */
+  private goal: string | null = null;
+
+  setGoal(condition: string | null): void {
+    const text = condition?.trim() || null;
+    if (text === this.goal) return;
+    this.goal = text;
+    this.emit();
+  }
+
+  /* ── aside questions (`/btw`) ───────────────────────────────────────── */
+
+  /**
+   * The aside is a second runtime on the same workspace — a real session
+   * with its own file, never the active slot — so a question asked there
+   * does not enter the conversation being read. It stays warm between
+   * questions (follow-ups have context) until the workspace changes.
+   */
+  private asideRuntime: AgentSessionRuntime | null = null;
+  private asideUnsubscribe: (() => void) | null = null;
+  private aside: AsideState | null = null;
+
+  async asideAsk(text: string): Promise<void> {
+    const question = text.trim();
+    if (!question) return;
+    this.requireRuntime(); // the boot must have run — the aside shares its services
+    if (!this.asideRuntime) {
+      const slotId = `aside-${++this.slotSeq}`;
+      this.asideRuntime = await createAgentSessionRuntime(
+        this.makeRuntimeFactory(slotId, { agentDir: this.agentDir, settingsManager: this.settingsManager }),
+        {
+          cwd: this.cwd,
+          agentDir: this.agentDir,
+          sessionManager: SessionManager.create(this.cwd),
+          sessionStartEvent: { type: "session_start", reason: "new" },
+        },
+      );
+      await this.asideRuntime.session.bindExtensions({ mode: "rpc", uiContext: this.ui.context("extension") });
+      this.asideUnsubscribe = this.asideRuntime.session.subscribe((event) => this.onAsideEvent(event));
+    }
+    this.aside = { question, answer: "", running: true };
+    this.emit();
+    try {
+      await this.asideRuntime.session.prompt(question);
+    } catch (error) {
+      this.aside = { question, answer: "", running: false, error: error instanceof Error ? error.message : String(error) };
+      this.emit();
+    }
+  }
+
+  /** The slim pump: the card needs "done" and the answer, not a transcript. */
+  private onAsideEvent(event: AgentSessionEvent): void {
+    if (!this.aside) return;
+    if (event.type === "agent_settled") {
+      const last = this.asideRuntime?.session.messages.at(-1);
+      const parts = (last as { role?: string; content?: unknown } | undefined)?.content;
+      const answer = Array.isArray(parts)
+        ? parts.filter((part) => (part as { type?: string }).type === "text").map((part) => (part as { text?: string }).text ?? "").join("")
+        : typeof parts === "string" ? parts : "";
+      this.aside = { ...this.aside, answer: answer.trim(), running: false };
+    }
+    this.emit();
+  }
+
+  /** Dismiss the card; the aside session stays parked for follow-ups. */
+  asideDismiss(): void {
+    this.aside = null;
+    this.emit();
+  }
+
+  private async disposeAside(): Promise<void> {
+    this.asideUnsubscribe?.();
+    this.asideUnsubscribe = null;
+    await this.asideRuntime?.dispose().catch(() => undefined);
+    this.asideRuntime = null;
+    this.aside = null;
   }
 
   async prompt(payload: PromptPayload): Promise<void> {
@@ -1355,6 +1439,9 @@ export class PiHost {
                     this.commands = commands;
                     this.emit();
                   },
+                  /* the goal is desktop state, not plugin state — every
+                     session reads the same field, main and aside alike */
+                  getGoal: () => this.goal,
                 });
                 this.slotBridges.set(slotId, {
                   reannounce: () => bridge.reannounce(),
@@ -1712,6 +1799,8 @@ export class PiHost {
       plan: this.plan,
       fleet: this.fleet,
       surfaces: this.ui.surfaces(),
+      goal: this.goal,
+      aside: this.aside,
       tools: this.toolNames(),
       queue: this.queueState(),
       snapshot: session

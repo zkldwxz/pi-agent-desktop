@@ -141,6 +141,8 @@ export function serializeMessage(message: AgentMessageLike, index: number, strea
       total: Number(usage.totalTokens ?? Number(usage.input ?? 0) + Number(usage.output ?? 0)),
       cacheRead: Number(usage.cacheRead ?? 0),
       cacheWrite: Number(usage.cacheWrite ?? 0),
+      /* pi already priced the call — `cost.total` is what UsageView sums */
+      cost: Number(asRecord(usage.cost).total ?? 0) || undefined,
       model: typeof record.model === "string" ? record.model : undefined,
       provider: typeof record.provider === "string" ? record.provider : undefined,
     };

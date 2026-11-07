@@ -1290,6 +1290,20 @@ export function installPreviewBridge(): void {
     gitStage: async () => ({ ok: true }),
     gitUnstage: async () => ({ ok: true }),
     gitDiscard: async () => ({ ok: true }),
+    setGoal: async (condition: string | null) => {
+      STATE.goal = condition;
+    },
+    asideAsk: async (text: string) => {
+      STATE.aside = { question: text, answer: "", running: true };
+      window.setTimeout(() => {
+        if (STATE.aside?.running) {
+          STATE.aside = { question: text, answer: "这是旁路会话里的回答——它有自己的会话文件，不会进入你正在读的对话。", running: false };
+        }
+      }, 600);
+    },
+    asideDismiss: async () => {
+      STATE.aside = null;
+    },
     getPlugins: async () => previewPlugins(),
     getMcpConfig: async () => PREVIEW_MCP,
     getMcpConnected: async () => PREVIEW_MCP.servers.filter((server) => server.enabled).map((server) => server.name.replace(/[^A-Za-z0-9_]/g, "_")),

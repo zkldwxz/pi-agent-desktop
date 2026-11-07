@@ -9,7 +9,7 @@ import { HOME_STEPS, Reveal, SuggestionRail } from "./components/agent/HomeRevea
 import { TerminalPanel } from "./components/panel/TerminalPanel";
 import type { FileEntry } from "@shared/workspace";
 import { cn } from "./lib/cn";
-import { AlertIcon, ListChecksIcon, TerminalIcon } from "./components/icons";
+import { AlertIcon, GaugeIcon, ListChecksIcon, LoaderIcon, MessageIcon, TerminalIcon, XIcon } from "./components/icons";
 import { Skeleton } from "./components/ui";
 import { playDoneChime } from "./lib/sound";
 import { t, tf, useLocale } from "./lib/i18n";
@@ -869,6 +869,19 @@ function terminalCommand(tool: ToolActivity): string {
         // while the agent runs the delivery mode is the user's choice — it is
         // what decides "correct this run" versus "add to the next"
         setQueueEditing(false);
+        /* Two desktop commands leave the conversation before pi sees them:
+         * `/goal` sets the session's standing goal (carried by the system
+         * prompt), `/btw` asks beside this conversation on its own session. */
+        const slash = /^\/(goal|btw)\s*(.*)$/is.exec(text.trim());
+        if (slash) {
+          const [, command, rest] = slash;
+          if (command === "goal") {
+            void window.pi.setGoal(rest.trim() || null);
+          } else if (rest.trim()) {
+            void reportFailure(() => window.pi.asideAsk(rest.trim()));
+          }
+          return;
+        }
         if (streaming) {
           void (queueBehavior === "steer" ? window.pi.steer(text) : window.pi.followUp(text));
           return;
@@ -1014,7 +1027,7 @@ function terminalCommand(tool: ToolActivity): string {
                   unwinds itself when the dock or monitor takes width */}
               <div
                 ref={columnRef}
-                className="@container/conversation flex min-w-0 flex-1 flex-col"
+                className="@container/conversation relative flex min-w-0 flex-1 flex-col"
                 style={{
                   /* the lean only makes sense while a right-hand panel actually
                      claims width; with every dock closed the container spans the
@@ -1158,6 +1171,28 @@ function terminalCommand(tool: ToolActivity): string {
                   </div>
                 ) : null}
 
+                {/* `/goal`: the standing goal, first above the composer —
+                    whether the agent is working on it is the only state it
+                    needs; clearing is one click, not a command */}
+                {state.goal ? (
+                  <div className="mx-6 mb-1 flex max-w-[640px] items-center gap-2 rounded-card bg-field px-3 py-1.5 text-ui-caption text-ink-2">
+                    <GaugeIcon size={12} className={cn("shrink-0", streaming ? "text-accent" : "text-ink-3")} />
+                    <span className="min-w-0 flex-1 truncate" title={state.goal}>
+                      {state.goal}
+                    </span>
+                    <span className="shrink-0 text-ui-xs text-ink-4">{streaming ? t("Working") : t("Waiting")}</span>
+                    <button
+                      type="button"
+                      onClick={() => void window.pi.setGoal(null)}
+                      title={t("Clear goal")}
+                      aria-label={t("Clear goal")}
+                      className="pressable flex size-5 shrink-0 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
+                    >
+                      <XIcon size={11} />
+                    </button>
+                  </div>
+                ) : null}
+
                 <QueueBar
                   queue={state.queue}
                   onRemove={(kind, index) => void window.pi.removeQueued(kind, index)}
@@ -1184,6 +1219,46 @@ function terminalCommand(tool: ToolActivity): string {
                 {composer}
                   </>
                 )}
+
+                {/* `/btw`: the aside card — a question answered on its own
+                    session, floating beside the conversation it never joined.
+                    Follow-ups keep the card warm; closing it just hides it. */}
+                {state.aside ? (
+                  <aside
+                    aria-label={t("Side question")}
+                    className="animate-slide-in-right absolute right-4 bottom-4 z-40 flex max-h-[45%] w-[320px] flex-col overflow-hidden rounded-card bg-surface shadow-overlay"
+                  >
+                    <div className="flex shrink-0 items-center gap-1.5 border-b border-line px-2.5 py-2">
+                      <MessageIcon size={12} className="shrink-0 text-accent" />
+                      <span className="min-w-0 flex-1 truncate text-ui-xs text-ink-3" title={state.aside.question}>
+                        {state.aside.question}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void window.pi.asideDismiss()}
+                        title={t("Close")}
+                        aria-label={t("Close")}
+                        className="pressable flex size-5 shrink-0 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
+                      >
+                        <XIcon size={11} />
+                      </button>
+                    </div>
+                    <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-3 py-2.5">
+                      {state.aside.running ? (
+                        <span className="flex items-center gap-2 text-ui-sm text-ink-3">
+                          <LoaderIcon size={12} className="spin-fast shrink-0 text-accent" />
+                          {t("Thinking")}…
+                        </span>
+                      ) : state.aside.error ? (
+                        <span className="whitespace-pre-wrap text-ui-sm text-red">{state.aside.error}</span>
+                      ) : (
+                        <span className="whitespace-pre-wrap break-words text-ui-sm leading-relaxed text-ink-2">
+                          {state.aside.answer}
+                        </span>
+                      )}
+                    </div>
+                  </aside>
+                ) : null}
               </div>
 
               {/* the monitor is a column of the conversation area while the

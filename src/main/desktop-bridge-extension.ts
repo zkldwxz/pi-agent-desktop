@@ -105,6 +105,8 @@ export interface DesktopBridgeHooks {
 	onPlanState: (state: PlanState) => void;
 	onFleetState: (agents: FleetAgent[]) => void;
 	onCommands: (commands: SlashCommand[]) => void;
+	/** the session goal (`/goal`), read fresh on every run start */
+	getGoal?: () => string | null;
 }
 
 export interface DesktopBridgeHandle {
@@ -165,6 +167,14 @@ export function registerDesktopBridge(pi: ExtensionAPI, hooks: DesktopBridgeHook
     hooks.onPlanState({ ...EMPTY_PLAN });
     hooks.onFleetState([]);
     hooks.onCommands([]);
+  });
+
+  /* A `/goal` is a standing instruction, not a message: it rides the system
+   * prompt as its own section, so the transcript stays clean and clearing the
+   * goal makes it leave the context on the very next run. */
+  pi.on("before_agent_start", async (event) => {
+    const goal = hooks.getGoal?.()?.trim();
+    if (goal) event.systemPromptOptions.sections.goal = `The user's goal for this session: ${goal}\nWork toward it; it stays in effect until the user clears it.`;
   });
   return { reannounce: announce };
 }

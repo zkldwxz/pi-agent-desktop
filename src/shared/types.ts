@@ -146,6 +146,22 @@ export interface SessionSnapshot {
   stats?: SessionStatsSnapshot;
 }
 
+/**
+ * A `/btw` question, beside the conversation.
+ *
+ * The aside is its own session — same workspace, its own file — so asking
+ * there never lands in the transcript you are reading. The window keeps only
+ * the question and the answer; the session itself sits in the sidebar history
+ * like any other.
+ */
+export interface AsideState {
+  question: string;
+  /** the settled answer; empty while the aside is still working */
+  answer: string;
+  running: boolean;
+  error?: string;
+}
+
 export interface SessionStatsSnapshot {
   tokens: {
     input: number;
@@ -303,6 +319,10 @@ export interface HostState {
   fleet: FleetAgent[];
   /** status lines and widgets other extensions pushed up */
   surfaces: ExtensionSurface[];
+  /** the session goal (`/goal`), carried into the system prompt while set */
+  goal?: string | null;
+  /** a `/btw` aside question and its answer */
+  aside?: AsideState | null;
 }
 
 /* ── plugins ─────────────────────────────────────────────── */
@@ -492,6 +512,8 @@ export interface ChatMessage {
     total: number;
     cacheRead?: number;
     cacheWrite?: number;
+    /** what this answer cost, as the provider priced it */
+    cost?: number;
     model?: string;
     provider?: string;
   };

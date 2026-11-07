@@ -319,6 +319,19 @@ function registerIpc(): void {
     host?.fleetInterrupt(name);
   });
 
+  /* /goal — the session's standing goal, carried by the system prompt */
+  ipcMain.handle("pi:setGoal", (_event, condition: string | null) => {
+    host?.setGoal(condition);
+  });
+
+  /* /btw — an aside question on its own session, beside the main one */
+  ipcMain.handle("pi:asideAsk", async (_event, text: string) => {
+    await host?.asideAsk(text);
+  });
+  ipcMain.handle("pi:asideDismiss", () => {
+    host?.asideDismiss();
+  });
+
   ipcMain.handle("pi:updateSettings", async (_event, patch: Partial<RuntimeSettings>) => {
     try {
       await host?.updateSettings(patch);

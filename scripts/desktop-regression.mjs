@@ -105,6 +105,14 @@ try {
     assert(host.teamBus);
     assert.equal(host.snapshot().plan.phase, "off");
   });
+  /* `/goal` is a system-prompt section, not a transcript line — the state it
+   * carries must not show up as a message */
+  host.setGoal("ship the release");
+  check("a session goal rides host state, never the transcript", () => {
+    assert.equal(host.snapshot().goal, "ship the release");
+    assert.equal(host.messages().length, 0);
+  });
+  host.setGoal(null);
   await assert.rejects(host.planAction({ action: "build", model: { provider: "missing", id: "missing" } }), /No plan/);
   count++; console.log("PASS invalid build is rejected before model change");
 

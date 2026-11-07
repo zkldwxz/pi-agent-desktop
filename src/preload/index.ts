@@ -51,6 +51,11 @@ export interface PiBridge {
   reload: () => Promise<void>;
   /** interrupt one fleet sub-agent by name, or every running one */
   fleetInterrupt: (name?: string) => Promise<void>;
+  /** the session goal (`/goal`) — set a condition, or clear it with null */
+  setGoal: (condition: string | null) => Promise<void>;
+  /** `/btw`: ask a question on a side session that never enters the transcript */
+  asideAsk: (text: string) => Promise<void>;
+  asideDismiss: () => Promise<void>;
   /** plan mode: the plugin's subcommands, with the model the build runs on */
   planAction: (payload: PlanAction) => Promise<void>;
   readPlan: () => Promise<FileContent | undefined>;
@@ -202,6 +207,9 @@ const api: PiBridge = {
   setName: (name) => ipcRenderer.invoke("pi:setName", name),
   reload: () => ipcRenderer.invoke("pi:reload"),
   fleetInterrupt: (name) => ipcRenderer.invoke("pi:fleetInterrupt", name),
+  setGoal: (condition) => ipcRenderer.invoke("pi:setGoal", condition),
+  asideAsk: (text) => ipcRenderer.invoke("pi:asideAsk", text),
+  asideDismiss: () => ipcRenderer.invoke("pi:asideDismiss"),
   planAction: (payload) => ipcRenderer.invoke("pi:planAction", payload),
   readPlan: () => ipcRenderer.invoke("plan:read"),
   updateSettings: (patch) => ipcRenderer.invoke("pi:updateSettings", patch),

@@ -217,6 +217,10 @@ const ZH: Record<string, string> = {
   "Check files to commit": "勾选要提交的文件",
   "Commit {count}": "提交 {count} 项",
   "Include {file} in the commit": "将 {file} 纳入本次提交",
+  /* /goal and /btw — the composer intercepts, the goal strip and aside card */
+  "Side question": "旁路提问",
+  "Clear goal": "清除目标",
+  "Waiting": "等待中",
   "Open with": "打开方式",
   "Browse files": "浏览文件",
   "Conversation map": "会话导航条",
