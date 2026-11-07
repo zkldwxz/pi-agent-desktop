@@ -16,6 +16,7 @@ import {
   PlusIcon,
   SearchIcon,
   TrashIcon,
+  ZapIcon,
   XIcon,
 } from "../icons";
 import { Card, Chip, EmptyState } from "../ui";
@@ -477,6 +478,7 @@ function ChannelHeader({
   onRemoveChannel: () => void;
 }) {
   const [draft, setDraft] = useState("");
+  const [probe, setProbe] = useState<{ ok: boolean; detail: string } | null>(null);
   const multi = channel.members.length > 1;
 
   return (
@@ -493,6 +495,18 @@ function ChannelHeader({
         </span>
         {channel.custom ? (
           <div className="flex shrink-0 items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                setProbe({ ok: false, detail: t("Testing…") });
+                void window.pi.testChannel(channel.members[0]).then(setProbe);
+              }}
+              title={t("Test connection")}
+              aria-label={t("Test connection")}
+              className="pressable flex size-6 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
+            >
+              <ZapIcon size={11} />
+            </button>
             <button
               type="button"
               onClick={onToggleKeys}
@@ -513,6 +527,9 @@ function ChannelHeader({
         ) : null}
       </div>
 
+      {probe ? (
+        <div className={cn("px-0.5 text-ui-xs", probe.ok ? "text-green" : "text-red")}>{probe.detail}</div>
+      ) : null}
       {addingKey ? (
         <div className="flex flex-col gap-1">
           {channel.members.map((id, index) => (

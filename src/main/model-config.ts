@@ -276,3 +276,31 @@ export function sanitizeProvider(provider: RawProvider) {
   const { apiKey, ...rest } = provider;
   return rest;
 }
+
+/**
+ * "Does this endpoint answer" — the channel test.
+ *
+ * The probe never leaves the main process: `apiKey` travels only as far as
+ * the Authorization header, and the renderer gets the status line, never
+ * the credential. OpenAI-style endpoints are asked for their model list;
+ * anything else gets a bare GET on the base URL — any HTTP response means
+ * the endpoint is alive, even a 401 (which usefully says "reachable but
+ * the key is wrong").
+ */
+export async function testChannel(providerId: string): Promise<{ ok: boolean; latencyMs: number; detail: string }> {
+  const provider = readModelsFile().providers?.[providerId];
+  if (!provider) return { ok: false, latencyMs: 0, detail: "provider not found" };
+  const baseUrl = provider.baseUrl?.trim();
+  if (!baseUrl) return { ok: false, latencyMs: 0, detail: "no baseUrl configured" };
+  const target = `${baseUrl.replace(/\/+$/, "")}/models`;
+  const headers: Record<string, string> = { accept: "application/json" };
+  if (provider.apiKey) headers.authorization = `Bearer ${provider.apiKey}`;
+  const startedAt = Date.now();
+  try {
+    const response = await fetch(target, { headers, signal: AbortSignal.timeout(8000) });
+    const latencyMs = Date.now() - startedAt;
+    return { ok: response.status < 500, latencyMs, detail: `HTTP ${response.status} · ${latencyMs}ms` };
+  } catch (error) {
+    return { ok: false, latencyMs: Date.now() - startedAt, detail: error instanceof Error ? error.message : String(error) };
+  }
+}

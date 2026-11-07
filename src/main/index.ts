@@ -14,6 +14,7 @@ import { noRepoChanges } from "../shared/workspace.ts";
 import { applyCatalog, bundledExtensionName, catalog, markOnboardingDone, readConfig, syncBundledExtensions, writeConfig } from "./install";
 import { discoverTerminalShells, resolveTerminalShell } from "./shells";
 import { pluginRoots } from "./plugins";
+import { testChannel } from "./model-config";
 import type { McpScope } from "./mcp";
 import type { McpExposure, McpServerConfig } from "@earendil-works/pi-coding-agent";
 import type { UiAnswer } from "@shared/ui";
@@ -539,6 +540,9 @@ function registerIpc(): void {
   /** namespaces whose tools the session registered — i.e. servers that connected */
   ipcMain.handle("pi:mcpConnected", () => host?.mcpConnectedNamespaces() ?? []);
   ipcMain.handle("pi:mcpTest", async (_event, scope: McpScope, name: string) => (await host?.mcpTest(scope, name)) ?? { ok: false, detail: "host not ready" });
+  /* "does this endpoint answer" — keys stay in the main process; the
+     renderer only ever sees the status line */
+  ipcMain.handle("pi:testChannel", async (_event, providerId: string) => testChannel(providerId));
 
   ipcMain.handle("pi:mcpFilePath", (_event, scope: McpScope) => host?.mcpFilePath(scope) ?? "");
 
