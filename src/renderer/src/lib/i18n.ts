@@ -229,8 +229,6 @@ const ZH: Record<string, string> = {
   "No saved connections yet. Add one to open a remote workspace.": "还没有保存的连接。添加一个以打开远程工作区。",
   "via {host}": "经由 {host}",
   "Reconnect…": "重新连接…",
-  "Connected": "已连接",
-  "Disconnected": "未连接",
   "Passwords and passphrases are never stored — reconnecting asks for them again. Key paths are kept, so key-based hosts reconnect in one step. A jump host must itself be connected.": "密码和密钥口令永不保存——重新连接时需要再次输入。密钥路径会保留，所以密钥方式的连接可以一步重连。跳板机自身必须先连上。",
   "Open with": "打开方式",
   "Browse files": "浏览文件",
