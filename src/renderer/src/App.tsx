@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { ChatMessage, HostState, PlanAction, PluginInfo, ToolActivity, UsageStats } from "@shared/types";
 import { MessageThread } from "./components/MessageThread";
-import { TitleBar } from "./components/TitleBar";
+import { TitleBar, TRAFFIC_LIGHTS_WIDTH, WindowControls } from "./components/TitleBar";
 import { AgentComposer } from "./components/agent/AgentComposer";
 import { AgentSidebar, type SidebarView } from "./components/agent/AgentSidebar";
 import { FolderPicker } from "./components/agent/FolderPicker";
@@ -9,7 +9,7 @@ import { HOME_STEPS, Reveal, SuggestionRail } from "./components/agent/HomeRevea
 import { TerminalPanel } from "./components/panel/TerminalPanel";
 import type { FileEntry } from "@shared/workspace";
 import { cn } from "./lib/cn";
-import { AlertIcon, GaugeIcon, ListChecksIcon, LoaderIcon, MessageIcon, TerminalIcon, XIcon } from "./components/icons";
+import { AlertIcon, GaugeIcon, ListChecksIcon, LoaderIcon, MessageIcon, PanelLeftIcon, TerminalIcon, XIcon } from "./components/icons";
 import { Skeleton } from "./components/ui";
 import { playDoneChime } from "./lib/sound";
 import { t, tf, useLocale } from "./lib/i18n";
@@ -386,32 +386,9 @@ export function App() {
       .catch(() => undefined);
   }, []);
 
-  /* a plan was just written, or a session with a live plan was opened: the
-   * panel that holds it comes up, because that plan is what the next decision
-   * is about. Keyed on the file so re-renders do not fight the user's clicks. */
-  const shownPlanRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    const path = state.plan.path;
-    if (!path || path === shownPlanRef.current) return;
-    shownPlanRef.current = path;
-    if (state.plan.phase !== "review" && state.plan.phase !== "executing") return;
-    setDockTool("plan");
-    setDockOpen(true);
-  }, [state.plan.path, state.plan.phase]);
-
-  /* the fleet panel follows the same rule as the plan's: it arrives with the
-     thing it shows. The first spawn of a wave opens the dock on it — but only
-     if the user has not already picked a panel for themselves */
-  const fleetOpenedRef = useRef(false);
-  useEffect(() => {
-    const active = state.fleet.length > 0;
-    if (active && !fleetOpenedRef.current && dockTool !== "agents") {
-      fleetOpenedRef.current = true;
-      setDockTool("agents");
-      setDockOpen(true);
-    }
-    if (!active) fleetOpenedRef.current = false;
-  }, [state.fleet.length, dockTool]);
+  /* nothing pulls the dock open on its own — not sub-agents, not a plan
+     waiting for review: the right pane stays closed unless asked for. The
+     composer's plan chip and the header's dock toggle are the ways in. */
 
   // warm the docked browser's chunk — first open then skips the lazy fetch
   useEffect(() => {
@@ -812,6 +789,18 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, [emptySession]);
 
+  /* what the header names: the conversation in the chat, the page elsewhere */
+  const headerTitle =
+    view === "chat"
+      ? state.snapshot?.sessionName?.trim() ||
+        messages.find((message) => message.role === "user")?.text.split("\n")[0]?.trim() ||
+        t("New session")
+      : view === "settings"
+        ? t("Settings")
+        : view === "customize"
+          ? t("Customize")
+          : "";
+
   // Every hook above this line: the onboarding gate below returns early, and a
   // hook declared after an early return changes the hook count between renders.
   if (onboarded === false) {
@@ -892,6 +881,10 @@ function terminalCommand(tool: ToolActivity): string {
       onAbort={() => void window.pi.abort()}
       onSetModel={(provider, modelId) => void reportFailure(() => window.pi.setModel(provider, modelId))}
       onPlanAction={planAction}
+      onOpenPlan={() => {
+        setDockTool("plan");
+        setDockOpen(true);
+      }}
       runningTerminal={
         runningTerminals.length
           ? {
@@ -910,53 +903,64 @@ function terminalCommand(tool: ToolActivity): string {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-page text-ink">
-      <TitleBar />
-
-      {/* the working controls live on their own strip below the title bar —
-          they are tools, not window chrome, so they do not sit with the
-          close/minimize buttons. The terminal button only opens the dock's
-          terminal: that is the one terminal the shell has. */}
-      <div className="relative flex h-10 shrink-0 items-center justify-end gap-1 border-b border-line bg-canvas px-3">
-        {/* macOS has no title bar of its own now, so this row is what you drag
-            the window by — up to where the working controls start on the right. */}
-        {IS_MAC ? <div aria-hidden className="titlebar-drag absolute inset-y-0 right-64 left-0" /> : null}
-        <FolderOpener
-          cwd={state.cwd}
-          onBrowse={() => {
-            setDockTool("file");
-            setDockOpen(true);
-          }}
-        />
-        <button
-          type="button"
-          aria-label={t("Task monitor")}
-          title={t("Task monitor")}
-          aria-pressed={monitorOpen}
-          onClick={() => setMonitorOpen((value) => !value)}
-          className={cn(
-            "pressable flex size-7 items-center justify-center rounded-chip",
-            monitorOpen ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
-          )}
-        >
-          <ListChecksIcon size={14} />
-        </button>
-        <button
-          type="button"
-          aria-label={t("Terminal")}
-          title={t("Terminal")}
-          onClick={() => {
-            setDockTool((current) => (dockOpen && current === "terminal" ? null : "terminal"));
-            setDockOpen(true);
-          }}
-          className={cn(
-            "pressable flex size-7 items-center justify-center rounded-chip",
-            dockOpen && dockTool === "terminal" ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
-          )}
-        >
-          <TerminalIcon size={14} />
-        </button>
-        <DockToggle open={dockOpen} onToggle={() => setDockOpen((value) => !value)} />
-      </div>
+      {/* One row is the title bar and the tool strip at once (baocode's window
+          header): the traffic lights' room on macOS, the sidebar toggle, what is
+          open, then the working controls and — off macOS — the window buttons.
+          Everything that is not a control drags the window. */}
+      <header className="titlebar-drag flex h-10 shrink-0 items-center gap-1 border-b border-line/70 bg-canvas pr-2 pl-2">
+        {TRAFFIC_LIGHTS_WIDTH ? <div aria-hidden className="shrink-0" style={{ width: TRAFFIC_LIGHTS_WIDTH - 8 }} /> : null}
+        {view === "settings" ? null : (
+          <button
+            type="button"
+            aria-label={sidebarCollapsed ? t("Expand sidebar") : t("Collapse sidebar")}
+            title={sidebarCollapsed ? t("Expand sidebar") : t("Collapse sidebar")}
+            onClick={() => setSidebarCollapsed((value) => !value)}
+            className="titlebar-no-drag pressable flex size-7 shrink-0 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
+          >
+            <PanelLeftIcon size={15} />
+          </button>
+        )}
+        <div className="min-w-0 flex-1 truncate px-1.5 text-ui-caption text-ink-2">{headerTitle}</div>
+        <div className="titlebar-no-drag flex shrink-0 items-center gap-0.5">
+          <FolderOpener
+            cwd={state.cwd}
+            onBrowse={() => {
+              setDockTool("file");
+              setDockOpen(true);
+            }}
+          />
+          <button
+            type="button"
+            aria-label={t("Task monitor")}
+            title={t("Task monitor")}
+            aria-pressed={monitorOpen}
+            onClick={() => setMonitorOpen((value) => !value)}
+            className={cn(
+              "pressable flex size-7 items-center justify-center rounded-chip",
+              monitorOpen ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
+            )}
+          >
+            <ListChecksIcon size={14} />
+          </button>
+          <button
+            type="button"
+            aria-label={t("Terminal")}
+            title={t("Terminal")}
+            onClick={() => {
+              setDockTool((current) => (dockOpen && current === "terminal" ? null : "terminal"));
+              setDockOpen(true);
+            }}
+            className={cn(
+              "pressable flex size-7 items-center justify-center rounded-chip",
+              dockOpen && dockTool === "terminal" ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
+            )}
+          >
+            <TerminalIcon size={14} />
+          </button>
+          <DockToggle open={dockOpen} onToggle={() => setDockOpen((value) => !value)} />
+        </div>
+        <WindowControls />
+      </header>
       <div className="relative flex min-h-0 flex-1">
         {/* No icon rail: the sidebar's own rows are the navigation, so Views are
             the three panes rather than five icon targets. Browser and Usage open

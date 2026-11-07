@@ -1310,7 +1310,8 @@ const ZH: Record<string, string> = {
   "Plan mode — the agent explores read-only and hands you a plan to approve":
     "计划模式 —— 智能体只读探索，然后交给你一份待确认的计划",
   "Planning, read-only — click to leave plan mode": "规划中，只读 —— 点击退出计划模式",
-  "A plan is waiting for review — click to leave plan mode": "有计划待确认 —— 点击退出计划模式",
+  "A plan is waiting for review — click to open it": "有计划待确认 —— 点击查看",
+  "Open the plan": "查看计划",
   "Building the plan — click to leave plan mode": "正在按计划构建 —— 点击退出计划模式",
 };
 

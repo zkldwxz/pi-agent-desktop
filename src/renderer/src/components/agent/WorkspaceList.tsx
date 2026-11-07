@@ -577,7 +577,18 @@ export function WorkspaceList({
     () => workspaces.filter((w) => Boolean(archived[w.key]) && !(homeDir && sameFolder(w.path || w.key, homeDir))),
     [workspaces, archived, homeDir],
   );
-  const allOpen = activeWorkspaces.length > 0 && activeWorkspaces.every((workspace) => open[workspace.key]);
+  /* Untouched workspaces start open when they are the folder you are in or
+   * among the first three (baocode lists each project's chats right away);
+   * a click on the row is remembered over this default either way. The
+   * per-workspace `show` cap keeps the render bounded. */
+  const isWorkspaceOpen = (workspace: Workspace, index: number, isArchived = false): boolean => {
+    const remembered = open[workspace.key];
+    if (remembered !== undefined) return remembered;
+    if (isArchived) return false;
+    return index < 3 || Boolean(cwd && sameFolder(workspace.path || workspace.key, cwd));
+  };
+  const allOpen =
+    activeWorkspaces.length > 0 && activeWorkspaces.every((workspace, index) => isWorkspaceOpen(workspace, index));
 
   /* Home is a real, always-available entry in workspace mode, even before the
    * first prompt creates a session file. Other grouping modes can still show a
@@ -589,7 +600,7 @@ export function WorkspaceList({
   const unread = sessions.filter((session) => Date.parse(session.modified) > (readAt[session.path] ?? 0)).length;
 
   const renderWorkspace = (workspace: Workspace, groupIndex: number, isArchived = false) => {
-    const isOpen = isGroups || Boolean(open[workspace.key]);
+    const isOpen = isGroups || isWorkspaceOpen(workspace, groupIndex, isArchived);
     const sorted = workspace.sessions.filter((session) => !archivedSessions[session.path]);
     /* task groups have no "show N more" gate — the mode exists to lay every
      * chat out flat, so the whole bucket renders */
@@ -938,7 +949,7 @@ export function WorkspaceList({
               <MenuRow
                 label={allOpen ? t("Expand All") : t("Collapse All")}
                 onClick={() => {
-                  if (allOpen) setOpen({});
+                  if (allOpen) setOpen(Object.fromEntries(workspaces.map((workspace) => [workspace.key, false])));
                   else setOpen(Object.fromEntries(workspaces.map((workspace) => [workspace.key, true])));
                 }}
               />

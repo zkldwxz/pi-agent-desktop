@@ -63,6 +63,22 @@ token 只动 `src/renderer/src/index.css`，不要在组件里发明新值。
 - 图标用 `components/icons.tsx` 的 `wrap(lucide)` 导出 + `size` prop；
   新图标进 icons.tsx 集中导出，不散落 svg（原创小图除外）。
 
+## 窗口骨架
+
+- **一行 header**（`App.tsx` 顶部 `<header>`，`h-10`）同时是标题栏和工具条：
+  macOS 红绿灯留位（`TRAFFIC_LIGHTS_WIDTH`）→ 侧栏开关 → 当前会话标题 →
+  工具按钮 → 非 macOS 的窗口按钮（`WindowControls`）。不要再在它下面加第二条
+  工具条，新的全局按钮放进这一行或收进菜单。
+- **右栏默认关闭**，任何状态变化（子智能体、计划待审）都不自动打开它；入口是
+  header 的 dock 开关和输入框里的徽章。
+- 侧栏顶部是"新对话"主按钮（`bg-surface shadow-hairline`），其余入口是普通行。
+
+## 字体
+
+UI 用系统字体（`--font-inter`：SF Pro / Segoe UI Variable / system-ui，
+后接 `--font-cjk`），不再打包 Geist 正文字体；代码用打包的 Geist Mono，
+用户可在 设置 ▸ 外观 ▸ 代码字体 覆盖（`--font-mono-face`）。
+
 ## 面板规范
 
 - dock 面板 header：`h-[40px] border-b border-line px-[12px]`，标题

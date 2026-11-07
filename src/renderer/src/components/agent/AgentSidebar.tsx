@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HostState, SessionListItem } from "@shared/types";
 import {
   EditIcon,
-  PanelLeftIcon,
+  PlusIcon,
   PuzzleIcon,
   SearchIcon,
   SettingsIcon,
@@ -65,7 +65,7 @@ function RailRow({
       active={active}
       title={title}
       onClick={onClick}
-      className="side-pane-row h-8.5"
+      className="side-pane-row h-8"
       copyClassName="side-pane-copy"
     />
   );
@@ -250,41 +250,33 @@ export function AgentSidebar({
         {/* views — this row of five is what the icon rail used to be. In the
             collapsed strip the first row is the way back out. */}
         <div className="flex flex-col gap-1 px-2 pt-2">
-          {/* the pane's own chrome sits above the views, pinned to the top-left
-              corner: collapsed it is the way back out, expanded it is the way
-              in. The workspace header stays free for its own controls. */}
-          {collapsed ? (
-            <RailRow
-              icon={<PanelLeftIcon size={16} className="rotate-180" />}
-              label={t("Expand sidebar")}
-              title={t("Expand sidebar")}
-              onClick={() => setCollapsed(false)}
-            />
-          ) : (
-            <div className="flex items-center">
-              <button
-                type="button"
-                aria-label={t("Collapse sidebar")}
-                title={t("Collapse sidebar")}
-                onClick={() => setCollapsed(true)}
-                className="pressable flex size-7 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
-              >
-                <PanelLeftIcon size={14} />
-              </button>
-            </div>
-          )}
+          {/* the collapse toggle lives in the window header now, beside the
+              traffic lights — the pane starts straight with its rows */}
           {/* New Agent starts the conversation immediately — the folder is
               chosen inside the fresh session, which defaults to the folder of
               the last conversation, so the click's cost is zero. */}
-          <RailRow icon={<EditIcon size={16} />} label={t("New Agent")} onClick={onNew} />
+          {/* the one primary action of the pane, drawn as a button (baocode's
+              "+ New Chat"); collapsed it falls back to the plain icon row */}
+          {collapsed ? (
+            <RailRow icon={<EditIcon size={15} />} label={t("New Agent")} onClick={onNew} />
+          ) : (
+            <button
+              type="button"
+              onClick={onNew}
+              className="pressable mb-1 flex h-8 w-full items-center gap-2 rounded-control bg-surface px-2.5 text-left text-ui-base text-ink shadow-hairline hover:bg-hover"
+            >
+              <PlusIcon size={14} className="text-ink-2" />
+              <span className="min-w-0 flex-1 truncate">{t("New Agent")}</span>
+            </button>
+          )}
           <RailRow
-            icon={<SearchIcon size={16} />}
+            icon={<SearchIcon size={15} />}
             label={t("Search")}
             hint={chords.palette ? formatChord(chords.palette) : ""}
             onClick={onSearch}
           />
           <RailRow
-            icon={<PuzzleIcon size={16} />}
+            icon={<PuzzleIcon size={15} />}
             label={t("Customize")}
             active={view === "customize"}
             onClick={() => onView("customize")}

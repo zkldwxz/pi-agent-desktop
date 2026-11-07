@@ -22,7 +22,7 @@ const PLAN_LABEL: Record<PlanState["phase"], string> = {
 const PLAN_HINT: Record<PlanState["phase"], string> = {
   off: "Plan mode — the agent explores read-only and hands you a plan to approve",
   planning: "Planning, read-only — click to leave plan mode",
-  review: "A plan is waiting for review — click to leave plan mode",
+  review: "A plan is waiting for review — click to open it",
   executing: "Building the plan — click to leave plan mode",
 };
 
@@ -57,6 +57,7 @@ export function AgentComposer({
   onSetModel,
   onSetThinking,
   onPlanAction,
+  onOpenPlan,
   runningTerminal,
   onOpenTerminal,
   editingQueued,
@@ -70,6 +71,8 @@ export function AgentComposer({
   onSetModel: (provider: string, modelId: string) => void;
   onSetThinking: (level: string) => void;
   onPlanAction: (action: PlanAction) => void;
+  /** opens the plan panel; the badge uses it whenever a plan file exists */
+  onOpenPlan?: () => void;
   /** a terminal call the agent is running right now — surfaced as a chip */
   runningTerminal?: { count: number; title?: string } | null;
   /** clicking the terminal chip opens the dock on that terminal */
@@ -146,9 +149,14 @@ export function AgentComposer({
      is on — `/plan` starts it, and the pill is then the way back out. */
   const planPhase = state.plan.phase;
   const planOn = planPhase !== "off";
+  /* the right pane no longer opens itself for a plan, so with a plan written
+     the badge is the way to it; the panel carries "leave plan mode". Before a
+     plan exists the badge still leaves the mode. */
+  const hasPlan = Boolean(state.plan.path) && Boolean(onOpenPlan);
   const onPlan = useCallback(() => {
-    onPlanAction({ action: "cancel" });
-  }, [onPlanAction]);
+    if (hasPlan) onOpenPlan?.();
+    else onPlanAction({ action: "cancel" });
+  }, [hasPlan, onOpenPlan, onPlanAction]);
 
   /* pasted images become path references. A file already on disk keeps its
      path; anything temporary (or a raw clipboard bitmap) is copied into the
@@ -258,7 +266,7 @@ export function AgentComposer({
                 <button
                   type="button"
                   aria-label={t("Plan mode")}
-                  title={t(PLAN_HINT[planPhase])}
+                  title={hasPlan && planPhase !== "review" ? t("Open the plan") : t(PLAN_HINT[planPhase])}
                   onClick={onPlan}
                   className={cn(
                     "pressable hidden h-7 items-center gap-1 rounded-control px-1.5 text-ui-sm font-medium",

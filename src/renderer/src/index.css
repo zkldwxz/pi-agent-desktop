@@ -13,9 +13,8 @@
 @import "shadow-plugin/unprefixed";
 /* VS Code codicons — the IDE icon set Cursor ships; one font face, every glyph */
 @import "@vscode/codicons/dist/codicon.css";
-/* Geist carries Latin/numerals; CJK falls through to the system faces in
-   `--font-cjk` below, because none of these files ship CJK glyphs. */
-@import "@fontsource-variable/geist";
+/* Geist Mono is the one bundled face (code); the UI uses the system font.
+   CJK falls through to the system faces in `--font-cjk` below. */
 @import "@fontsource-variable/geist-mono";
 
 @import "./styles/foundation-body.css";
@@ -155,7 +154,12 @@
 }
 
 :root {
-  --font-inter: "Geist Variable";
+  /* The UI is set in the system face (SF Pro on macOS, Segoe UI Variable on
+     Windows 11), as baocode is: it matches the OS chrome around the window and
+     pairs with the system CJK face below instead of a bundled web font fighting
+     PingFang for weight and baseline. Code keeps the bundled Geist Mono. */
+  --font-inter: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI",
+    system-ui, "Helvetica Neue", Arial;
   --font-mono-face: "Geist Mono Variable";
   /* CJK stack, best first. PingFang is macOS, HarmonyOS Sans and Microsoft
      YaHei are the Windows answers; the platform picks whichever exists. */
