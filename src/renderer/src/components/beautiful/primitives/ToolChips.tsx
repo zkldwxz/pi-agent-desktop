@@ -392,14 +392,24 @@ export default function ToolChips({
           setManualOpen(next);
           onOpenChange?.(next);
         }}
-        className="-mx-1.5 flex w-fit items-center gap-2 rounded-control px-1.5 py-1 text-ui-base text-ink-2 transition-colors duration-100 hover:bg-hover-2"
+        /* HOST ADAPTATION — baocode's step header: 13px muted, padding 3,
+           the chevron (16) after the text on hover / while open */
+        className="group/step flex w-fit items-center gap-0.5 py-[3px] text-ui-step text-ink-2"
       >
-        <span className="flex size-4 shrink-0 items-center justify-center">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="transition-transform duration-200" style={{ transform: open ? "rotate(0deg)" : "rotate(-90deg)" }}>
-            <path d="M6 9l6 6 6-6" />
-          </svg>
-        </span>
         <span className="tabular-nums">{copy.header}</span>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`shrink-0 text-ink transition-[transform,opacity] duration-150 ${open ? "rotate-90 opacity-100" : "opacity-0 group-hover/step:opacity-100"}`}
+        >
+          <path d="M9 6l6 6-6 6" />
+        </svg>
       </button>
       {/* tool call rows — indented into the same tree as the trace rows above:
           5px + 14px gutter, then 5.25px of row padding, so the labels line up. */}

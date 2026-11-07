@@ -11,21 +11,17 @@ import { getLocale, t, tf, type Locale } from "./i18n";
  * ───────────────────────────────────────────────────────── */
 
 /**
- * The conversation column, ported from ZCode's conversationLayout: not a fixed
- * width but the area minus fixed margins — 6rem each side up to 864px of
- * container, capped at 4xl; 24rem of margin past 1280px, capped at 6xl. The
- * status-panel lean is a CSS variable the conversation container sets from
- * React state: with every right-hand dock closed the container goes full-width,
- * the 1280px breakpoint still fires, and a fixed -translate-x-44 left the
- * prompt bar stranded off-centre — the exact bug this replaced. The timeline
- * and the composer dock MUST render this same class — two different widths
- * would put the prompt bar out of line with the text it answers.
+ * The conversation column. The timeline and the composer dock MUST render this
+ * same class — two different widths would put the prompt bar out of line with
+ * the text it answers. baocode's measure: 720 wide inside a 24px gutter; the
+ * prompt card and the composer span it, everything else sits 8px in.
  */
 export const CONVERSATION_COLUMN =
-  "mx-auto w-full shrink-0 transition-[width,max-width,transform] duration-150 ease-out " +
-  "@min-[864px]/conversation:w-[calc(100%_-_6rem)] @min-[864px]/conversation:max-w-4xl " +
-  "@min-[1280px]/conversation:w-[calc(100%_-_24rem)] @min-[1280px]/conversation:max-w-6xl " +
-  "@min-[1280px]/conversation:translate-x-[var(--conversation-lean,0rem)]";
+  /* One centred measure, baocode's: the column fills the pane up to a reading
+   * width and sits dead-centre whatever opens beside it. The old breakpoints
+   * (896 → 1152px) and the off-centre lean when a dock opened made the text
+   * jump sideways and left a wide dead gutter on the left. */
+  "conversation-column mx-auto w-full max-w-[720px] shrink-0 transition-[max-width] duration-150 ease-out";
 
 export type TextSegment =
   | { kind: "text"; text: string }

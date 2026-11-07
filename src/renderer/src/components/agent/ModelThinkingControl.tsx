@@ -1,72 +1,88 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HostState, ModelInfo } from "@shared/types";
 import { cn } from "../../lib/cn";
-import { formatContext } from "../../lib/format";
 import { t, tf } from "../../lib/i18n";
-import { GlideList, Popover } from "../motion";
-import { ThinkingTrack, ThinkingTrackEnds, thinkingBadgeClass, thinkingLevelClass } from "../ThinkingTrack";
-import { ArrowLeftIcon, CheckIcon, ChevronDownIcon, ImageIcon, RefreshIcon } from "../icons";
+import { buildCatalogue, channelOfModel, modelSections } from "../../lib/model-list";
+import { brandOfModel, brandOfProvider } from "../../lib/model-brand";
+import { BrandLogo, hasBrandLogo } from "../BrandLogo";
+import { CheckIcon, ChevronRightIcon, SearchIcon, SlidersIcon } from "../icons";
+import { ComposerPill } from "./ComposerPill";
 
 /**
- * The one composer chip that qualifies a prompt: which model reads it, and how
- * hard that model thinks.
+ * The model pill and its menu — baocode's SessionModelPicker over its
+ * ComposerPicker (lib/chat/composer/session_model_picker.dart,
+ * composer_picker.dart), ported as they are:
  *
- * Model and depth are the same decision — you pick a model and then decide how
- * much to spend on it — so they live in one control, and the card the chip opens
- * is small enough to read without looking up: the depth, the name, the track.
- * The model list is a second state behind the name, because switching the model
- * is the rarer half of the job and it is the only thing that needs a scroll.
- *
- * Both halves are optimistic: the pick moves the chip on the same frame as the
- * click and the host's state takes over when it arrives. A depth is committed when
- * the drag ends, not as it crosses each step, so sliding across the ramp does not
- * write to the host six times.
+ * - the pill: the model's maker's logo, then "model · effort" — the upstream
+ *   before the name only when another upstream has a model of that name;
+ * - the menu, 260 wide, above the pill: a search line once there are 10 or more
+ *   models, the models under their upstream's heading (sticky, 11px faint,
+ *   a line above every heading but the first), 30px rows of logo 15 + name 12.5
+ *   (no descriptions: "its maker's logo and its upstream's heading tell the
+ *   rest"), a check on the current one, a › where it has settings; the
+ *   settings — its effort — in a submenu to the right; "Manage Models…" last.
  */
+
+const key = (model: Pick<ModelInfo, "provider" | "id">) => `${model.provider}/${model.id}`;
+
+function logoOf(model: ModelInfo, baseUrl?: string): string | null {
+  const brand = brandOfModel(model.id) ?? brandOfModel(model.name) ?? brandOfProvider(model.provider, baseUrl);
+  return hasBrandLogo(brand) ? brand : null;
+}
+
+function ModelLogo({ name, size }: { name: string | null; size: number }) {
+  return name ? (
+    <BrandLogo name={name} size={size} />
+  ) : (
+    <span className="codicon codicon-sparkle shrink-0" style={{ fontSize: size }} aria-hidden />
+  );
+}
+
+const displayName = (model: Pick<ModelInfo, "name">) => model.name.replace(/\(.*\)/, "").trim();
+
 export function ModelThinkingControl({
   state,
   onSetModel,
   onSetThinking,
+  onManageModels,
 }: {
   state: HostState;
   onSetModel: (provider: string, modelId: string) => void;
   onSetThinking: (level: string) => void;
+  /** opens Settings ▸ Models */
+  onManageModels?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  /** `card` is the depth and the name, `list` is the models behind the name */
-  const [view, setView] = useState<"card" | "list">("card");
-  const hostModelKey = state.snapshot?.model
-    ? `${state.snapshot.model.provider}/${state.snapshot.model.id}`
-    : "";
-  const [pendingModelKey, setPendingModelKey] = useState<string | null>(null);
-  const modelKey = pendingModelKey ?? hostModelKey;
-  const current =
-    state.models.find((model) => `${model.provider}/${model.id}` === modelKey) ?? state.snapshot?.model ?? null;
+  const [query, setQuery] = useState("");
+  const [submenu, setSubmenu] = useState<{ key: string; top: number } | null>(null);
+  const wrapper = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
 
+  /* optimistic: the pill moves on the click, the host's state takes over */
+  const hostKey = state.snapshot?.model ? key(state.snapshot.model) : "";
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const currentKey = pendingKey ?? hostKey;
+  const current = state.models.find((model) => key(model) === currentKey) ?? state.snapshot?.model ?? null;
   useEffect(() => {
-    if (pendingModelKey === null) return;
-    if (hostModelKey === pendingModelKey) {
-      setPendingModelKey(null);
+    if (pendingKey === null) return;
+    if (hostKey === pendingKey) {
+      setPendingKey(null);
       return;
     }
-    const timer = window.setTimeout(() => setPendingModelKey(null), 3000);
+    const timer = window.setTimeout(() => setPendingKey(null), 3000);
     return () => window.clearTimeout(timer);
-  }, [pendingModelKey, hostModelKey]);
+  }, [pendingKey, hostKey]);
 
-  const pickModel = useCallback(
-    (provider: string, id: string) => {
-      setPendingModelKey(`${provider}/${id}`);
-      onSetModel(provider, id);
-      setOpen(false);
-    },
-    [onSetModel],
-  );
+  /* an effort picked on another model's submenu: switch, then set it */
+  const [pendingEffort, setPendingEffort] = useState<{ key: string; level: string } | null>(null);
+  useEffect(() => {
+    if (!pendingEffort || hostKey !== pendingEffort.key) return;
+    onSetThinking(pendingEffort.level);
+    setPendingEffort(null);
+  }, [pendingEffort, hostKey, onSetThinking]);
 
   const hostLevel = state.snapshot?.thinkingLevel ?? "off";
   const [pendingLevel, setPendingLevel] = useState<string | null>(null);
-  /* what the pointer is over right now — the label follows it, the host does not
-     hear until the drag is released */
-  const [slideLevel, setSlideLevel] = useState<string | null>(null);
-
   useEffect(() => {
     if (pendingLevel === null) return;
     if (hostLevel === pendingLevel) {
@@ -76,258 +92,219 @@ export function ModelThinkingControl({
     const timer = window.setTimeout(() => setPendingLevel(null), 1500);
     return () => window.clearTimeout(timer);
   }, [pendingLevel, hostLevel]);
+  const level = pendingLevel ?? hostLevel;
 
-  const commitLevel = useCallback(
-    (next: string) => {
-      setSlideLevel(null);
-      setPendingLevel(next);
-      onSetThinking(next);
-    },
-    [onSetThinking],
+  /* the ramp the session offers for the current model; another model's own */
+  const levelsOf = useCallback(
+    (model: ModelInfo | null): string[] =>
+      model && key(model) === hostKey
+        ? (state.snapshot?.thinkingLevels ?? model.thinkingLevels)
+        : (model?.thinkingLevels ?? []),
+    [hostKey, state.snapshot?.thinkingLevels],
   );
+  const canThink = levelsOf(current).length > 1;
 
-  /* The ramp comes from the session, not from the model row. The catalogue's own
-     list is derived in `thinkingLevelsFor`, which hands every reasoning model the
-     full seven steps unless its entry declares a `thinkingLevelMap` — so a proxy
-     that stops at `high` got offered `max`, and the host then refused
-     it, which read as the chip snapping back on its own. */
-  const levels = state.snapshot?.thinkingLevels ?? current?.thinkingLevels ?? ["off"];
-  const canThink = levels.length > 1;
-  /* the track is told what is committed, never what the pointer is hovering —
-     otherwise a release would compare against its own preview and skip the write */
-  const committed = levels.includes(pendingLevel ?? hostLevel) ? (pendingLevel ?? hostLevel) : "off";
-  const shown = slideLevel ?? committed;
-  const short = current?.name?.replace(/\(.*\)/, "").trim() ?? t("No model");
+  const catalogue = useMemo(() => buildCatalogue(state.models, state.channels), [state.models, state.channels]);
+  /* an upstream with no model to pick has no heading here (Settings lists it) */
+  const sections = useMemo(
+    () => modelSections(catalogue, { grouped: true, query }).filter((section) => section.rows.length > 0),
+    [catalogue, query],
+  );
+  const searchable = state.models.length >= 10;
 
-  /* The reset is only worth a button while the session is running at something
-     other than the depth the settings file would have started this model on. */
-  const fallback = state.settings.defaultThinkingLevel;
-  const resetTo = fallback && fallback !== committed && levels.includes(fallback) ? fallback : null;
-  const resetLabel = resetTo ? tf("Back to {level}", { level: t(resetTo) }) : "";
+  /* SessionModelPicker._label */
+  const label = useMemo(() => {
+    if (!current) return t("No model");
+    const twin = state.models.some((other) => other.name === current.name && other.provider !== current.provider);
+    return [twin ? current.providerName : null, displayName(current), canThink && level !== "off" ? t(level) : null]
+      .filter(Boolean)
+      .join(" · ");
+  }, [current, state.models, canThink, level]);
+  const currentChannel = current ? channelOfModel(current, state.channels) : undefined;
 
-  const toggle = () => {
-    if (open) {
-      setOpen(false);
-      setSlideLevel(null);
-      return;
+  const close = useCallback(() => {
+    setOpen(false);
+    setSubmenu(null);
+    setQuery("");
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event: PointerEvent) => {
+      if (!wrapper.current?.contains(event.target as Node)) close();
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, close]);
+
+  const pick = (model: ModelInfo) => {
+    if (key(model) !== currentKey) {
+      setPendingKey(key(model));
+      onSetModel(model.provider, model.id);
     }
-    /* a model that cannot think has no card to show — go straight to its list */
-    setView(canThink ? "card" : "list");
-    setOpen(true);
+    close();
   };
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, ModelInfo[]>();
-    for (const model of state.models) {
-      const list = map.get(model.provider) ?? [];
-      list.push(model);
-      map.set(model.provider, list);
+  const pickEffort = (model: ModelInfo, next: string) => {
+    if (key(model) === hostKey) {
+      setPendingLevel(next);
+      onSetThinking(next);
+    } else {
+      setPendingKey(key(model));
+      setPendingEffort({ key: key(model), level: next });
+      onSetModel(model.provider, model.id);
     }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [state.models]);
+    close();
+  };
+
+  const submenuModel = submenu ? (state.models.find((model) => key(model) === submenu.key) ?? null) : null;
+  const submenuLevels = levelsOf(submenuModel).filter((value) => value !== "off");
 
   return (
-    <div className="relative flex min-w-0 items-center">
-      <button
-        type="button"
-        data-popover-trigger
-        aria-expanded={open}
-        onClick={toggle}
-        title={tf("Model — {model}", { model: current?.name ?? t("No model") })}
-        className={cn(
-          /* 28px like the attach / dictation / send buttons beside it — the whole
-             row shares one height and one bottom line */
-          "pressable inline-flex h-7 min-w-0 items-center gap-1.5 rounded-control py-0 pl-2 pr-1.5",
-          open ? "bg-field text-ink" : "text-ink-2 hover:bg-hover-2",
-        )}
-      >
-        <span className="min-w-0 truncate text-ui-caption">{short}</span>
-        {canThink ? (
-          <span
-            className={cn(
-              "shrink-0 rounded-chip px-1 py-px text-ui-xs leading-[15px] transition-colors duration-300",
-              thinkingBadgeClass(shown),
-            )}
-          >
-            {t(shown)}
-          </span>
-        ) : null}
-        <ChevronDownIcon
-          size={12}
-          className="shrink-0 text-ink-3 transition-transform duration-300 ease-out-strong"
-          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
-        />
-      </button>
-
-      <Popover
+    <div ref={wrapper} className="relative flex min-w-0 items-center">
+      <ComposerPill
+        menu
         open={open}
-        onClose={() => {
-          setOpen(false);
-          /* a drag that never committed must not leave its preview on the chip */
-          setSlideLevel(null);
-        }}
-        anchor="bottom-right"
-        className="w-80"
-      >
-        {view === "card" ? (
-          <div className="px-3 pb-2 pt-1.5">
-            {/* row 1 — the depth, in its own colour, with the way back out of it */}
-            <div className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "min-w-0 flex-1 truncate text-ui-base font-medium transition-colors duration-300",
-                  thinkingLevelClass(shown),
-                )}
-              >
-                {t(shown)}
-              </span>
-              {resetTo ? (
-                <button
-                  type="button"
-                  onClick={() => commitLevel(resetTo)}
-                  title={resetLabel}
-                  aria-label={resetLabel}
-                  className="pressable shrink-0 rounded-chip p-1 text-ink-3 transition-colors hover:bg-hover-2 hover:text-ink"
-                >
-                  <RefreshIcon size={12} />
-                </button>
-              ) : null}
-            </div>
-            {/* row 2 — the model, and the only way into the list */}
-            <button
-              type="button"
-              onClick={() => setView("list")}
-              title={t("Switch model")}
-              className={cn(
-                "-mx-1.5 mt-1 flex w-[calc(100%+12px)] items-center gap-1.5 rounded-chip px-1.5 py-1 text-left",
-                "text-ink transition-colors hover:bg-hover-2",
-              )}
-            >
-              <span className="min-w-0 flex-1 truncate text-ui-sm">
-                <span className="text-ink-3">{current?.providerName ?? ""} · </span>
-                {current?.name ?? t("No model")}
-              </span>
-              <ChevronDownIcon
-                size={11}
-                className="shrink-0 text-ink-3"
-                style={{ transform: "rotate(-90deg)" }}
+        onClick={() => (open ? close() : setOpen(true))}
+        title={tf("Model — {model}", { model: current?.name ?? t("No model") })}
+        icon={<ModelLogo name={current ? logoOf(current, currentChannel?.baseUrl) : null} size={13} />}
+        label={label}
+      />
+
+      {open ? (
+        <div
+          ref={panel}
+          role="menu"
+          className="absolute bottom-full left-0 z-40 mb-1.5 flex w-[260px] flex-col rounded-card bg-surface py-1 shadow-overlay"
+          style={{ animation: "picker-in 140ms var(--ease-out-strong-css) both", transformOrigin: "bottom left" }}
+        >
+          {searchable ? (
+            /* the search line: 28 high, 4 in, radius 5, a line that turns the
+               focus colour */
+            <label className="mx-1 mb-0.5 flex h-7 items-center gap-1.5 rounded-[5px] border border-transparent px-[7px] focus-within:border-accent">
+              <SearchIcon size={14} className="shrink-0 text-ink-4" />
+              <input
+                autoFocus
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setSubmenu(null);
+                }}
+                placeholder={t("Search models")}
+                className="min-w-0 flex-1 bg-transparent text-ui-caption leading-[1.2] text-ink outline-none placeholder:text-ink-4"
               />
-            </button>
-            {/* row 3 — the track */}
-            <div className="mt-1">
-              <ThinkingTrack levels={levels} value={committed} onPick={commitLevel} onSlide={setSlideLevel} />
-              <ThinkingTrackEnds levels={levels} />
-            </div>
-          </div>
-        ) : (
-          /* The list is the only part of this control that scrolls, and it gets
-             the whole height for it. */
-          <div className="flex max-h-[min(420px,62vh)] flex-col">
-            <div className="flex shrink-0 items-center gap-1 px-1.5 pb-1 pt-1.5">
-              {canThink ? (
-                <button
-                  type="button"
-                  onClick={() => setView("card")}
-                  aria-label={t("Back to depth")}
-                  title={t("Back to depth")}
-                  className="pressable -ml-0.5 shrink-0 rounded-chip p-1 text-ink-3 transition-colors hover:bg-hover-2 hover:text-ink"
+            </label>
+          ) : null}
+
+          <div className="scrollbar-thin relative max-h-[380px] overflow-y-auto">
+            {sections.map((section, sectionIndex) => (
+              <div key={section.channel?.id ?? "other"} className={cn(sectionIndex > 0 && "mt-1 border-t border-line")}>
+                {/* the heading: 12 / 4|6 / 12 / 3, 11px faint, sticky */}
+                <div
+                  className={cn(
+                    "sticky top-0 z-10 bg-surface px-3 pb-[3px] text-ui-xs text-ink-4",
+                    sectionIndex === 0 ? "pt-1" : "pt-1.5",
+                  )}
                 >
-                  <ArrowLeftIcon size={12} />
-                </button>
-              ) : null}
-              <span className="text-ui-xs tracking-[0.4px] text-ink-3">{t("MODEL")}</span>
-            </div>
-            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-              {/* Memoised: the glide highlight moves on every pointer move, and
-                  re-rendering a hundred model rows for that is what made the menu
-                  feel like it lagged behind the cursor. */}
-              <ModelGroups grouped={grouped} currentKey={modelKey} onPick={pickModel} />
-            </div>
+                  {section.channel?.name ?? t("Other")}
+                </div>
+                {section.rows.map((model) => {
+                  const rowKey = key(model);
+                  const selected = rowKey === currentKey;
+                  const hasSettings = levelsOf(model).filter((value) => value !== "off").length > 0;
+                  return (
+                    <button
+                      key={rowKey}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={selected}
+                      title={`${model.provider}/${model.id}`}
+                      onClick={() => pick(model)}
+                      onMouseEnter={(event) => {
+                        if (!hasSettings) {
+                          setSubmenu(null);
+                          return;
+                        }
+                        const row = event.currentTarget.getBoundingClientRect();
+                        const box = panel.current?.getBoundingClientRect();
+                        setSubmenu({ key: rowKey, top: box ? row.top - box.top : 0 });
+                      }}
+                      className={cn(
+                        "mx-1 flex h-[30px] w-[calc(100%-8px)] items-center gap-2.5 rounded-[5px] px-2 text-left transition-colors duration-100 hover:bg-hover",
+                        submenu?.key === rowKey && "bg-hover",
+                      )}
+                    >
+                      <span className="flex size-[15px] shrink-0 items-center justify-center text-ink-2">
+                        <ModelLogo name={logoOf(model, section.channel?.baseUrl)} size={15} />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-ui-caption text-ink">{displayName(model)}</span>
+                      {selected ? <CheckIcon size={15} className="shrink-0 text-ink" /> : null}
+                      {hasSettings ? <ChevronRightIcon size={15} className="ml-1 shrink-0 text-ink-4" /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+            {!sections.length ? <div className="px-3 py-2 text-ui-sm text-ink-4">{t("No models match")}</div> : null}
           </div>
-        )}
-      </Popover>
+
+          {onManageModels ? (
+            <div className="mt-1 border-t border-line pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  close();
+                  onManageModels();
+                }}
+                onMouseEnter={() => setSubmenu(null)}
+                className="mx-1 flex h-7 w-[calc(100%-8px)] items-center gap-2.5 rounded-[5px] px-2 text-left text-ui-caption text-ink transition-colors duration-100 hover:bg-hover"
+              >
+                <SlidersIcon size={15} className="shrink-0 text-ink-2" />
+                {t("Manage Models…")}
+              </button>
+            </div>
+          ) : null}
+
+          {/* the settings submenu: to the right of its row, level with it,
+              4px off; the same panel; "Effort" over 28px rows */}
+          {submenu && submenuModel && submenuLevels.length ? (
+            <div
+              role="menu"
+              className="absolute left-full z-50 ml-1 flex min-w-[148px] max-w-[240px] flex-col rounded-card bg-surface py-1 shadow-overlay"
+              style={{
+                top: Math.max(0, submenu.top - 4),
+                animation: "picker-in 90ms var(--ease-out-strong-css) both",
+                transformOrigin: "left top",
+              }}
+            >
+              <div className="flex h-6 items-center px-2 text-ui-xs text-ink-4">{t("Effort")}</div>
+              {submenuLevels.map((value) => {
+                const active = key(submenuModel) === currentKey && value === level;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={active}
+                    onClick={() => pickEffort(submenuModel, value)}
+                    className="mx-1 flex h-7 w-[calc(100%-8px)] items-center gap-2.5 rounded-[5px] px-2 text-left text-ui-caption text-ink transition-colors duration-100 hover:bg-hover"
+                  >
+                    <span className="min-w-0 flex-1 truncate">{t(value)}</span>
+                    {active ? <CheckIcon size={15} className="shrink-0" /> : null}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
-
-/** A model row's right-hand marker. Small enough to sit on the 4px radius floor. */
-const MODEL_BADGE =
-  "shrink-0 rounded-tiny bg-field px-1 py-px font-mono text-ui-2xs leading-[13px] text-ink-3";
-
-/** The models, grouped by channel. Split out so hover never re-renders it. */
-const ModelGroups = memo(function ModelGroups({
-  grouped,
-  currentKey,
-  onPick,
-}: {
-  grouped: Array<[string, ModelInfo[]]>;
-  currentKey: string;
-  onPick: (provider: string, id: string) => void;
-}) {
-  const showsVision = useMemo(
-    () => grouped.some(([, models]) => models.some((model) => !model.supportsImages)),
-    [grouped],
-  );
-
-  return (
-    <>
-      {grouped.map(([provider, models]) => (
-        <div key={provider} className="pb-1">
-          {/* Sticky, because with every channel in the catalogue the list is
-              long enough to lose track of which one you are inside. The count
-              it used to print is gone: the rows are right below it. */}
-          <div className="sticky top-0 z-10 -mx-2 bg-surface px-2 pb-1 pt-1.5">
-            <div className="truncate text-ui-2xs font-medium uppercase tracking-[0.5px] text-ink-3">
-              {models[0]?.providerName ?? provider}
-            </div>
-          </div>
-          <GlideList rowSelector="[data-row]" highlightClassName="bg-hover" radius={6}>
-            {models.map((model) => {
-              const active = currentKey === `${model.provider}/${model.id}`;
-              const size = formatContext(model.contextWindow);
-              return (
-                <button
-                  key={model.id}
-                  data-row
-                  type="button"
-                  onClick={() => onPick(model.provider, model.id)}
-                  title={model.name}
-                  /* `pr-7` reserves the checkmark's column, and the mark is
-                     faded rather than removed when off: a list whose rows shift
-                     12px as you hover them is worse than one that never marks
-                     the hover at all. */
-                  className="glide-row pressable relative flex h-8 w-full items-center gap-1.5 rounded-chip py-0 pl-2 pr-7 text-left"
-                >
-                  <span
-                    className={cn(
-                      "min-w-0 flex-1 truncate text-ui-caption",
-                      active ? "font-medium text-ink" : "text-ink-2",
-                    )}
-                  >
-                    {model.name}
-                  </span>
-                  {/* A marker every row carries says nothing, so it is drawn
-                      only once something in the list lacks it. */}
-                  {showsVision && model.supportsImages ? (
-                    <ImageIcon size={10} className="shrink-0 text-ink-3" />
-                  ) : null}
-                  {/* Half the catalogue names its own window — "DeepSeek V4 Flash
-                      1M" does not need a second 1M sitting next to it. */}
-                  {model.name.includes(size) ? null : <span className={MODEL_BADGE}>{size}</span>}
-                  <CheckIcon
-                    size={12}
-                    className={cn(
-                      "absolute right-2 shrink-0 text-ink transition-opacity duration-150",
-                      active ? "opacity-100" : "opacity-0",
-                    )}
-                  />
-                </button>
-              );
-            })}
-          </GlideList>
-        </div>
-      ))}
-    </>
-  );
-});
-

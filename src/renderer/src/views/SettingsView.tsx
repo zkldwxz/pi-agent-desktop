@@ -47,7 +47,7 @@ import { UsageView } from "./UsageView";
  *  placeholder is an example to copy, and a Git Bash drive letter is not one. */
 const SHELL_EXAMPLE = IS_WINDOWS ? "D:/Git/bin/bash.exe" : IS_MAC ? "/bin/zsh" : "/bin/bash";
 
-type SettingsCategory = "appearance" | "general" | "models" | "agent" | "browser" | "remote" | "tasks" | "hooks" | "keyboard" | "data" | "usage";
+export type SettingsCategory = "appearance" | "general" | "models" | "agent" | "browser" | "remote" | "tasks" | "hooks" | "keyboard" | "data" | "usage";
 
 type SettingsRow = { key: SettingsCategory; label: string; icon: React.ReactNode };
 
@@ -88,6 +88,7 @@ const GROUPS: Array<{ label?: string; items: SettingsRow[] }> = [
 const ALL_ROWS = GROUPS.flatMap((group) => group.items);
 
 export function SettingsView({
+  initialCategory,
   state,
   colorMode,
   onColorMode,
@@ -112,6 +113,8 @@ export function SettingsView({
   onUsageRange,
   onUsageRefresh,
 }: {
+  /** the category to open on (the model menu's "Manage Models…" opens Models) */
+  initialCategory?: SettingsCategory;
   state: HostState;
   colorMode: ColorMode;
   onColorMode: (mode: ColorMode) => void;
@@ -148,7 +151,7 @@ export function SettingsView({
   const settings = state.settings;
   const chords = useShortcuts();
   const [budgetDraft, setBudgetDraft] = useState<Record<string, number>>({});
-  const [category, setCategory] = useState<SettingsCategory>("general");
+  const [category, setCategory] = useState<SettingsCategory>(initialCategory ?? "general");
   const [locale, setLocaleState] = useState<Locale>(getLocale);
   const onLocale = (next: Locale) => {
     setLocale(next);

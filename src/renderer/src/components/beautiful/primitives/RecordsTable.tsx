@@ -419,7 +419,7 @@ function InputPicker({
               onClick={() => onToggle(option)}
               className="relative z-10 flex h-8 w-full items-center gap-1.5 rounded-control px-1.5 text-left text-ui-base font-medium text-ink"
             >
-              <span className={`flex size-4 shrink-0 items-center justify-center rounded-chip border ${checked ? "border-accent bg-accent text-white" : "border-line-strong text-transparent"}`}>
+              <span className={`flex size-4 shrink-0 items-center justify-center rounded-chip border ${checked ? "border-accent bg-accent text-on-accent" : "border-line-strong text-transparent"}`}>
                 <Icon size={11} strokeWidth={2.4}><path d="m5 12 4 4L19 6" /></Icon>
               </span>
               <span className="min-w-0 flex-1 truncate">{option}</span>

@@ -20,6 +20,7 @@ export function NavRow({
   className,
   copyClassName,
   iconSize = 16,
+  labelSize = "text-ui-base",
   title,
   disabled = false,
   onClick,
@@ -38,6 +39,8 @@ export function NavRow({
   /** applied to the label and the hint — the session pane fades both when it collapses */
   copyClassName?: string;
   iconSize?: number;
+  /** the label's type step; the session pane sets its rows one step down */
+  labelSize?: string;
   title?: string;
   disabled?: boolean;
   onClick?: () => void;
@@ -72,7 +75,8 @@ export function NavRow({
       </span>
       <span
         className={cn(
-          "min-w-0 flex-1 truncate text-ui-base",
+          "min-w-0 flex-1 truncate",
+          labelSize,
           active && !raised ? "font-medium text-ink" : "",
           copyClassName,
         )}

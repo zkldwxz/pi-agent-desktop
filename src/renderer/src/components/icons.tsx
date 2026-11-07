@@ -25,7 +25,11 @@ import {
   Gauge,
   GitBranch,
   Globe,
+  Clock,
+  Coins,
   History,
+  SlidersHorizontal,
+  Infinity as InfinityGlyph,
   House,
   Keyboard,
   Layers,
@@ -129,6 +133,10 @@ export const PuzzleIcon = wrap(Puzzle);
 export const KeyboardIcon = wrap(Keyboard);
 export const HookIcon = wrap(Zap);
 export const ZapIcon = wrap(Zap);
+export const TimerIcon = wrap(Clock);
+export const SlidersIcon = wrap(SlidersHorizontal);
+export const InfinityIcon = wrap(InfinityGlyph);
+export const CoinsIcon = wrap(Coins);
 export const LayersIcon = wrap(Layers);
 export const ChartBarIcon = wrap(ChartBar);
 export const DatabaseIcon = wrap(Database);

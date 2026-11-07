@@ -112,16 +112,17 @@ async function createWindow(): Promise<void> {
     minWidth: 1100,
     minHeight: 720,
     show: false,
-    backgroundColor: dark ? "#16181c" : "#FAFAFB",
+    /* Bao Dark / Bao Light sideBar.background — the first paint matches the shell */
+    backgroundColor: dark ? "#212120" : "#F3F3F1",
     title: "Pi Agent Desktop",
     // `frame: false` on macOS drops the traffic lights along with the title bar,
     // and trafficLightPosition is then ignored — the native frame stays and only
     // the title bar is hidden, so the renderer's drag region takes its place.
     frame: !IS_MAC,
     titleBarStyle: "hidden",
-    /* the lights are ~12px tall and the renderer's title bar is 40px, so y=14
-     * puts them on the bar's centre line instead of floating at its top edge */
-    trafficLightPosition: { x: 20, y: 14 },
+    /* baocode's islands: the cards start 6px down and their header row is 30,
+     * so the row's centre line is at 21; the ~12px lights go at y=15 */
+    trafficLightPosition: { x: 16, y: 15 },
     webPreferences: {
       preload: join(__dirname, "../preload/index.mjs"),
       sandbox: false,
@@ -707,6 +708,17 @@ function registerIpc(): void {
     if (parseRemotePath(filePath)) throw new Error("Remote files are opened in the workspace file viewer.");
     const target = await workspaceStore.resolveLocal(activeCwd(), filePath);
     shell.showItemInFolder(target.path);
+  });
+
+  /* ── subscription plan quota (Claude Pro/Max, ChatGPT) ── */
+
+  ipcMain.handle("quota:plan", async (_event, force?: boolean) => {
+    try {
+      return (await host?.planQuota(Boolean(force))) ?? [];
+    } catch (error) {
+      reportError(error);
+      return [];
+    }
   });
 
   /* ── "Open with": the applications registered for this file type ── */

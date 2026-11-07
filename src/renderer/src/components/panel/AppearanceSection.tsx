@@ -6,6 +6,15 @@ import { CODE_THEMES, type CodeTheme } from "../../lib/code-theme";
 import { highlightLines } from "../../lib/highlight";
 import { SlidingGroup } from "../motion";
 import { MoonIcon, SunIcon } from "../icons";
+import { useEffect, useState } from "react";
+import { Switch } from "./SettingsParts";
+import {
+  loadAppearance,
+  onAppearance,
+  saveAppearance,
+  type AppearancePrefs,
+  type ChatWidth,
+} from "../../lib/appearance-prefs";
 
 const MODES: Array<{ key: ColorMode; label: string }> = [
   { key: "light", label: "Light" },
@@ -163,6 +172,119 @@ function CodeStyleSection({ theme, onTheme }: { theme: CodeTheme; onTheme: (them
   );
 }
 
+/** Segmented control in the page's own style (the language picker's). */
+function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: ReadonlyArray<{ value: T; label: string }>;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="flex w-fit items-center gap-0.5 rounded-chip bg-field p-0.5">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          onClick={() => onChange(option.value)}
+          aria-pressed={value === option.value}
+          className={cn(
+            "pressable h-6 rounded-chip px-3 text-ui-caption transition-colors duration-150",
+            value === option.value ? "bg-surface font-medium text-ink shadow-hairline" : "text-ink-3 hover:text-ink",
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PrefHeading({ title, hint }: { title: string; hint: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 px-0.5">
+      <h2 className="text-ui-caption font-medium text-ink">{title}</h2>
+      <span className="text-right text-ui-sm leading-snug text-ink-3">{hint}</span>
+    </div>
+  );
+}
+
+/** The code font field commits on blur / Enter, not per keystroke: a half-typed
+ *  family name would flash every code block through the fallback. */
+function CodeFontField({ value, onCommit }: { value: string; onCommit: (font: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  const commit = () => {
+    if (draft.trim() !== value) onCommit(draft.trim());
+  };
+  return (
+    <input
+      value={draft}
+      spellCheck={false}
+      placeholder="JetBrains Mono"
+      aria-label={t("Font name")}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") commit();
+        if (event.key === "Escape") setDraft(value);
+      }}
+      className="h-7 w-[220px] rounded-control bg-field px-2 font-mono text-ui-sm text-ink outline-none transition-shadow duration-150 placeholder:text-ink-4 focus:shadow-[0_0_0_3px_var(--accent-tint)]"
+    />
+  );
+}
+
+/**
+ * Code font, ligatures, conversation width and sidebar times — the rows of
+ * baocode's Appearance page that are pure presentation. They own their state
+ * through appearance-prefs rather than props: nothing above Settings reads
+ * them, CSS does.
+ */
+function DisplayPrefs() {
+  const [prefs, setPrefs] = useState<AppearancePrefs>(loadAppearance);
+  useEffect(() => onAppearance(setPrefs), []);
+  const update = (patch: Partial<AppearancePrefs>) => saveAppearance({ ...prefs, ...patch });
+  return (
+    <>
+      <div className="mt-4 flex flex-col gap-2">
+        <PrefHeading title={t("Code font")} hint={t("code blocks, paths and the terminal; empty uses JetBrains Mono, Menlo or Consolas")} />
+        <div className="flex flex-wrap items-center gap-3">
+          <CodeFontField value={prefs.codeFont} onCommit={(codeFont) => update({ codeFont })} />
+          <label className="flex items-center gap-2 text-ui-caption text-ink-2">
+            <Switch on={prefs.ligatures} onClick={() => update({ ligatures: !prefs.ligatures })} />
+            {t("Font ligatures")}
+          </label>
+        </div>
+        <code className="block rounded-card bg-surface px-3 py-2 font-mono text-ui-sm text-ink-2 shadow-hairline">
+          {"=> != === <= >= -> |> // 0O1lI"}
+        </code>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-2">
+        <PrefHeading title={t("Conversation width")} hint={t("full width uses the whole pane on wide windows")} />
+        <Segmented<ChatWidth>
+          value={prefs.chatWidth}
+          options={[
+            { value: "default", label: t("Default") },
+            { value: "full", label: t("Full width") },
+          ]}
+          onChange={(chatWidth) => update({ chatWidth })}
+        />
+      </div>
+
+      <div className="mt-4 flex items-center justify-between gap-3 px-0.5">
+        <div className="flex flex-col gap-0.5">
+          <h2 className="text-ui-caption font-medium text-ink">{t("Show times in the sidebar")}</h2>
+          <span className="text-ui-sm text-ink-3">{t("when each session was last active")}</span>
+        </div>
+        <Switch on={prefs.sidebarTimes} onClick={() => update({ sidebarTimes: !prefs.sidebarTimes })} />
+      </div>
+    </>
+  );
+}
+
 export function AppearanceSection({
   mode,
   onMode,
@@ -236,6 +358,8 @@ export function AppearanceSection({
           <CodeStyleSection theme={codeTheme} onTheme={onCodeTheme} />
         </div>
       ) : null}
+
+      <DisplayPrefs />
 
       {onLocale ? (
         <div className="mt-4 flex flex-col gap-2">

@@ -22,6 +22,7 @@ import { endpointId } from "@shared/channel";
 import type { McpServerView } from "@shared/mcp";
 import type { BrowserState } from "@shared/browser";
 import type { AppOpener, FileContent, FileEntry } from "@shared/workspace";
+import type { PlanQuota } from "@shared/quota";
 
 /**
  * Browser preview bridge.
@@ -1395,6 +1396,32 @@ export function installPreviewBridge(): void {
      * `icon`, which is the state the toolbar's own glyph has to cover — and the
      * row the preview exists to check, since the unlisted methods below resolve
      * to `undefined` and leave the button with nothing to render. */
+    /* a Claude Max plan part-way through its week, a ChatGPT Plus one near its
+       five-hour cap — the two states the quota UI has to read well in */
+    planQuota: async (): Promise<PlanQuota[]> => [
+      {
+        provider: "anthropic",
+        label: "Claude",
+        windows: [
+          { id: "five_hour", usedPercent: 38, resetsAt: Date.now() + 2.4 * 3600e3 },
+          { id: "seven_day", usedPercent: 61, resetsAt: Date.now() + 3.2 * 86400e3 },
+          { id: "seven_day_opus", usedPercent: 12, resetsAt: Date.now() + 3.2 * 86400e3 },
+        ],
+        limited: false,
+        fetchedAt: Date.now() - 90e3,
+      },
+      {
+        provider: "openai-codex",
+        label: "ChatGPT",
+        plan: "plus",
+        windows: [
+          { id: "primary", usedPercent: 92, minutes: 300, resetsAt: Date.now() + 47 * 60e3 },
+          { id: "secondary", usedPercent: 44, minutes: 10080, resetsAt: Date.now() + 5 * 86400e3 },
+        ],
+        limited: false,
+        fetchedAt: Date.now() - 30e3,
+      },
+    ],
     listOpeners: async (): Promise<AppOpener[]> => [
       { id: "reveal", name: "File manager", kind: "reveal" },
       { id: "default", name: "Default application", kind: "default" },

@@ -104,7 +104,6 @@ const MODELS = [
 ];
 
 const FILES = ["flavor-chart.png", "summer-menu.pdf", "pos-export.csv"];
-const DICTATION = "Compare pistachio weekends to last summer";
 
 /* self-running demo: walk the @ menu, then the / menu, and repeat.
  * Any pointer or key interaction hands control to the user. */
@@ -395,16 +394,6 @@ export default function PromptBar({
     return () => clearTimeout(t);
   }, [auto, autoStep]);
 
-  /* dictation resolves after a beat, like a real transcript landing */
-  useEffect(() => {
-    if (!listening) return;
-    const t = setTimeout(() => {
-      setDraft((current) => (current ? `${current.trimEnd()} ${DICTATION}` : DICTATION));
-      setListening(false);
-      inputRef.current?.focus();
-    }, 2200);
-    return () => clearTimeout(t);
-  }, [listening]);
 
   /* Move wrapped text above the controls, then grow to a compact maximum.
    *
@@ -649,12 +638,17 @@ export default function PromptBar({
           popovers open upward — clipped, they would never be visible, so the
           clip is dropped whenever the host supplies that slot. */}
       <div
-        className={`relative isolate flex flex-col border border-line bg-surface shadow-card transition-[border-color,border-radius] duration-150 focus-within:border-line-strong ${
+        /* baocode's composer: the input fill, a 1px bubble border, no shadow;
+           typing pulls the border 20% towards the accent (150ms) */
+        className={`relative isolate flex flex-col border border-line-strong bg-field transition-[border-color,border-radius] duration-150 focus-within:border-[color-mix(in_srgb,var(--line-strong)_75%,var(--accent))] ${
           controls ? "overflow-visible" : "overflow-hidden"
         } ${
-          tall ? "gap-2 p-3" : "gap-1.5 p-1.5"
+          /* tall: baocode's editor 12/10/12/2 over its toolbar 6/4/6/6 —
+             the padding lives on the two rows, not the shell */
+          tall ? "gap-0 p-0" : "gap-1.5 p-1.5"
         } ${
-          pill ? (attachments.length > 0 || wide ? "rounded-[24px]" : "rounded-full") : tall ? "rounded-[22px]" : "rounded-window"
+          /* baocode's composer is 12 whatever its height */
+          pill ? (attachments.length > 0 || wide ? "rounded-[24px]" : "rounded-full") : "rounded-window"
         }`}
       >
         {/* rainbow glimm sweep — plays across the interior on model change.
@@ -703,9 +697,9 @@ export default function PromptBar({
 
         <div
           ref={controlsRef}
-          className="grid items-end gap-x-1 gap-y-1.5 grid-cols-[auto_minmax(0,1fr)_auto_28px_28px]"
+          className={`grid items-end gap-x-0.5 grid-cols-[auto_minmax(0,1fr)_auto_28px] ${tall ? "gap-y-0" : "gap-y-1.5"}`}
         >
-          <div className={`flex items-center ${pill ? "gap-0.5" : "gap-1"} ${wide ? "col-start-1 row-start-2" : "col-start-1 row-start-1"}`}>
+          <div className={`flex items-center ${pill ? "gap-0.5" : "gap-0.5"} ${wide ? "col-start-1 row-start-2" : "col-start-1 row-start-1"} ${tall ? "pt-1 pb-1.5 pl-1.5" : ""}`}>
             <button
               type="button"
               aria-label="Add attachments and sources"
@@ -715,11 +709,9 @@ export default function PromptBar({
                 setPlusOpen((current) => !current);
                 inputRef.current?.focus();
               }}
-              className={`flex size-7 shrink-0 items-center justify-center text-ink-3 transition-[background-color,color,transform] duration-150 hover:bg-hover hover:text-ink active:scale-[0.94] ${
-                pill ? "rounded-full" : "rounded-control"
-              } ${plusOpen ? "bg-hover text-ink" : ""}`}
+              className={`flex size-[22px] shrink-0 items-center justify-center rounded-full text-ink-2 transition-[background-color,color] duration-[120ms] hover:bg-hover hover:text-ink ${plusOpen ? "bg-hover-2 text-ink" : ""}`}
             >
-              <Icon size={16} strokeWidth={2}><path d="M12 5v14M5 12h14" /></Icon>
+              <Icon size={14} strokeWidth={2}><path d="M12 5v14M5 12h14" /></Icon>
             </button>
             {leadingAddon}
           </div>
@@ -770,7 +762,9 @@ export default function PromptBar({
             }}
             placeholder={listening ? tr("Listening…") : placeholder ?? tr("Write a message…")}
             aria-label={tr("Prompt")}
-            className={`${tall ? "min-h-10 px-2 py-1.5 text-ui-base leading-5" : "min-h-7 px-1 py-[5px] text-ui-base leading-[18px]"} min-w-0 w-full resize-none bg-transparent text-ink outline-none [overflow-wrap:anywhere] placeholder:text-ink-4 ${
+            /* tall: the shell's 12px inset is the text's inset — the typed text
+               starts on the same line as the text in the prompt cards above */
+            className={`${tall ? "min-h-[48px] px-3 pt-2.5 pb-0.5 text-ui-base leading-[1.5]" : "min-h-7 px-1 py-[5px] text-ui-base leading-[18px]"} min-w-0 w-full resize-none bg-transparent text-ink outline-none [overflow-wrap:anywhere] placeholder:text-ink-4 ${
               wide ? "col-span-full col-start-1 row-start-1" : "col-start-2 row-start-1"
             }`}
           />
@@ -789,6 +783,7 @@ export default function PromptBar({
               data-promptbar-controls
               className={`flex min-w-0 items-center gap-1 ${
                 wide ? "col-start-2 row-start-2 justify-self-start" : "col-start-3 row-start-1 justify-self-end"
+              } ${tall ? "w-full pt-1 pb-1.5" : ""
               }`}
             >
               {controls}
@@ -800,50 +795,22 @@ export default function PromptBar({
             </div>
           ) : null}
 
-          {/* dictation */}
-          <button
-            type="button"
-            aria-label={listening ? tr("Stop dictation") : tr("Start dictation")}
-            aria-pressed={listening}
-            onClick={() => setListening((current) => !current)}
-            className={`flex size-7 shrink-0 items-center justify-center transition-[background-color,color,transform] duration-150 active:scale-[0.94] ${
-              pill ? "rounded-full" : "rounded-control"
-            } ${listening ? "bg-accent-tint text-accent-ink" : "text-ink-3 hover:bg-hover hover:text-ink"} ${wide ? "col-start-4 row-start-2" : "col-start-4 row-start-1"}`}
-          >
-            {listening ? (
-              <span className="flex h-3.5 items-center gap-[2.5px]">
-                {[0, 1, 2].map((i) => (
-                  <span
-                    key={i}
-                    className="w-[2.5px] rounded-full bg-current"
-                    style={{ height: "100%", animation: `eq-bounce 900ms ease-in-out ${i * 150}ms infinite` }}
-                  />
-                ))}
-              </span>
-            ) : (
-              <Icon size={15} strokeWidth={2}><g><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3" /></g></Icon>
-            )}
-          </button>
-
-          {/* send — tactile square (round in the pill variant). While the agent
-              is running it becomes a stop control. */}
+          {/* send — baocode's: a 24px amber circle, an 8px square while the
+              agent runs (stop), no fill and a faint arrow when there is nothing
+              to send. Centred in the row's 28px cell. */}
           <button
             type="button"
             aria-label={streaming ? tr("Stop") : tr("Send")}
             disabled={streaming ? false : !canSend}
             onClick={streaming ? () => onAbort?.() : send}
-            className={`flex size-7 shrink-0 items-center justify-center transition-[background-color,color,transform] duration-200 enabled:active:scale-[0.94] ${
-              pill ? "rounded-full" : "rounded-control"
-            } ${wide ? "col-start-5 row-start-2" : "col-start-5 row-start-1"}`}
-            style={{
-              background: streaming || canSend ? "var(--ink)" : "var(--line-strong)",
-              color: streaming || canSend ? "var(--surface)" : "var(--ink-2)",
-            }}
+            className={`flex size-6 shrink-0 items-center justify-center justify-self-center rounded-full transition-[background-color,color,transform] duration-150 enabled:hover:bg-accent-strong enabled:active:scale-[0.94] ${
+              wide ? "col-start-4 row-start-2" : "col-start-4 row-start-1"
+            } ${tall ? "mt-1 mb-1.5 mr-1.5" : ""} ${streaming || canSend ? "bg-button text-on-accent" : "bg-transparent text-ink-4"}`}
           >
             {streaming ? (
-              <span className="size-2.5 rounded-[2px] bg-current" />
+              <span className="size-2 rounded-[1.5px] bg-current" />
             ) : (
-              <Icon size={16} strokeWidth={2.4}><path d="M12 19V5M5 12l7-7 7 7" /></Icon>
+              <Icon size={15} strokeWidth={2.4}><path d="M12 19V5M5 12l7-7 7 7" /></Icon>
             )}
           </button>
         </div>

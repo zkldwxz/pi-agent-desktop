@@ -4,6 +4,7 @@ import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import type { PtySession, TerminalShell } from "@shared/terminal";
 import { cn } from "../../lib/cn";
+import { onAppearance } from "../../lib/appearance-prefs";
 import { t, tf } from "../../lib/i18n";
 import { Popover } from "../motion";
 import { ArrowUpIcon, ChevronDownIcon, PlusIcon, SparkIcon, SquareStopIcon, TerminalIcon, XIcon } from "../icons";
@@ -70,6 +71,14 @@ function terminalTheme() {
  * buffer per session, so a tab that has been sitting in the background while
  * you read another one still shows everything it printed.
  */
+/** The code font the Appearance page sets (`--font-mono-face`), then the
+ *  terminal's own fallbacks. xterm measures a concrete family list, so it
+ *  is read off <html> rather than handed the CSS variable. */
+function terminalFont(): string {
+  const face = getComputedStyle(document.documentElement).getPropertyValue("--font-mono-face").trim();
+  return `${face || '"JetBrains Mono", Menlo, Consolas, "Geist Mono Variable"'}, ui-monospace, "PingFang SC", "Microsoft YaHei UI", Menlo, Consolas, monospace`;
+}
+
 function PtyTerminal({ id }: { id: string }) {
   const hostRef = useRef<HTMLDivElement>(null);
 
@@ -82,8 +91,7 @@ function PtyTerminal({ id }: { id: string }) {
       cursorBlink: true,
       scrollback: 4000,
       fontSize: 12.5,
-      fontFamily:
-        '"Geist Mono Variable", ui-monospace, "PingFang SC", "Microsoft YaHei UI", Menlo, Consolas, monospace',
+      fontFamily: terminalFont(),
       minimumContrastRatio: 4.5,
       ...terminalTheme(),
     });
@@ -91,6 +99,11 @@ function PtyTerminal({ id }: { id: string }) {
     term.loadAddon(fit);
     term.open(host);
     fit.fit();
+    /* Settings ▸ Appearance ▸ Code font reaches running terminals too */
+    const stopFont = onAppearance(() => {
+      term.options.fontFamily = terminalFont();
+      fit.fit();
+    });
     window.pi.resizePty(id, term.cols, term.rows);
 
     /* chunks that land while the replay is still in flight are held back so the
@@ -131,6 +144,7 @@ function PtyTerminal({ id }: { id: string }) {
 
     return () => {
       disposed = true;
+      stopFont();
       observer.disconnect();
       offData();
       input.dispose();

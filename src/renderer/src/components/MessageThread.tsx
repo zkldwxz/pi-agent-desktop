@@ -8,7 +8,7 @@ import { AgentAnswer } from "./agent/AgentAnswer";
 import { AgentToolRun } from "./agent/AgentToolRun";
 import { AgentTrace } from "./agent/AgentTrace";
 import { AgentWorking } from "./agent/AgentWorking";
-import { CheckIcon, ChevronDownIcon, CopyIcon, ListChecksIcon, PencilIcon, RefreshIcon } from "./icons";
+import { CheckIcon, ChevronDownIcon, ChevronRightIcon, CoinsIcon, CopyIcon, ListChecksIcon, PencilIcon, RefreshIcon, TimerIcon, ZapIcon } from "./icons";
 import { t, tf, useLocale } from "../lib/i18n";
 import { cn } from "../lib/cn";
 
@@ -95,12 +95,11 @@ export function MessageThread({
   return (
     <div
       className={cn(
-        /* the turn block carries px-6 inside the column while the composer
-           dock insets px-4 — ZCode's exact pairing, which leaves the prompt
-           shell overhanging the text block by 8px on both edges. The column
-           itself is ZCode's responsive measure, not a fixed width. */
+        /* px-4, the composer's inset: prompt cards and the prompt shell share
+           both edges. Everything a turn produces sits a further px-3.5 in, on
+           the same line as the text inside the prompt card (baocode). */
         CONVERSATION_COLUMN,
-        "flex flex-col gap-8 px-6",
+        "flex flex-col gap-8",
       )}
     >
 
@@ -122,40 +121,26 @@ export function MessageThread({
         <section
           key={turn.key}
           data-turn={turn.key}
-          className="group/turn flex scroll-mt-4 flex-col gap-3"
+          className="group/turn flex scroll-mt-4 flex-col gap-3.5"
           style={globalIndex >= turns.length - 3 ? stagger(0) : undefined}
         >
           {turn.boundary ? <TurnBoundary text={turn.boundary} /> : null}
 
           {turn.prompt ? (
-            <div className="group/prompt flex items-center justify-end gap-1.5">
-              {/* hover affordances, Cursor-style: edit drops the text back
-                  into the composer, retry restarts the turn */}
-              <div className="flex items-center gap-0.5">
-                {onEditPrompt ? (
-                  <button
-                    type="button"
-                    title={t("Edit this prompt")}
-                    aria-label={t("Edit this prompt")}
-                    onClick={() => onEditPrompt(turn.prompt ?? "", turn.userIndex)}
-                    className="pressable flex size-5.5 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
-                  >
-                    <PencilIcon size={12} />
-                  </button>
-                ) : null}
-                {onFork ? (
-                  <button
-                    type="button"
-                    title="Retry from here"
-                    aria-label="Retry from here"
-                    onClick={() => onFork(turn.userIndex)}
-                    className="pressable flex size-5.5 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
-                  >
-                    <RefreshIcon size={12} />
-                  </button>
-                ) : null}
-              </div>
-              <PromptBubble text={turn.prompt} />
+            /* The prompt is a full-width card that sticks to the top while its
+               turn scrolls past (baocode's "sticky" style): you always see what
+               the text under it answers. The wrapper paints the page colour
+               above the card so prose never shows through the gap. It is sticky
+               inside its own <section>, so the next prompt pushes it away. */
+            /* -top-3 cancels the scroller's pt-3: Chrome sticks to the
+               padding edge, which left a band of prose showing above the
+               card. Stuck, the mask starts at the very top. */
+            <div className="sticky -top-3 z-10 -mt-3 bg-page pt-3">
+              <PromptCard
+                text={turn.prompt}
+                onEdit={onEditPrompt ? () => onEditPrompt(turn.prompt ?? "", turn.userIndex) : undefined}
+                onRetry={onFork ? () => onFork(turn.userIndex) : undefined}
+              />
             </div>
           ) : null}
 
@@ -172,25 +157,32 @@ export function MessageThread({
             </div>
           ))}
 
-          <TurnItems turn={turn} onFork={onFork} live={isLive} />
+          {/* every row that is not the prompt sits 8px in (baocode's
+              UserMessageBubble.radius inset) */}
+          <div className="flex flex-col gap-2.5 px-2">
+            <TurnItems turn={turn} onFork={onFork} live={isLive} />
 
-          {/* the gap line — only the beat the transcript itself cannot show */}
-          {isLive && liveStatusLabel(turn, isLive) ? <AgentWorking label={liveStatusLabel(turn, isLive)!} /> : null}
+            {/* the gap line — only the beat the transcript itself cannot show */}
+            {isLive && liveStatusLabel(turn, isLive) ? <AgentWorking label={liveStatusLabel(turn, isLive)!} /> : null}
 
-          {/* the completion line, Cursor-style: duration and cost on the left,
-              copy / retry affordances and the timestamp on the right */}
-          {!isLive && turn.fullText.trim() ? (
-            <TurnFooter
-              turn={turn}
-              onFork={onFork}
-              stopped={Boolean(stopped) && globalIndex === turns.length - 1}
-            />
-          ) : null}
+            {/* the completion line: shown on hover only, except "Stopped" */}
+            {!isLive && turn.fullText.trim() ? (
+              <TurnFooter
+                turn={turn}
+                onFork={onFork}
+                stopped={Boolean(stopped) && globalIndex === turns.length - 1}
+              />
+            ) : null}
+          </div>
         </section>
         );
       })}
 
-      {awaitingFirstToken ? <AgentWorking /> : null}
+      {awaitingFirstToken ? (
+        <div className="px-2">
+          <AgentWorking />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -234,43 +226,72 @@ function plainBoundary(text: string): string {
 }
 
 /**
- * The user's message.
+ * The user's message: a full-width card, the composer's width and edges.
  *
- * Pasted logs and long prompts used to push the whole turn off screen, so the
- * bubble now clamps to about eight lines; the footer says how much is hidden
- * and one click opens it. (`whitespace-pre-wrap` also keeps the line breaks
- * the user typed — they used to collapse into a single paragraph.)
+ * Long prompts clamp to four lines (the card is sticky, so a pasted log must
+ * not cover the screen); one click opens the rest. `whitespace-pre-wrap` keeps
+ * the user's own line breaks. Edit and retry appear on hover, in the corner.
  */
-function PromptBubble({ text }: { text: string }) {
+function PromptCard({ text, onEdit, onRetry }: { text: string; onEdit?: () => void; onRetry?: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const lines = text.split("\n").length;
-  const long = lines > 8 || text.length > 520;
+  /* taller than four lines, it folds to three (baocode: 4 × 20.25 → 60.75) */
+  const long = lines > 4 || text.length > 320;
 
   return (
-    <div className="relative max-w-[520px] overflow-hidden rounded-card bg-field px-3.5 py-2 text-ui-base leading-5 text-ink shadow-hairline">
-      <div className={cn("whitespace-pre-wrap break-words", !expanded && long && "max-h-[152px] overflow-hidden")}>
+    /* baocode's sticky prompt: the composer's fill and 1px border, radius 8,
+       padding 12 / 10 / 12 / 11, 13.5px at 1.5 */
+    <div className="group/prompt relative overflow-hidden rounded-card border border-line-strong bg-field px-3 pt-2.5 pb-[11px] text-ui-base leading-[1.5] text-ink">
+      <div
+        className={cn(
+          "scrollbar-thin whitespace-pre-wrap break-words pr-12",
+          long && !expanded && "max-h-[61px] overflow-hidden [mask-image:linear-gradient(to_bottom,black_calc(100%-44px),transparent_calc(100%-10px))]",
+          long && expanded && "max-h-[40vh] overflow-y-auto",
+        )}
+      >
         {text}
       </div>
 
       {long ? (
-        <>
-          {!expanded ? (
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-field to-transparent"
-            />
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          aria-label={expanded ? t("Show less") : tf("Show the full message ({count} lines)", { count: lines })}
+          title={expanded ? t("Show less") : tf("Show the full message ({count} lines)", { count: lines })}
+          className={cn(
+            "pressable flex w-full justify-center text-ink-2 hover:text-ink",
+            expanded ? "mt-1" : "absolute inset-x-0 bottom-0.5",
+          )}
+        >
+          <ChevronDownIcon size={18} className={cn("transition-transform duration-150", expanded && "rotate-180")} />
+        </button>
+      ) : null}
+
+      {onEdit || onRetry ? (
+        <div className="absolute top-2 right-2 flex items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover/prompt:opacity-100 focus-within:opacity-100">
+          {onEdit ? (
+            <button
+              type="button"
+              title={t("Edit this prompt")}
+              aria-label={t("Edit this prompt")}
+              onClick={onEdit}
+              className="pressable flex size-6 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
+            >
+              <PencilIcon size={12} />
+            </button>
           ) : null}
-          <button
-            type="button"
-            onClick={() => setExpanded((value) => !value)}
-            className={cn(
-              "pressable relative mt-1 flex w-full items-center justify-center gap-1 rounded-chip py-0.5 text-ui-sm text-ink-3 hover:text-ink",
-              !expanded && "absolute inset-x-0 bottom-0 pt-3",
-            )}
-          >
-            {expanded ? t("Show less") : tf("Show the full message ({count} lines)", { count: lines })}
-          </button>
-        </>
+          {onRetry ? (
+            <button
+              type="button"
+              title={t("Retry from here")}
+              aria-label={t("Retry from here")}
+              onClick={onRetry}
+              className="pressable flex size-6 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
+            >
+              <RefreshIcon size={12} />
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
@@ -299,61 +320,66 @@ function TurnFooter({
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1200);
   };
-  const long = turn.endedAt > turn.timestamp + 5000;
+  const ms = turn.endedAt - turn.timestamp;
+  const usage = turn.usage;
+  const speed = usage && usage.output > 0 && ms > 1000 ? usage.output / (ms / 1000) : 0;
   return (
-    <div className="group/footer flex items-center gap-2 pt-0.5 text-ui-sm text-ink-3">
+    /* baocode's TurnFooter: always shown under a finished turn — copy, then
+       the stats as lucide 12 + 12px faint text, 12 apart (turn_footer.dart) */
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1.5 text-ui-meta text-ink-4 tabular-nums">
+      <button
+        type="button"
+        title={copied ? t("Copied") : t("Copy answer")}
+        aria-label={t("Copy answer")}
+        onClick={copy}
+        className={cn(
+          "pressable -ml-[3px] flex items-center justify-center rounded-[4px] p-[3px] hover:bg-hover hover:text-ink",
+          copied && "text-ink",
+        )}
+      >
+        {copied ? <CheckIcon size={13} /> : <CopyIcon size={13} />}
+      </button>
       {stopped ? (
-        <span className="flex items-center gap-1.5">
-          <span className="size-2 rounded-[2px] bg-ink-3" />
-          <span>{t("Stopped")}</span>
+        <span className="flex items-center gap-1">
+          <span className="size-2 rounded-[2px] bg-ink-4" />
+          {t("Stopped")}
         </span>
-      ) : long ? (
-        <>
-          <CheckIcon size={11} className="text-green" />
-          <span>{tf("Worked for {duration}", { duration: formatDuration(turn.endedAt - turn.timestamp) })}</span>
-        </>
-      ) : null}
-      {turn.usage && turn.usage.total > 0 ? (
-        <span className="font-mono tabular-nums">
-          {long ? "· " : ""}
-          {turn.usage.total >= 1000 ? `${(turn.usage.total / 1000).toFixed(1)}k` : turn.usage.total} tokens
-          {turn.usage.cacheRead
-            ? ` (${Math.round(cacheHitRate(turn.usage) * 100)}% ${t("cached")})`
-            : ""}
-          {turn.usage.cost ? ` · $${turn.usage.cost.toFixed(4)}` : ""}
-          {/* output speed, the other half of "how did that feel" — only worth
-              showing once the answer ran long enough to have a real rate */}
-          {long && turn.usage.output > 0 && turn.endedAt > turn.timestamp
-            ? ` · ${(turn.usage.output / ((turn.endedAt - turn.timestamp) / 1000)).toFixed(0)} tok/s`
-            : ""}
+      ) : ms > 0 ? (
+        <span className="flex items-center gap-1" title={t("Duration")}>
+          <TimerIcon size={12} />
+          {formatDuration(ms)}
         </span>
       ) : null}
-      <span className="flex-1" />
-      {/* persistent, mute actions — Cursor keeps them visible on every turn
-          rather than hiding them behind hover */}
-      <span className="flex items-center gap-0.5">
+      {speed ? (
+        <span className="flex items-center gap-1" title={t("Output speed")}>
+          <ZapIcon size={12} />
+          {tf("{count} tok/s", { count: Math.round(speed) })}
+        </span>
+      ) : null}
+      {usage?.cost ? (
+        <span className="flex items-center gap-1" title={t("Cost")}>
+          <CoinsIcon size={12} />${usage.cost.toFixed(4)}
+        </span>
+      ) : null}
+      {usage && usage.total > 0 ? (
+        <span
+          className="flex items-center gap-1"
+          title={usage.cacheRead ? tf("{percent}% cached", { percent: Math.round(cacheHitRate(usage) * 100) }) : undefined}
+        >
+          {usage.total >= 1000 ? `${(usage.total / 1000).toFixed(1)}k` : usage.total} tokens
+        </span>
+      ) : null}
+      {onFork ? (
         <button
           type="button"
-          title={copied ? t("Copied") : t("Copy answer")}
-          aria-label={t("Copy answer")}
-          onClick={copy}
-          className="pressable flex size-5.5 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
+          title={t("Retry from here")}
+          aria-label={t("Retry from here")}
+          onClick={() => onFork(turn.userIndex)}
+          className="pressable flex items-center justify-center rounded-[4px] p-[3px] opacity-0 group-hover/turn:opacity-100 hover:bg-hover hover:text-ink focus-visible:opacity-100"
         >
-          {copied ? <CheckIcon size={12} className="text-green" /> : <CopyIcon size={12} />}
+          <RefreshIcon size={13} />
         </button>
-        {onFork ? (
-          <button
-            type="button"
-            title={t("Retry from here")}
-            aria-label={t("Retry from here")}
-            onClick={() => onFork(turn.userIndex)}
-            className="pressable flex size-5.5 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
-          >
-            <RefreshIcon size={12} />
-          </button>
-        ) : null}
-      </span>
-      <span className="shrink-0 tabular-nums">{relativeTime(new Date(turn.timestamp).toISOString())}</span>
+      ) : null}
     </div>
   );
 }
@@ -414,13 +440,29 @@ const TurnItems = memo(function TurnItems({
 });
 
 /**
+ * One clause of the run summary — "Read 2 files" — with the number set bold,
+ * the way baocode writes it. The template is translated whole (word order
+ * differs between languages) and split on `{count}`.
+ */
+function Clause({ one, many, count, first }: { one: string; many: string; count: number; first: boolean }) {
+  const translated = t(count === 1 ? one : many);
+  const [before, after] = (first ? capitalise(translated) : translated).split("{count}");
+  return (
+    <>
+      {before}
+      <span className="font-semibold text-ink">{count}</span>
+      {after}
+    </>
+  );
+}
+
+/**
  * The settled run, folded into one row.
  *
- * The collapsed row tallies the work by kind — reads, searches, terminals,
- * edits, thinking beats — ZCode's own buckets, which keep a terminal and an
- * edit distinct even when one turn fires several. Expanding lays the segment
- * back out in production order with every beat and every call as its own row:
- * nothing merges on the way out, each row opens its own detail on click.
+ * It reads as a sentence, baocode's "Read 2 files, ran 1 command · thought 2s":
+ * the tallies by kind (reads, searches, edits, terminals, anything else), then
+ * how long the model spent thinking. Expanding lays the segment back out in
+ * production order, one row per beat and per call.
  */
 const TurnRunSummary = memo(function TurnRunSummary({ turn }: { turn: TurnView }) {
   const [open, setOpen] = useState(false);
@@ -428,14 +470,17 @@ const TurnRunSummary = memo(function TurnRunSummary({ turn }: { turn: TurnView }
   const work = turn.items.filter((item) => item.kind !== "text");
   const runs = work.flatMap((item) => (item.kind === "tools" ? item.runs : []));
   const tally = summarizeWork(runs);
-  const thinking = work.filter((item) => item.kind === "thinking").length;
+  const other = tally.calls - tally.reads - tally.searches - tally.edits - tally.commands;
+  const thoughtMs = work.reduce((sum, item) => sum + (item.kind === "thinking" ? (item.durationMs ?? 0) : 0), 0);
 
-  const parts: string[] = [];
-  if (tally.reads) parts.push(tf("{count} reads", { count: tally.reads }));
-  if (tally.searches) parts.push(tf("{count} searches", { count: tally.searches }));
-  if (tally.edits) parts.push(tf("{count} edits", { count: tally.edits }));
-  if (tally.commands) parts.push(tf("{count} terminals", { count: tally.commands }));
-  if (thinking) parts.push(tf("{count} thinking", { count: thinking }));
+  const clauses: Array<{ key: string; one: string; many: string; count: number }> = [];
+  if (tally.reads) clauses.push({ key: "r", one: "read {count} file", many: "read {count} files", count: tally.reads });
+  if (tally.searches)
+    clauses.push({ key: "s", one: "searched {count} time", many: "searched {count} times", count: tally.searches });
+  if (tally.edits) clauses.push({ key: "e", one: "edited {count} file", many: "edited {count} files", count: tally.edits });
+  if (tally.commands)
+    clauses.push({ key: "c", one: "ran {count} command", many: "ran {count} commands", count: tally.commands });
+  if (other > 0) clauses.push({ key: "o", one: "used {count} tool", many: "used {count} tools", count: other });
 
   if (open) {
     return (
@@ -463,14 +508,31 @@ const TurnRunSummary = memo(function TurnRunSummary({ turn }: { turn: TurnView }
     <button
       type="button"
       onClick={() => setOpen(true)}
-      className="pressable -mx-1.5 flex w-fit items-center gap-1.5 rounded-chip px-1.5 py-1 text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
-      style={{ animation: "pop-in 260ms var(--ease-out-strong-css) both" }}
+      /* fold_line.dart: 13px muted, counts in ink w600, "· thought" faint;
+         the chevron after it on hover only */
+      className="group/run pressable flex w-fit max-w-full items-center gap-0.5 py-[3px] text-left text-ui-step text-ink-2"
+      style={{ animation: "fade-in 260ms ease-out both" }}
     >
-      <CheckIcon size={11} className="shrink-0 text-ink-3" />
-      <span className="font-medium text-ink-2">{t("Ran")}</span>
-      {parts.length ? <span className="truncate">{parts.join(" · ")}</span> : null}
-      <span className="shrink-0 font-mono text-ui-xs tabular-nums">{tally.calls}</span>
-      <ChevronDownIcon size={11} className="shrink-0" />
+      <span className="min-w-0 truncate">
+        {clauses.length
+          ? clauses.map((clause, index) => (
+              <span key={clause.key}>
+                {index ? t(", ") : ""}
+                <Clause one={clause.one} many={clause.many} count={clause.count} first={index === 0} />
+              </span>
+            ))
+          : t("Thought")}
+        {thoughtMs >= 1000 && clauses.length ? (
+          <span className="text-ink-4"> · {tf("thought {duration}", { duration: formatDuration(thoughtMs) })}</span>
+        ) : null}
+      </span>
+      <ChevronRightIcon size={16} className="shrink-0 text-ink opacity-0 transition-opacity duration-150 group-hover/run:opacity-100" />
     </button>
   );
 });
+
+/** The first clause starts the sentence; the templates are lower-case, so
+ *  English needs its first letter raised after translation. CJK is unchanged. */
+function capitalise(template: string): string {
+  return template.charAt(0).toUpperCase() + template.slice(1);
+}

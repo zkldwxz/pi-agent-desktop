@@ -176,6 +176,7 @@ export const ToolDock = memo(function ToolDock({
   onFleetInterrupt,
   /** quote lines from the viewer into the composer */
   onAddToChat,
+  windowControls,
 }: {
   state: HostState;
   open: boolean;
@@ -199,6 +200,9 @@ export const ToolDock = memo(function ToolDock({
   onPlanAction: (action: PlanAction) => void;
   onFleetInterrupt: (name?: string) => void;
   onAddToChat?: (text: string) => void;
+  /** off macOS, the window's buttons: they end this card's header while it is
+   *  the rightmost one */
+  windowControls?: ReactNode;
 }) {
   // (the memo is what keeps a streaming answer from re-rendering this subtree
   // on every token — its inputs are deferred by the app)
@@ -312,9 +316,11 @@ export const ToolDock = memo(function ToolDock({
          animating the width the way it used to meant every row inside re-wrapped
          on every frame of the slide, which is the wobble that made the close feel
          wrong. The outer element owns the width, the inner one owns the fade. */
-      className={cn("relative flex h-full shrink-0 flex-col", open ? "pr-[4px] pb-[4px]" : null)}
+      /* an island beside the conversation's: 6px apart (the parent row
+         carries the window-edge gaps) */
+      className={cn("relative flex h-full shrink-0 flex-col", open ? "pl-1.5" : null)}
       style={{
-        width: open ? width + 4 : 0,
+        width: open ? width + 6 : 0,
         /* 200ms on Tailwind's own `ease-out` (0, 0, 0.2, 1) — the reference's
            slide. The old 280ms on `--ease-link-css` spent most of its travel in
            the first 80ms and then crawled, which read as a stutter rather than
@@ -324,7 +330,7 @@ export const ToolDock = memo(function ToolDock({
     >
       <div
         className={cn(
-          "flex min-h-0 flex-1 flex-col overflow-hidden rounded-card bg-canvas shadow-hairline",
+          "flex min-h-0 flex-1 flex-col overflow-hidden rounded-window border border-line bg-page",
           !open && "pointer-events-none",
         )}
         style={{
@@ -344,12 +350,14 @@ export const ToolDock = memo(function ToolDock({
                   and below a 28px chip is what makes the row read as a bar
                   rather than as icons floating in the frame. px values, because
                   `size-7` is 24.5px under this app's 14px root. */}
-              <header className="flex h-[48px] shrink-0 items-center gap-[4px] border-b border-line px-[8px]">
+              {/* the card's header, as high as the conversation card's (30) so
+                  the two rows run on one line across the window */}
+              <header className="titlebar-drag flex h-[30px] shrink-0 items-center gap-0.5 px-1.5">
                 <button
                   type="button"
                   title={t("All tools")}
                   onClick={() => onTool(null)}
-                  className="pressable flex size-[28px] items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
+                  className="titlebar-no-drag pressable flex size-6 items-center justify-center rounded-[5px] text-ink-2 hover:bg-hover hover:text-ink"
                 >
                   <GaugeIcon size={14} />
                 </button>
@@ -363,13 +371,19 @@ export const ToolDock = memo(function ToolDock({
                     onClick={() => pick(entry)}
                     style={{ animation: `row-enter 240ms var(--ease-out-strong-css) ${index * 25}ms both` }}
                     className={cn(
-                      "pressable flex size-[28px] items-center justify-center rounded-chip",
-                      activeTool === entry ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
+                      "titlebar-no-drag pressable flex size-6 items-center justify-center rounded-[5px]",
+                      activeTool === entry ? "bg-hover-2 text-ink" : "text-ink-2 hover:bg-hover hover:text-ink",
                     )}
                   >
                     {TOOL_ICON[entry](14)}
                   </button>
                 ))}
+                {windowControls ? (
+                  <>
+                    <span className="flex-1" />
+                    {windowControls}
+                  </>
+                ) : null}
               </header>
 
               <div key={activeTool} className="view-enter flex min-h-0 flex-1 flex-col">

@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { ChatMessage, HostState, PlanAction, PluginInfo, ToolActivity, UsageStats } from "@shared/types";
 import { MessageThread } from "./components/MessageThread";
-import { TitleBar } from "./components/TitleBar";
+import { TitleBar, TRAFFIC_LIGHTS_WIDTH, WindowControls } from "./components/TitleBar";
 import { AgentComposer } from "./components/agent/AgentComposer";
 import { AgentSidebar, type SidebarView } from "./components/agent/AgentSidebar";
 import { FolderPicker } from "./components/agent/FolderPicker";
@@ -9,7 +9,8 @@ import { HOME_STEPS, Reveal, SuggestionRail } from "./components/agent/HomeRevea
 import { TerminalPanel } from "./components/panel/TerminalPanel";
 import type { FileEntry } from "@shared/workspace";
 import { cn } from "./lib/cn";
-import { AlertIcon, GaugeIcon, ListChecksIcon, LoaderIcon, MessageIcon, TerminalIcon, XIcon } from "./components/icons";
+import { CONVERSATION_COLUMN } from "./lib/agent-view";
+import { AlertIcon, GaugeIcon, ListChecksIcon, LoaderIcon, MessageIcon, PanelLeftIcon, TerminalIcon, XIcon } from "./components/icons";
 import { Skeleton } from "./components/ui";
 import { playDoneChime } from "./lib/sound";
 import { t, tf, useLocale } from "./lib/i18n";
@@ -100,6 +101,12 @@ export function App() {
   const theme = useTheme();
   const { dark, frozen: themeFrozen } = theme;
   const [view, setView] = useState<MainView>("chat");
+  /** where Settings opens: General, unless a shortcut asked for a category */
+  const [settingsCategory, setSettingsCategory] = useState<"models" | undefined>(undefined);
+  /* a shortcut's category holds for that one visit; the gear opens General */
+  useEffect(() => {
+    if (view !== "settings") setSettingsCategory(undefined);
+  }, [view]);
   const [state, setState] = useState<HostState>(emptyState);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [tools, setTools] = useState<ToolActivity[]>([]);
@@ -386,32 +393,9 @@ export function App() {
       .catch(() => undefined);
   }, []);
 
-  /* a plan was just written, or a session with a live plan was opened: the
-   * panel that holds it comes up, because that plan is what the next decision
-   * is about. Keyed on the file so re-renders do not fight the user's clicks. */
-  const shownPlanRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    const path = state.plan.path;
-    if (!path || path === shownPlanRef.current) return;
-    shownPlanRef.current = path;
-    if (state.plan.phase !== "review" && state.plan.phase !== "executing") return;
-    setDockTool("plan");
-    setDockOpen(true);
-  }, [state.plan.path, state.plan.phase]);
-
-  /* the fleet panel follows the same rule as the plan's: it arrives with the
-     thing it shows. The first spawn of a wave opens the dock on it — but only
-     if the user has not already picked a panel for themselves */
-  const fleetOpenedRef = useRef(false);
-  useEffect(() => {
-    const active = state.fleet.length > 0;
-    if (active && !fleetOpenedRef.current && dockTool !== "agents") {
-      fleetOpenedRef.current = true;
-      setDockTool("agents");
-      setDockOpen(true);
-    }
-    if (!active) fleetOpenedRef.current = false;
-  }, [state.fleet.length, dockTool]);
+  /* nothing pulls the dock open on its own — not sub-agents, not a plan
+     waiting for review: the right pane stays closed unless asked for. The
+     composer's plan chip and the header's dock toggle are the ways in. */
 
   // warm the docked browser's chunk — first open then skips the lazy fetch
   useEffect(() => {
@@ -812,6 +796,21 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, [emptySession]);
 
+  /* the sidebar stands down for Settings (its own rail) and when collapsed */
+  const sidebarShown = view !== "settings" && !sidebarCollapsed;
+
+  /* what the header names: the conversation in the chat, the page elsewhere */
+  const headerTitle =
+    view === "chat"
+      ? state.snapshot?.sessionName?.trim() ||
+        messages.find((message) => message.role === "user")?.text.split("\n")[0]?.trim() ||
+        t("New session")
+      : view === "settings"
+        ? t("Settings")
+        : view === "customize"
+          ? t("Customize")
+          : "";
+
   // Every hook above this line: the onboarding gate below returns early, and a
   // hook declared after an early return changes the hook count between renders.
   if (onboarded === false) {
@@ -891,15 +890,20 @@ function terminalCommand(tool: ToolActivity): string {
       onSetThinking={(level) => void reportFailure(() => window.pi.setThinking(level))}
       onAbort={() => void window.pi.abort()}
       onSetModel={(provider, modelId) => void reportFailure(() => window.pi.setModel(provider, modelId))}
+      onManageModels={() => {
+        setSettingsCategory("models");
+        setView("settings");
+      }}
       onPlanAction={planAction}
-      runningTerminal={
-        runningTerminals.length
-          ? {
-              count: runningTerminals.length,
-              title: runningTerminals.map(terminalCommand).join("\n"),
-            }
-          : null
-      }
+      onOpenPlan={() => {
+        setDockTool("plan");
+        setDockOpen(true);
+      }}
+      runningTasks={runningTerminals.map((tool) => ({
+        id: tool.toolCallId,
+        command: terminalCommand(tool),
+        startedAt: tool.startedAt,
+      }))}
       onOpenTerminal={() => {
         setDockTool("terminal");
         setDockOpen(true);
@@ -909,89 +913,120 @@ function terminalCommand(tool: ToolActivity): string {
   );
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-page text-ink">
-      <TitleBar />
-
-      {/* the working controls live on their own strip below the title bar —
-          they are tools, not window chrome, so they do not sit with the
-          close/minimize buttons. The terminal button only opens the dock's
-          terminal: that is the one terminal the shell has. */}
-      <div className="relative flex h-10 shrink-0 items-center justify-end gap-1 border-b border-line bg-canvas px-3">
-        {/* macOS has no title bar of its own now, so this row is what you drag
-            the window by — up to where the working controls start on the right. */}
-        {IS_MAC ? <div aria-hidden className="titlebar-drag absolute inset-y-0 right-64 left-0" /> : null}
-        <FolderOpener
-          cwd={state.cwd}
-          onBrowse={() => {
-            setDockTool("file");
-            setDockOpen(true);
+    /* baocode's agents window: the window is the sidebar's colour, the sidebar
+       sits on it bare, and each working part is an island — a card of the page
+       colour, radius 12, a 1px outline, 6px from the window's edges and from
+       each other (lib/workspace/islands.dart). */
+    <div className="flex h-screen overflow-hidden bg-canvas text-ink">
+      {/* Settings brings its own rail; a collapsed sidebar is gone entirely and
+          its toggle moves into the card's header, beside the traffic lights. */}
+      {sidebarShown ? (
+        <AgentSidebar
+          state={state}
+          view={view === "browser" ? "chat" : view}
+          onView={setView}
+          onNew={() => void window.pi.newSession()}
+          onSelect={(path) => {
+            setView("chat");
+            // the transcript shows a skeleton until this session lands —
+            // leaving the old conversation up felt like a misclick
+            setPendingSession(path);
+            void window.pi.switchSession(path);
           }}
+          onSearch={() => setPaletteOpen(true)}
+          userName={userName}
+          onNewInWorkspace={(cwd) => {
+            setView("chat");
+            void (async () => {
+              await window.pi.setCwd(cwd);
+              await window.pi.newSession();
+            })().catch(() => undefined);
+          }}
+          collapsed={false}
+          onCollapsedChange={setSidebarCollapsed}
         />
-        <button
-          type="button"
-          aria-label={t("Task monitor")}
-          title={t("Task monitor")}
-          aria-pressed={monitorOpen}
-          onClick={() => setMonitorOpen((value) => !value)}
-          className={cn(
-            "pressable flex size-7 items-center justify-center rounded-chip",
-            monitorOpen ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
-          )}
-        >
-          <ListChecksIcon size={14} />
-        </button>
-        <button
-          type="button"
-          aria-label={t("Terminal")}
-          title={t("Terminal")}
-          onClick={() => {
-            setDockTool((current) => (dockOpen && current === "terminal" ? null : "terminal"));
-            setDockOpen(true);
-          }}
-          className={cn(
-            "pressable flex size-7 items-center justify-center rounded-chip",
-            dockOpen && dockTool === "terminal" ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
-          )}
-        >
-          <TerminalIcon size={14} />
-        </button>
-        <DockToggle open={dockOpen} onToggle={() => setDockOpen((value) => !value)} />
-      </div>
-      <div className="relative flex min-h-0 flex-1">
-        {/* No icon rail: the sidebar's own rows are the navigation, so Views are
-            the three panes rather than five icon targets. Browser and Usage open
-            from inside Customize and Settings. */}
-        {/* Settings is the exception: it brings its own left rail (the category
-            list), so the session pane stands down rather than the app opening a
-            small settings panel inside the agent shell. */}
-        {view === "settings" ? null : (
-          <AgentSidebar
-            state={state}
-            view={view === "browser" ? "chat" : view}
-            onView={setView}
-            onNew={() => void window.pi.newSession()}
-            onSelect={(path) => {
-              setView("chat");
-              // the transcript shows a skeleton until this session lands —
-              // leaving the old conversation up felt like a misclick
-              setPendingSession(path);
-              void window.pi.switchSession(path);
-            }}
-            onSearch={() => setPaletteOpen(true)}
-            userName={userName}
-            onNewInWorkspace={(cwd) => {
-              setView("chat");
-              void (async () => {
-                await window.pi.setCwd(cwd);
-                await window.pi.newSession();
-              })().catch(() => undefined);
-            }}
-            collapsed={sidebarCollapsed}
-            onCollapsedChange={setSidebarCollapsed}
-          />
-        )}
-
-        <main className="flex min-w-0 flex-1 flex-col bg-page">
+      ) : null}
+      <div className={cn("relative flex min-w-0 flex-1 py-1.5 pr-1.5", sidebarShown ? "" : "pl-1.5")}>
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-window border border-line bg-page">
+          {/* The card's header (ChatScreen.cardHeaderHeight, 30): the title and
+              the actions keep to the conversation column, as baocode lays them;
+              the traffic lights' room and the sidebar toggle sit at its left
+              only while the sidebar is away. Off macOS the window buttons end
+              the row when nothing is open beside the card. */}
+          <header className="titlebar-drag relative flex h-[30px] shrink-0 items-center">
+            {sidebarShown ? null : (
+              <div className="absolute inset-y-0 left-0 flex items-center pl-2">
+                {TRAFFIC_LIGHTS_WIDTH ? <div aria-hidden className="shrink-0" style={{ width: TRAFFIC_LIGHTS_WIDTH - 8 }} /> : null}
+                {view === "settings" ? null : (
+                  <button
+                    type="button"
+                    aria-label={t("Expand sidebar")}
+                    title={t("Expand sidebar")}
+                    onClick={() => setSidebarCollapsed(false)}
+                    className="titlebar-no-drag pressable flex size-6 shrink-0 items-center justify-center rounded-[5px] text-ink-2 hover:bg-hover hover:text-ink"
+                  >
+                    <span className="codicon codicon-layout-sidebar-left text-[16px]" aria-hidden />
+                  </button>
+                )}
+              </div>
+            )}
+            <div
+              className="flex h-full min-w-0 flex-1 items-center"
+              style={{
+                paddingLeft: sidebarShown ? 29 : TRAFFIC_LIGHTS_WIDTH + 34,
+                paddingRight: !dockOpen && !IS_MAC ? 100 : 29,
+              }}
+            >
+              <div className={cn("flex min-w-0 items-center gap-1", view === "chat" ? CONVERSATION_COLUMN : "w-full")}>
+                <div className="min-w-0 flex-1 truncate text-ui-caption font-medium text-ink-2">
+                  {headerTitle}
+                </div>
+                <div className="titlebar-no-drag flex shrink-0 items-center gap-0.5">
+                  <FolderOpener
+                    cwd={state.cwd}
+                    onBrowse={() => {
+                      setDockTool("file");
+                      setDockOpen(true);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    aria-label={t("Task monitor")}
+                    title={t("Task monitor")}
+                    aria-pressed={monitorOpen}
+                    onClick={() => setMonitorOpen((value) => !value)}
+                    className={cn(
+                      "pressable flex size-6 items-center justify-center rounded-[5px]",
+                      monitorOpen ? "bg-hover-2 text-ink" : "text-ink-2 hover:bg-hover hover:text-ink",
+                    )}
+                  >
+                    <ListChecksIcon size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={t("Terminal")}
+                    title={t("Terminal")}
+                    onClick={() => {
+                      setDockTool((current) => (dockOpen && current === "terminal" ? null : "terminal"));
+                      setDockOpen(true);
+                    }}
+                    className={cn(
+                      "pressable flex size-6 items-center justify-center rounded-[5px]",
+                      dockOpen && dockTool === "terminal" ? "bg-hover-2 text-ink" : "text-ink-2 hover:bg-hover hover:text-ink",
+                    )}
+                  >
+                    <TerminalIcon size={15} />
+                  </button>
+                  <DockToggle open={dockOpen} onToggle={() => setDockOpen((value) => !value)} />
+                </div>
+              </div>
+            </div>
+            {!dockOpen ? (
+              <div className="absolute inset-y-0 right-1.5 flex items-center">
+                <WindowControls />
+              </div>
+            ) : null}
+          </header>
           <div key={view} className="view-enter flex min-h-0 flex-1 flex-col">
             <Suspense fallback={<ViewSkeleton />}>
             {view === "browser" ? (
@@ -1023,17 +1058,11 @@ function terminalCommand(tool: ToolActivity): string {
             {view === "chat" ? (
               <div className="relative flex min-h-0 flex-1">
               {/* the conversation container: thread, queue and composer all
-                  measure against it, so ZCode's off-centre shift applies and
-                  unwinds itself when the dock or monitor takes width */}
+                  measure against it */}
               <div
                 ref={columnRef}
                 className="@container/conversation relative flex min-w-0 flex-1 flex-col"
                 style={{
-                  /* the lean only makes sense while a right-hand panel actually
-                     claims width; with every dock closed the container spans the
-                     window and the column must sit dead-centre instead of the
-                     stale off-centre shift */
-                  "--conversation-lean": dockOpen || monitorOpen || browserDockOpen ? "-11rem" : "0rem",
                   ...(lockedColumnWidth === null ? {} : { width: lockedColumnWidth, flex: "0 0 auto" }),
                 } as React.CSSProperties}
               >
@@ -1096,7 +1125,10 @@ function terminalCommand(tool: ToolActivity): string {
                     key={state.snapshot?.sessionFile ?? "new"}
                     ref={scrollerRef}
                     onScroll={onTranscriptScroll}
-                    className="scrollbar-pill view-enter h-full overflow-y-auto px-6 pt-6 pb-10"
+                    /* baocode's list: 24 gutters, 12 under the title row, 24
+                       at the foot; the top 12px fade into the card's header,
+                       just above where a stuck prompt card rests */
+                    className="scrollbar-pill view-enter h-full overflow-y-auto px-6 pt-3 pb-6 [mask-image:linear-gradient(to_bottom,transparent,black_12px)]"
                   >
                     {pendingSession ? (
                       <TranscriptSkeleton />
@@ -1369,6 +1401,7 @@ function terminalCommand(tool: ToolActivity): string {
             {view === "settings" ? (
               <Suspense fallback={<ViewSkeleton />}>
                 <SettingsView
+                  initialCategory={settingsCategory}
                   state={state}
                   colorMode={theme.mode}
                   onColorMode={theme.setMode}
@@ -1438,6 +1471,7 @@ function terminalCommand(tool: ToolActivity): string {
           onPlanAction={planAction}
           onFleetInterrupt={(name) => void window.pi.fleetInterrupt(name)}
           onAddToChat={addRefToChat}
+          windowControls={dockOpen ? <WindowControls /> : undefined}
         />
       </div>
 

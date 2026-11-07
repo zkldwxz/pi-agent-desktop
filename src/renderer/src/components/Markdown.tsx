@@ -5,7 +5,6 @@ import { cn } from "../lib/cn";
 import { highlightCode } from "../lib/highlight";
 import { t } from "../lib/i18n";
 import { CheckIcon, CopyIcon } from "./icons";
-import CodeBlock from "./beautiful/primitives/CodeBlock";
 
 /* ─────────────────────────────────────────────────────────
  * MARKDOWN
@@ -46,6 +45,80 @@ const REMARK = [remarkGfm];
 const PATH_LIKE = /^[\w.@~-]*[\\/][\w.@\\/-]+\.[\w]+$|^[\w.@~-]+\.[\w]{1,10}(:\d+)?$/;
 
 /** The fence's own text and language, pulled back out of the `pre`'s child. */
+/**
+ * A fenced block inside prose: a quiet tinted panel, no file header, no line
+ * numbers — those belong to the file viewer, where code is the subject. Here it
+ * is part of an answer (baocode's style). The language and copy sit in the
+ * corner and show on hover.
+ */
+export function ChatCode({ lang, text }: { lang: string; text: string }) {
+  const [copied, setCopied] = useState(false);
+  const [folded, setFolded] = useState(false);
+  const plain = !lang || lang === "text" || lang === "txt" || lang === "plaintext";
+  const html = plain ? null : highlightCode(text, lang);
+  const copy = () => {
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  const copyButton = (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        copy();
+      }}
+      title={copied ? t("Copied") : t("Copy")}
+      aria-label={t("Copy")}
+      className={cn(
+        "pressable flex size-[22px] shrink-0 items-center justify-center rounded-[5px] text-ink-2 transition-opacity duration-150 hover:bg-hover hover:text-ink",
+        copied ? "opacity-100" : "opacity-0 group-hover/code:opacity-100 focus-visible:opacity-100",
+      )}
+    >
+      {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
+    </button>
+  );
+  return (
+    /* code_citation.dart: the code fill, a 1px line, radius 8. With a
+       language: a title row (fold, the language at 12 muted, copy) over a
+       1px divider; plain text has only a floating copy. Code is mono 12 /
+       1.5, 8 / 12 in, unwrapped. */
+    <div className="group/code relative my-2 overflow-hidden rounded-card border border-code-border bg-code-block">
+      {plain ? (
+        <div className="absolute top-[5px] right-1.5 rounded-[5px] bg-code-block">{copyButton}</div>
+      ) : (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setFolded((value) => !value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") setFolded((value) => !value);
+          }}
+          className={cn(
+            "flex cursor-pointer items-center gap-0.5 px-1.5 py-0.5 hover:bg-[color-mix(in_srgb,var(--hover)_60%,transparent)]",
+            !folded && "border-b border-code-border",
+          )}
+        >
+          <span className={`codicon codicon-chevron-${folded ? "right" : "down"} text-[14px] text-ink-2`} aria-hidden />
+          <span className="flex-1 text-ui-meta text-ink-2">{lang}</span>
+          {copyButton}
+        </div>
+      )}
+      {folded ? null : (
+        <pre className="hljs scrollbar-thin overflow-x-auto px-3 py-2 font-mono text-ui-meta leading-[1.5] whitespace-pre">
+          {html ? (
+            // eslint-disable-next-line react/no-danger -- highlight.js escapes its input
+            <code dangerouslySetInnerHTML={{ __html: html }} />
+          ) : (
+            <code>{text}</code>
+          )}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 function fenced(children: ReactNode): { lang: string; text: string } {
   const child = Array.isArray(children) ? children[0] : children;
   const props = (child as { props?: { className?: string; children?: unknown } })?.props;
@@ -64,10 +137,10 @@ const InlineCode: NonNullable<Components["code"]> = ({ children, className }) =>
   return (
     <code
       className={cn(
-        "rounded-tiny px-[3px] py-[1px] font-mono text-ui-sm",
+        "rounded-[3px] px-1 py-px font-mono text-ui-caption",
         PATH_LIKE.test(text)
           ? "text-accent-ink hover:underline decoration-accent/40 underline-offset-2"
-          : "bg-inset text-ink-2 shadow-hairline",
+          : "bg-code-inline text-ink",
       )}
     >
       {children}
@@ -130,24 +203,25 @@ function PanelCode({ lang, text }: { lang: string; text: string }) {
 /* ── the transcript ─────────────────────────────────────── */
 
 const threadComponents: Components = {
-  p: ({ children }) => <p className="my-2 text-ui-base leading-[21px] text-ink first:mt-0 last:mb-0">{children}</p>,
+  p: ({ children }) => <p className="my-2 text-ui-base leading-[1.6] text-ink first:mt-0 last:mb-0">{children}</p>,
 
-  h1: ({ children }) => <h3 className="mt-4 mb-2 text-ui-lg font-semibold tracking-[-0.01em] text-ink">{children}</h3>,
-  h2: ({ children }) => <h3 className="mt-4 mb-2 text-ui-lg font-semibold tracking-[-0.01em] text-ink">{children}</h3>,
-  h3: ({ children }) => <h4 className="mt-3 mb-1.5 text-ui-base font-semibold text-ink">{children}</h4>,
-  h4: ({ children }) => <h4 className="mt-3 mb-1.5 text-ui-base font-medium text-ink">{children}</h4>,
+  /* baocode's heading ramp: 19 / 17 / 15 / body, semibold, line-height 1.4 */
+  h1: ({ children }) => <h3 className="mt-3 mb-2 pt-0.5 text-ui-xl leading-[1.4] font-semibold text-ink first:mt-0">{children}</h3>,
+  h2: ({ children }) => <h3 className="mt-3 mb-2 pt-0.5 text-ui-lg leading-[1.4] font-semibold text-ink first:mt-0">{children}</h3>,
+  h3: ({ children }) => <h4 className="mt-3 mb-2 pt-0.5 text-ui-base leading-[1.4] font-semibold text-ink first:mt-0">{children}</h4>,
+  h4: ({ children }) => <h4 className="mt-2 mb-2 pt-0.5 text-ui-base leading-[1.4] font-semibold text-ink first:mt-0">{children}</h4>,
   /* h5 / h6 used to fall through to the browser default — dark grey, 0.83em,
      bold — which read as unstyled next to the mapped levels above. */
   h5: ({ children }) => <h5 className="mt-3 mb-1.5 text-ui-caption font-medium text-ink-2">{children}</h5>,
   h6: ({ children }) => <h6 className="mt-3 mb-1.5 text-ui-caption font-medium tracking-[0.3px] text-ink-3">{children}</h6>,
 
   ul: ({ children, className }) => (
-    <ul className={cn("my-2 flex flex-col gap-1 pl-[18px]", className)} style={{ listStyle: "disc" }}>
+    <ul className={cn("my-2 flex flex-col pl-[18px]", className)} style={{ listStyle: "disc" }}>
       {children}
     </ul>
   ),
   ol: ({ children, className, start }) => (
-    <ol className={cn("my-2 flex flex-col gap-1 pl-[22px]", className)} style={{ listStyle: "decimal" }} start={start}>
+    <ol className={cn("my-2 flex flex-col pl-6", className)} style={{ listStyle: "decimal" }} start={start}>
       {children}
     </ol>
   ),
@@ -156,7 +230,7 @@ const threadComponents: Components = {
     // keeps the item's own attributes so nesting and `start` keep working.
     // `node` is react-markdown's own hast node and must not reach the DOM —
     // spreading it renders `node="[object Object]"` as an attribute.
-    <li className={cn("text-ui-base leading-[21px] text-ink marker:text-ink-3", className)} {...rest}>
+    <li className={cn("pt-0.5 text-ui-base leading-[1.6] text-ink marker:text-ink-2", className)} {...rest}>
       {children}
     </li>
   ),
@@ -189,7 +263,13 @@ const threadComponents: Components = {
   ),
 
   blockquote: ({ children }) => (
-    <blockquote className="my-2 border-l-2 border-line-strong pl-3 text-ui-base italic text-ink-2">{children}</blockquote>
+    /* no italics: CJK has no italic face, and the browser's synthetic slant
+       made quoted Chinese look broken */
+    /* baocode draws a quote as a card (code_citation.dart): the code fill,
+       radius 8, a 1px line, 12 / 8 / 36 / 8, muted text */
+    <blockquote className="my-2 rounded-card border border-code-border bg-code-block py-2 pr-9 pl-3 text-ui-base leading-[1.6] text-ink-2 [&>p]:my-1">
+      {children}
+    </blockquote>
   ),
   hr: () => <hr className="my-3 border-0 border-t border-line" />,
   img: ({ src, alt }) => (
@@ -200,28 +280,26 @@ const threadComponents: Components = {
 
   pre: ({ children }) => {
     // react-markdown hands the fenced block here; pull the raw text back out so
-    // CodeBlock can number it
+    // ChatCode can highlight it in one pass
     const { lang, text } = fenced(children);
     if (!text) return null;
-    return (
-      <div className="my-3">
-        <CodeBlock variant="Code" lines={text.split("\n")} code={text} filename={lang ? `snippet.${lang}` : "snippet"} />
-      </div>
-    );
+    return <ChatCode lang={lang} text={text} />;
   },
 
   table: ({ children }) => (
-    <div className="scrollbar-thin my-3 max-w-full overflow-x-auto rounded-card bg-surface shadow-card">
+    /* shrink-wrapped to its columns, scrolling sideways when wider; radius 8,
+       the outline and the inner lines all chat.requestBorder */
+    <div className="scrollbar-thin my-2 w-fit max-w-full overflow-x-auto rounded-card border border-code-border">
       <table className="w-full border-collapse text-ui-caption">{children}</table>
     </div>
   ),
-  thead: ({ children }) => <thead className="bg-inset">{children}</thead>,
+  thead: ({ children }) => <thead className="bg-canvas">{children}</thead>,
   /* `style` carries GFM's column alignment (`text-align: right` from `---:`), so
      dropping it made every right-aligned number column read as left-aligned. */
   th: ({ children, style }) => (
     <th
       style={style}
-      className="border-b border-line px-3 py-2 text-left text-ui-sm font-medium whitespace-nowrap text-ink-2"
+      className="border-r border-b border-code-border px-2.5 py-[5px] text-left text-ui-caption font-semibold whitespace-nowrap text-ink last:border-r-0"
     >
       {children}
     </th>
@@ -229,7 +307,7 @@ const threadComponents: Components = {
   td: ({ children, style }) => (
     <td
       style={style}
-      className="border-b border-line px-3 py-1.5 text-ui-caption text-ink-2 tabular-nums last:border-r-0"
+      className="border-r border-b border-code-border px-2.5 py-[5px] text-ui-caption text-ink tabular-nums last:border-r-0"
     >
       {children}
     </td>

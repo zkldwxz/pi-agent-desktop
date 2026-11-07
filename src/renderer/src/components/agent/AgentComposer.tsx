@@ -1,29 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { promptTokens } from "@shared/cache-usage";
 import type { ChatMessage, HostState, PlanAction, PlanState } from "@shared/types";
 import PromptBar from "../beautiful/primitives/PromptBar";
 import { buildTurns, CONVERSATION_COLUMN, toolSignature } from "../../lib/agent-view";
 import { ModelThinkingControl } from "./ModelThinkingControl";
-import { CacheRing } from "./CacheRing";
-import { ContextBadge } from "../panel/ContextBadge";
+import { UsageIndicator, usePlanQuota } from "./UsageIndicator";
 import { t, useLocale } from "../../lib/i18n";
 import { cn } from "../../lib/cn";
-import { ListChecksIcon, LoaderIcon, PencilIcon, TerminalIcon } from "../icons";
+import { InfinityIcon, ListChecksIcon, PencilIcon } from "../icons";
+import { ActivityStrip, type RunningTask } from "./ActivityStrip";
+import { ComposerPill, PickerFooterRow, PickerMenu } from "./ComposerPill";
 import { useHotSweep } from "../../lib/theme";
 
-/** What the pill says, per phase. */
-const PLAN_LABEL: Record<PlanState["phase"], string> = {
-  off: "Plan",
+/** What the mode pill adds after "Plan", per phase. */
+const PLAN_STATUS: Record<PlanState["phase"], string | null> = {
+  off: null,
   planning: "Planning",
-  review: "Plan ready",
+  review: "Awaiting review",
   executing: "Building",
-};
-
-const PLAN_HINT: Record<PlanState["phase"], string> = {
-  off: "Plan mode — the agent explores read-only and hands you a plan to approve",
-  planning: "Planning, read-only — click to leave plan mode",
-  review: "A plan is waiting for review — click to leave plan mode",
-  executing: "Building the plan — click to leave plan mode",
 };
 
 /** Files this session has already read or edited, as real `@path` mentions. */
@@ -55,9 +48,11 @@ export function AgentComposer({
   onSend,
   onAbort,
   onSetModel,
+  onManageModels,
   onSetThinking,
   onPlanAction,
-  runningTerminal,
+  onOpenPlan,
+  runningTasks = [],
   onOpenTerminal,
   editingQueued,
 }: {
@@ -68,11 +63,15 @@ export function AgentComposer({
   onSend: (text: string) => void;
   onAbort: () => void;
   onSetModel: (provider: string, modelId: string) => void;
+  /** opens Settings ▸ Models — the model menu's last row */
+  onManageModels?: () => void;
   onSetThinking: (level: string) => void;
   onPlanAction: (action: PlanAction) => void;
-  /** a terminal call the agent is running right now — surfaced as a chip */
-  runningTerminal?: { count: number; title?: string } | null;
-  /** clicking the terminal chip opens the dock on that terminal */
+  /** opens the plan panel; the badge uses it whenever a plan file exists */
+  onOpenPlan?: () => void;
+  /** the terminal calls the agent is running right now — the activity strip */
+  runningTasks?: RunningTask[];
+  /** clicking a running command opens the dock on the terminal */
   onOpenTerminal?: () => void;
   /** a queued message was loaded back into the editor — the shell says so */
   editingQueued?: boolean;
@@ -128,7 +127,7 @@ export function AgentComposer({
   }, [signature, workspaceFiles]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* the session's token accounting, on the same row as the model pill */
-  const tokens = state.snapshot?.stats?.tokens;
+  const quota = usePlanQuota(Boolean(state.snapshot?.isStreaming));
 
   /* pasted images append their path references to whatever is being typed */
   const [appendState, setAppendState] = useState<
@@ -146,9 +145,15 @@ export function AgentComposer({
      is on — `/plan` starts it, and the pill is then the way back out. */
   const planPhase = state.plan.phase;
   const planOn = planPhase !== "off";
-  const onPlan = useCallback(() => {
-    onPlanAction({ action: "cancel" });
-  }, [onPlanAction]);
+  /* the right pane no longer opens itself for a plan, so with a plan written
+     the badge is the way to it; the panel carries "leave plan mode". Before a
+     plan exists the badge still leaves the mode. */
+  const hasPlan = Boolean(state.plan.path) && Boolean(onOpenPlan);
+  /* the mode pill: always there, as baocode's "Agent ▾" is — Agent or Plan,
+     switched from its menu; with a plan written, the menu opens it too */
+  const [modeOpen, setModeOpen] = useState(false);
+  const closeMode = useCallback(() => setModeOpen(false), []);
+  const planStatus = PLAN_STATUS[planPhase];
 
   /* pasted images become path references. A file already on disk keeps its
      path; anything temporary (or a raw clipboard bitmap) is copied into the
@@ -205,10 +210,8 @@ export function AgentComposer({
              with the text it answers. The greeting stays a centred hero. */
           messages.length > 0 ? CONVERSATION_COLUMN : "mx-auto w-full max-w-[720px]",
           "transition-transform duration-150 ease-out",
-          /* ZCode's dock insets its shell px-4 inside the shared column while
-             the text carries px-6: the shell overhangs the prose by 8px on
-             both edges, which is the breathing room their thread reads with */
-          messages.length > 0 && "px-4",
+          /* no inset: the shell spans the column, edge for edge with the
+             prompt cards above it */
         )}
       >
       {editingQueued ? (
@@ -221,6 +224,8 @@ export function AgentComposer({
           {t("Editing a queued message — Enter sends it")}
         </div>
       ) : null}
+        {/* what is running, over the composer (baocode's activity strip) */}
+        <ActivityStrip tasks={runningTasks} onOpen={onOpenTerminal} onStop={onAbort} />
         <PromptBar
           variant="Rounded"
           tall
@@ -228,17 +233,19 @@ export function AgentComposer({
           forceWide={messages.length > 0}
           placeholder={messages.length ? t("Send follow-up…") : t("Ask Pi to build, analyze or explain anything…")}
           controls={
-            <ModelThinkingControl state={state} onSetModel={onSetModel} onSetThinking={onSetThinking} />
+            <>
+              <ModelThinkingControl
+                state={state}
+                onSetModel={onSetModel}
+                onSetThinking={onSetThinking}
+                onManageModels={onManageModels}
+              />
+            </>
           }
           controlsTrailing={
-            <>
-              {tokens && promptTokens(tokens) > 0 ? (
-                <CacheRing
-                  stats={{ input: tokens.input, cacheRead: tokens.cacheRead, cacheWrite: tokens.cacheWrite }}
-                />
-              ) : null}
-              <ContextBadge state={state} />
-            </>
+            /* one indicator for context, cache and plan quota — it replaced
+               two unlabeled rings */
+            <UsageIndicator state={state} quotas={quota.quotas} loading={quota.loading} onRefresh={quota.refresh} />
           }
           commands={commands}
           sources={sources}
@@ -250,48 +257,52 @@ export function AgentComposer({
           appendToken={appendState}
           onPasteFiles={handlePasteFiles}
           leadingAddon={
-            /* the phase badge, not a launcher: amber the moment a plan is waiting,
-               and gone entirely while plan mode is off. Beside it, a live terminal
-               chip when the agent is running one — clicking docks onto it. */
-            <>
-              {planOn ? (
-                <button
-                  type="button"
-                  aria-label={t("Plan mode")}
-                  title={t(PLAN_HINT[planPhase])}
-                  onClick={onPlan}
-                  className={cn(
-                    "pressable hidden h-7 items-center gap-1 rounded-control px-1.5 text-ui-sm font-medium",
-                    "transition-[background-color,color] duration-150 sm:inline-flex",
-                    planPhase === "planning"
-                      ? "bg-accent-tint text-accent-ink hover:bg-accent-tint/80"
-                      : "bg-plan-tint text-plan-ink hover:bg-plan-tint/80",
-                  )}
-                >
-                  <ListChecksIcon size={12} />
-                  {t(PLAN_LABEL[planPhase])}
-                </button>
-              ) : null}
-              {runningTerminal ? (
-                <button
-                  type="button"
-                  aria-label={t("Running terminal")}
-                  title={runningTerminal.title}
-                  onClick={onOpenTerminal}
-                  className={cn(
-                    "pressable hidden h-7 items-center gap-1.5 rounded-control bg-field px-1.5 text-ui-sm text-ink-2",
-                    "transition-colors duration-150 hover:bg-hover-2 hover:text-ink sm:inline-flex",
-                  )}
-                  style={{ animation: "pop-in 200ms var(--ease-out-strong-css) both" }}
-                >
-                  <LoaderIcon size={11} className="spin-fast shrink-0 text-accent" />
-                  <TerminalIcon size={12} className="shrink-0" />
-                  {/* icon + count only — commands stretch the bar; the full
-                      lines live in the dock and in the hover title */}
-                  <span className="shrink-0 font-mono text-ui-xs tabular-nums">{runningTerminal.count}</span>
-                </button>
-              ) : null}
-            </>
+            /* the mode pill — the emphasized one, as baocode's "Agent ▾" */
+            <span className="relative hidden sm:inline-flex">
+              <ComposerPill
+                emphasized
+                menu
+                open={modeOpen}
+                onClick={() => setModeOpen((value) => !value)}
+                title={t("Mode")}
+                icon={planOn ? <ListChecksIcon size={13} /> : <InfinityIcon size={13} />}
+                label={planOn ? (planStatus ? `${t("Plan")} · ${t(planStatus)}` : t("Plan")) : t("Agent")}
+              />
+              <PickerMenu
+                open={modeOpen}
+                onClose={closeMode}
+                options={[
+                  {
+                    key: "agent",
+                    label: t("Agent"),
+                    description: t("Edits and runs commands directly"),
+                    icon: <InfinityIcon size={15} />,
+                    selected: !planOn,
+                    onSelect: () => {
+                      if (planOn) onPlanAction({ action: "cancel" });
+                    },
+                  },
+                  {
+                    key: "plan",
+                    label: t("Plan"),
+                    description: t("Explores read-only, then hands you a plan"),
+                    icon: <ListChecksIcon size={15} />,
+                    selected: planOn,
+                    onSelect: () => {
+                      if (!planOn) onPlanAction({ action: "toggle" });
+                    },
+                  },
+                ]}
+                footer={
+                  hasPlan ? (
+                    <PickerFooterRow icon={<ListChecksIcon size={15} />} label={t("Open the plan")} onClick={() => {
+                      setModeOpen(false);
+                      onOpenPlan?.();
+                    }} />
+                  ) : undefined
+                }
+              />
+            </span>
           }
           sweepPalette={sweepPalette}
         />

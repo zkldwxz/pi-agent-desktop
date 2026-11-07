@@ -78,6 +78,8 @@ import type { WorkspaceStore } from "./workspaces";
 import type { SshHost } from "./remote-ssh";
 import type { WorkspaceInfo } from "../shared/workspaces";
 import { registerRemoteTools, registerWorkspaceContext } from "./workspace-tools";
+import { providerQuota, QUOTA_PROVIDERS } from "./quota";
+import type { PlanQuota } from "../shared/quota";
 
 export type HostListener = (payload: HostUpdate) => void;
 
@@ -1847,6 +1849,26 @@ export class PiHost {
           }
         : null,
     };
+  }
+
+  /**
+   * Plan quota for every subscription provider pi is signed in to (Claude
+   * Pro/Max, ChatGPT). The token comes from pi's own auth, which refreshes an
+   * expired OAuth token, so nothing here touches auth.json. Providers signed
+   * in with an API key have no plan and are skipped.
+   */
+  async planQuota(force = false): Promise<PlanQuota[]> {
+    const models = this.runtime?.session.modelRuntime;
+    if (!models) return [];
+    const quotas: PlanQuota[] = [];
+    for (const provider of QUOTA_PROVIDERS) {
+      if (!models.isUsingSubscription(provider)) continue;
+      const auth = await models.getAuth(provider).catch(() => undefined);
+      const token = auth?.auth.apiKey;
+      if (!token) continue;
+      quotas.push(await providerQuota(provider, token, { force }));
+    }
+    return quotas;
   }
 
   private requireRuntime(): AgentSessionRuntime {

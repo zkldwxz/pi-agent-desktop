@@ -13,9 +13,8 @@
 @import "shadow-plugin/unprefixed";
 /* VS Code codicons — the IDE icon set Cursor ships; one font face, every glyph */
 @import "@vscode/codicons/dist/codicon.css";
-/* Geist carries Latin/numerals; CJK falls through to the system faces in
-   `--font-cjk` below, because none of these files ship CJK glyphs. */
-@import "@fontsource-variable/geist";
+/* Geist Mono is the one bundled face (code); the UI uses the system font.
+   CJK falls through to the system faces in `--font-cjk` below. */
 @import "@fontsource-variable/geist-mono";
 
 @import "./styles/foundation-body.css";
@@ -58,46 +57,48 @@
  * step one sky family down on the dark theme, and the heat ramp mixes the sky
  * series into `--surface` so an empty cell is the card it sits on, not a tint
  * of it. Both scales are declared once per theme block — the mixes name
- * concrete sky stops, so a `:root`-only declaration would not re-resolve.
+ * concrete amber stops, so a `:root`-only declaration would not re-resolve.
  */
 :root {
-  --chart-1: #0284c7;
-  --chart-2: #0d9488;
-  --chart-3: #7c3aed;
-  --chart-4: #f43f5e;
-  --chart-5: #6366f1;
-  --chart-6: #0891b2;
+  /* series 1 is the accent (Bao amber); the rest stay distinct hues, muted
+     to sit on the warm neutrals */
+  --chart-1: #c4975a;
+  --chart-2: #5c7f37;
+  --chart-3: #7a6aa8;
+  --chart-4: #b0443a;
+  --chart-5: #4f7a9a;
+  --chart-6: #8a6d3b;
 
   /* GitHub-style presence ramp. Level 0 is a day with no sessions, but the
      reference still paints it — a faint tile is what makes the year read as a
-     grid instead of floating data. Each level mixes its sky stop INTO that
+     grid instead of floating data. Each level mixes its amber stop INTO that
      base, so an active cell keeps a whisper of the tile under the colour.
      `in oklab`, not `in oklch`: interpolating in oklch swings the ramp through
-     magenta on its way from the sky hue to a neutral; oklab holds the hue. */
-  --heat-base: rgb(9 9 11 / 0.05);
+     magenta on its way from the amber hue to a neutral; oklab holds the hue. */
+  --heat-base: rgb(37 35 30 / 0.06);
   --heat-0: var(--heat-base);
-  --heat-1: color-mix(in oklab, #0ea5e9 18%, var(--heat-base));
-  --heat-2: color-mix(in oklab, #0ea5e9 36%, var(--heat-base));
-  --heat-3: color-mix(in oklab, #0284c7 58%, var(--heat-base));
-  --heat-4: color-mix(in oklab, #0369a1 82%, var(--heat-base));
+  --heat-1: color-mix(in oklab, #e2b373 30%, var(--heat-base));
+  --heat-2: color-mix(in oklab, #e2b373 55%, var(--heat-base));
+  --heat-3: color-mix(in oklab, #c4975a 78%, var(--heat-base));
+  --heat-4: color-mix(in oklab, #8f6528 92%, var(--heat-base));
 }
 
 .dark {
-  --chart-1: #0ea5e9;
-  --chart-2: #2dd4bf;
-  --chart-3: #a78bfa;
-  --chart-4: #fb7185;
-  --chart-5: #818cf8;
-  --chart-6: #22d3ee;
+  --chart-1: #e5ba7d;
+  --chart-2: #9dc08b;
+  --chart-3: #b1a2db;
+  --chart-4: #e8877a;
+  --chart-5: #8fb3cf;
+  --chart-6: #c9a46a;
 
   /* the dark ramp walks back up the same family: lighter hues at lower
      saturation, so activity glows against a dark card instead of sinking in */
-  --heat-base: rgb(255 255 255 / 0.06);
+  --heat-base: rgb(240 239 236 / 0.06);
   --heat-0: var(--heat-base);
-  --heat-1: color-mix(in oklab, #38bdf8 24%, var(--heat-base));
-  --heat-2: color-mix(in oklab, #38bdf8 42%, var(--heat-base));
-  --heat-3: color-mix(in oklab, #38bdf8 62%, var(--heat-base));
-  --heat-4: color-mix(in oklab, #7dd3fc 78%, var(--heat-base));
+  --heat-1: color-mix(in oklab, #e5ba7d 26%, var(--heat-base));
+  --heat-2: color-mix(in oklab, #e5ba7d 46%, var(--heat-base));
+  --heat-3: color-mix(in oklab, #e5ba7d 68%, var(--heat-base));
+  --heat-4: color-mix(in oklab, #edc994 88%, var(--heat-base));
 }
 
 /* ── interface type scale ───────────────────────────────────
@@ -112,13 +113,18 @@
  * whole shell. Icons, spacing and radii deliberately do not follow it.
  */
 :root {
-  /* ZCode's base: 14px. Everything below derives, so the whole shell moves
-     with this one number — at 13px every token sat a full step below the
-     reference, which read as cramped next to it. */
-  --ui-font-size: 14px;
+  /* baocode's: chat prose and the composer are 13.5px; rows and labels one
+     step down (12.5, caption), meta two (11.5, sm), pills and times 10.5 (xs).
+     Everything below derives, so the whole shell moves with this one number. */
+  --ui-font-size: 13.5px;
 }
 
 @theme inline {
+  /* Spacing in px, not rem: with the root at 13.5px a rem-based unit made
+     `p-1.5` 5.06px instead of baocode's 6, every gap a little off. One unit is
+     4px, so the utilities read as baocode's numbers (1.5 = 6, 3 = 12, 6 = 24). */
+  --spacing: 4px;
+
   /* the floor of the radius scale: 16px icons, <kbd> glyphs and 12px avatars.
      Below this, an element is smaller than the scale and rounds by its own size
      instead — see the radius section of DESIGN.md. */
@@ -130,11 +136,15 @@
   --text-ui-lg: calc(var(--ui-font-size) + 2px);
   --text-ui-base: var(--ui-font-size);
   --text-ui-caption: calc(var(--ui-font-size) - 1px);
+  /* baocode's step rows ("Thought 2s", "Read 2 files…"): 13px */
+  --text-ui-step: calc(var(--ui-font-size) - 0.5px);
+  /* baocode's meta size: footers, pills' labels, code, timestamps-with-icons */
+  --text-ui-meta: calc(var(--ui-font-size) - 1.5px);
   --text-ui-sm: calc(var(--ui-font-size) - 2px);
-  --text-ui-xs: calc(var(--ui-font-size) - 4px);
+  --text-ui-xs: calc(var(--ui-font-size) - 2.5px);
   /* the floor: glyphs inside a fixed 14px badge, and axis furniture. Nothing that
      carries meaning may sit here, which is why it is the last step. */
-  --text-ui-2xs: calc(var(--ui-font-size) - 5px);
+  --text-ui-2xs: calc(var(--ui-font-size) - 4px);
 
   --color-plan: var(--plan);
   --color-plan-ink: var(--plan-ink);
@@ -155,8 +165,15 @@
 }
 
 :root {
-  --font-inter: "Geist Variable";
-  --font-mono-face: "Geist Mono Variable";
+  /* The UI is set in the system face (SF Pro on macOS, Segoe UI Variable on
+     Windows 11), as baocode is: it matches the OS chrome around the window and
+     pairs with the system CJK face below instead of a bundled web font fighting
+     PingFang for weight and baseline. Code keeps the bundled Geist Mono. */
+  --font-inter: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI",
+    system-ui, "Helvetica Neue", Arial;
+  /* baocode's code stack; Geist Mono is bundled as the last resort so code
+     never lands on a browser default */
+  --font-mono-face: "JetBrains Mono", "Fira Code", Menlo, Consolas, "Cascadia Mono", "Geist Mono Variable";
   /* CJK stack, best first. PingFang is macOS, HarmonyOS Sans and Microsoft
      YaHei are the Windows answers; the platform picks whichever exists. */
   --font-cjk: "PingFang SC", "HarmonyOS Sans SC", "HarmonyOS Sans",
@@ -171,7 +188,7 @@
 }
 
 html {
-  font-size: 14px;
+  font-size: 13.5px;
 }
 
 body {
@@ -181,7 +198,7 @@ body {
   background-attachment: scroll;
   color: var(--ink);
   font-family: var(--font-sans);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   overflow: hidden;
 }
 
@@ -190,40 +207,25 @@ body {
 }
 
 /* ── dark-mode rendering ────────────────────────────────────
- * Two corrections the dark theme needs, both about light-on-dark text reading
- * dimmer than the same pixels do on a light page.
- *
  * WEIGHT — the foundation asks the whole shell for
- * `-webkit-font-smoothing: antialiased`, which is a light-surface habit: it
- * drops stem darkening, so every glyph is drawn from thinner coverage. Over
- * dark text on a light page that is invisible; over light text on a dark page it
- * costs about a quarter of the ink measured on screen, and white reads as grey.
- * Dark surfaces hand smoothing back to the platform; the light theme keeps the
- * crisper edges it was tuned for.
+ * `-webkit-font-smoothing: antialiased`, a light-surface habit: over light
+ * text on a dark page it costs about a quarter of the ink, and white reads as
+ * grey. Dark surfaces hand smoothing back to the platform.
  *
- * RAMP — the foundation's dark ramp was stepped for a lighter page: at 0.768 and
- * 0.628 the second and third levels sat so far under the primary that a row
- * label, a workspace name and a timestamp all arrived as the same grey wash.
- * The levels below lift the two that carry the grey — secondary and tertiary —
- * and leave the primary where it was: with smoothing handed back to the platform
- * above, 0.968 already renders whiter than it used to, and taking the primary to
- * a true 0.985 as well turned the whole window into glare. A fourth level
- * carries what has to read as *empty* rather than as quiet, which is why
- * placeholders moved to it: at the old third level they were quieter than a
- * label, at the new one they would be as loud as a value.
+ * RAMP — the ink ramp is Bao Dark's (foreground / descriptionForeground / a
+ * placeholder step / disabledForeground), set in foundation-body.css; only the
+ * fourth level lives here, beside its light value.
  */
 :root {
-  --ink-4: oklch(0.79 0.008 264.5);
+  /* disabledForeground — placeholders, dimmed affordances */
+  --ink-4: #aeada8;
 }
 
 .dark {
   -webkit-font-smoothing: auto;
   -moz-osx-font-smoothing: auto;
 
-  --ink: oklch(0.968 0.002 248);
-  --ink-2: oklch(0.828 0.008 261);
-  --ink-3: oklch(0.722 0.009 264);
-  --ink-4: oklch(0.478 0.008 264);
+  --ink-4: #7e7d78;
 }
 
 /* Electron chrome */
@@ -731,8 +733,11 @@ html.os-mac .scrollbar-thin {
  * wins over `::-webkit-scrollbar` — which is three times the width the rail is
  * positioned against. Chromium is the only engine this window runs in, so the
  * legacy pseudo-element is the whole story. */
+/* both-edges: the 5px gutter is reserved on the left too, so a centred column
+ * in the transcript lines up with the composer below it, which has no
+ * scrollbar (measured 2.5px off with a one-sided gutter) */
 .scrollbar-pill {
-  scrollbar-gutter: stable;
+  scrollbar-gutter: stable both-edges;
 }
 
 .scrollbar-pill::-webkit-scrollbar {
@@ -878,4 +883,64 @@ html:not(.os-mac) .records-scroll {
 html.os-mac .records-scroll {
   scrollbar-color: auto;
   scrollbar-gutter: auto;
+}
+
+/* ── Appearance prefs (lib/appearance-prefs.ts) ─────────────────────────────
+ * Painted through <html data-*> so a change is one style recalc, no React. */
+
+/* ligatures off: code, paths and commands render every character as typed */
+html[data-ligatures="off"] .font-mono,
+html[data-ligatures="off"] code,
+html[data-ligatures="off"] pre,
+html[data-ligatures="off"] .xterm {
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
+}
+
+/* full width: the column fills the conversation pane, keeping a gutter.
+ * Overrides the container-query widths in CONVERSATION_COLUMN, which both the
+ * timeline and the composer carry, so the prompt bar stays under the text. */
+html[data-chat-width="full"] .conversation-column {
+  width: calc(100% - 3rem) !important;
+  max-width: none !important;
+  transform: none !important;
+}
+
+html[data-sidebar-times="off"] [data-sidebar-time] {
+  display: none;
+}
+
+/* Colour-mode change: the old window fades into the new one instead of
+ * snapping (baocode's ColorThemeTransition). Driven by the View Transitions
+ * API from useTheme; only the root snapshot animates. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 260ms;
+  animation-timing-function: var(--ease-in-out-strong-css);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+
+/* baocode's ThinkingSpark turns once every 12s while it cycles its shapes */
+@keyframes spark-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* baocode's picker panel: in over 140ms from 0.96 */
+@keyframes picker-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
