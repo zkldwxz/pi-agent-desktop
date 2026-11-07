@@ -243,7 +243,6 @@ const ZH: Record<string, string> = {
   "External browser": "外部浏览器",
   "drive the real Chrome over CDP — launches with a debug port, no extension needed": "通过 CDP 接管真实 Chrome——以调试端口启动，无需安装扩展",
   "Launch with takeover": "启动并接管",
-  "Running": "运行中",
   "Passwords and passphrases are never stored — reconnecting asks for them again. Key paths are kept, so key-based hosts reconnect in one step. A jump host must itself be connected.": "密码和密钥口令永不保存——重新连接时需要再次输入。密钥路径会保留，所以密钥方式的连接可以一步重连。跳板机自身必须先连上。",
   "Open with": "打开方式",
   "Browse files": "浏览文件",
