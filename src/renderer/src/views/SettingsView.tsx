@@ -714,6 +714,9 @@ export function SettingsView({
               <TextRow label={t("Directory")} value={<span className="font-mono text-ui-sm">{state.cwd}</span>} meta={t("sessions")} />
             </div>
           </Section>
+          <Section title={t("About")} index={4}>
+            <AboutRows />
+          </Section>
           ) : null}
           </div>
           </div>
@@ -723,3 +726,51 @@ export function SettingsView({
 }
 
 /** The settings' own radio mark — a ring with a dot, matching the Switch's weight. */
+
+/** Version + update check + diagnostics export — the support surface. */
+function AboutRows() {
+  const [check, setCheck] = useState<{ latest?: string; newer?: string | null; error?: string } | null>(null);
+  const [exportPath, setExportPath] = useState("");
+  return (
+    <div className="px-4 py-1">
+      <TextRow label={t("Version")} value="0.1.0" meta="Electron" />
+      <div className="flex items-center gap-3 border-b border-line py-2.5 last:border-0">
+        <div className="min-w-0 flex-1 text-ui-caption text-ink">{t("Updates")}</div>
+        <button
+          type="button"
+          onClick={() => void window.pi.updateCheck().then((result) => setCheck(result))}
+          className="pressable rounded-control border border-line px-3 py-1.5 text-ui-caption text-ink hover:bg-hover"
+        >
+          {t("Check for updates")}
+        </button>
+      </div>
+      {check ? (
+        <div className="pb-2 text-ui-xs text-ink-3">
+          {check.error ? (
+            <span className="text-red">{check.error}</span>
+          ) : check.newer ? (
+            <span className="text-orange">{tf("Version {version} is available on GitHub.", { version: check.newer })}</span>
+          ) : (
+            <span className="text-green">{t("Up to date")}</span>
+          )}
+        </div>
+      ) : null}
+      <div className="flex items-center gap-3 py-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="text-ui-caption text-ink">{t("Diagnostics")}</div>
+          <div className="mt-0.5 text-ui-xs text-ink-3">{t("versions, settings and server names — no keys")}</div>
+        </div>
+        <button
+          type="button"
+          onClick={() =>
+            void window.pi.exportDiagnostics().then((result) => setExportPath(result.ok ? result.output ?? "" : result.error ?? t("Failed")))
+          }
+          className="pressable rounded-control border border-line px-3 py-1.5 text-ui-caption text-ink hover:bg-hover"
+        >
+          {t("Export diagnostics")}
+        </button>
+      </div>
+      {exportPath ? <div className="pb-2 break-all font-mono text-ui-xs text-ink-3">{exportPath}</div> : null}
+    </div>
+  );
+}

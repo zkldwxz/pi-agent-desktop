@@ -115,6 +115,10 @@ export interface PiBridge {
   mcpTest: (scope: McpScope, name: string) => Promise<{ ok: boolean; detail: string }>;
   /** probe a channel's endpoint; the API key never leaves the main process */
   testChannel: (providerId: string) => Promise<{ ok: boolean; latencyMs: number; detail: string }>;
+  /** latest release on the public repo versus the running version */
+  updateCheck: () => Promise<{ current?: string; latest?: string; newer?: string | null; error?: string }>;
+  /** write a sanitized diagnostics bundle to a user-chosen file */
+  exportDiagnostics: () => Promise<{ ok: boolean; output?: string; error?: string }>;
   /** persist a pasted image (data URL) into the app's paste dir; returns its path */
   savePasteImage: (dataUrl: string, extension?: string) => Promise<string>;
   /** the absolute path of a File from the clipboard (Electron webUtils) */
@@ -256,6 +260,8 @@ const api: PiBridge = {
   mcpCommand: (command, name) => ipcRenderer.invoke("pi:mcpCommand", command, name),
   mcpTest: (scope, name) => ipcRenderer.invoke("pi:mcpTest", scope, name),
   testChannel: (providerId) => ipcRenderer.invoke("pi:testChannel", providerId),
+  updateCheck: () => ipcRenderer.invoke("pi:updateCheck"),
+  exportDiagnostics: () => ipcRenderer.invoke("pi:diagnostics"),
   savePasteImage: (dataUrl, extension) => ipcRenderer.invoke("pi:savePasteImage", dataUrl, extension),
   getPathForFile: (file) => {
     try {

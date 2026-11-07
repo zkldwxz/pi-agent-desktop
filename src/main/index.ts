@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, shell } from "electron";
 import { existsSync } from "node:fs";
-import { realpath } from "node:fs/promises";
+import { realpath, writeFile } from "node:fs/promises";
 import { homedir, userInfo } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { PiHost } from "./pi-host";
@@ -543,6 +543,47 @@ function registerIpc(): void {
   /* "does this endpoint answer" — keys stay in the main process; the
      renderer only ever sees the status line */
   ipcMain.handle("pi:testChannel", async (_event, providerId: string) => testChannel(providerId));
+
+  /* update check — a plain releases read against the public repo; no
+     updater package yet, so "newer exists" is the whole contract */
+  ipcMain.handle("pi:updateCheck", async () => {
+    try {
+      const response = await fetch("https://api.github.com/repos/zkldwxz/pi-agent-desktop/releases/latest", {
+        headers: { accept: "application/vnd.github+json", "user-agent": "pi-agent-desktop" },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!response.ok) return { error: `GitHub answered HTTP ${response.status}` };
+      const latest = ((await response.json()) as { tag_name?: string }).tag_name?.replace(/^v/, "") ?? "";
+      const current = app.getVersion();
+      return { current, latest, newer: latest && latest !== current ? latest : null };
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  /* diagnostics export — the sanitized bundle a bug report asks for:
+     versions, settings and server names. Credentials never leave the file. */
+  ipcMain.handle("pi:diagnostics", async () => {
+    const picked = await dialog.showSaveDialog(window!, { defaultPath: `pi-diagnostics-${Date.now()}.json`, filters: [{ name: "JSON", extensions: ["json"] }] });
+    if (picked.canceled || !picked.filePath) return { ok: false, error: "cancelled" };
+    try {
+      const config = await readConfig();
+      const mcp = host?.mcpConfig() ?? { servers: [], errors: [] };
+      const bundle = {
+        generatedAt: new Date().toISOString(),
+        app: { version: app.getVersion(), platform: process.platform, arch: process.arch, electron: process.versions.electron, node: process.versions.node },
+        cwd: host?.getCwd(),
+        settings: host?.snapshot().settings,
+        config: { ...config, secrets: undefined },
+        mcpServers: mcp.servers.map((server) => ({ name: server.name, scope: server.scope, enabled: server.enabled, exposure: server.exposure })),
+        session: { id: host?.snapshot().snapshot?.sessionId, stats: host?.snapshot().snapshot?.stats },
+      };
+      await writeFile(picked.filePath, JSON.stringify(bundle, null, 2));
+      return { ok: true, output: picked.filePath };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
 
   ipcMain.handle("pi:mcpFilePath", (_event, scope: McpScope) => host?.mcpFilePath(scope) ?? "");
 
