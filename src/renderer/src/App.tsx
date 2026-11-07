@@ -946,28 +946,40 @@ function terminalCommand(tool: ToolActivity): string {
           onCollapsedChange={setSidebarCollapsed}
         />
       ) : null}
-      <div className={cn("relative flex min-w-0 flex-1 py-1.5 pr-1.5", sidebarShown ? "" : "pl-1.5")}>
-        <main className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-window border border-line bg-page">
+      {/* Settings draws its own frame (its rail where the sidebar is, its page
+          as the island), as baocode's settings window does */}
+      <div
+        className={cn(
+          "relative flex min-w-0 flex-1",
+          view === "settings" ? "" : "py-1.5 pr-1.5",
+          sidebarShown || view === "settings" ? "" : "pl-1.5",
+        )}
+      >
+        <main
+          className={cn(
+            "flex min-w-0 flex-1 flex-col",
+            view === "settings" ? "" : "overflow-hidden rounded-window border border-line bg-page",
+          )}
+        >
           {/* The card's header (ChatScreen.cardHeaderHeight, 30): the title and
               the actions keep to the conversation column, as baocode lays them;
               the traffic lights' room and the sidebar toggle sit at its left
               only while the sidebar is away. Off macOS the window buttons end
               the row when nothing is open beside the card. */}
+          {view === "settings" ? null : (
           <header className="titlebar-drag relative flex h-[30px] shrink-0 items-center">
             {sidebarShown ? null : (
               <div className="absolute inset-y-0 left-0 flex items-center pl-2">
                 {TRAFFIC_LIGHTS_WIDTH ? <div aria-hidden className="shrink-0" style={{ width: TRAFFIC_LIGHTS_WIDTH - 8 }} /> : null}
-                {view === "settings" ? null : (
-                  <button
-                    type="button"
-                    aria-label={t("Expand sidebar")}
-                    title={t("Expand sidebar")}
-                    onClick={() => setSidebarCollapsed(false)}
-                    className="titlebar-no-drag pressable flex size-6 shrink-0 items-center justify-center rounded-[5px] text-ink-2 hover:bg-hover hover:text-ink"
-                  >
-                    <span className="codicon codicon-layout-sidebar-left text-[16px]" aria-hidden />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  aria-label={t("Expand sidebar")}
+                  title={t("Expand sidebar")}
+                  onClick={() => setSidebarCollapsed(false)}
+                  className="titlebar-no-drag pressable flex size-6 shrink-0 items-center justify-center rounded-[5px] text-ink-2 hover:bg-hover hover:text-ink"
+                >
+                  <span className="codicon codicon-layout-sidebar-left text-[16px]" aria-hidden />
+                </button>
               </div>
             )}
             <div
@@ -1027,6 +1039,7 @@ function terminalCommand(tool: ToolActivity): string {
               </div>
             ) : null}
           </header>
+          )}
           <div key={view} className="view-enter flex min-h-0 flex-1 flex-col">
             <Suspense fallback={<ViewSkeleton />}>
             {view === "browser" ? (
@@ -1363,7 +1376,6 @@ function terminalCommand(tool: ToolActivity): string {
                   state={state}
                   plugins={plugins}
                   loading={pluginsLoading}
-                  dockToggle={<DockToggle open={dockOpen} onToggle={() => setDockOpen((value) => !value)} />}
                   onRefresh={() => void loadPlugins()}
                   onToggle={async (plugin, enabled) => {
                     try {
@@ -1408,7 +1420,6 @@ function terminalCommand(tool: ToolActivity): string {
                   zoomFactor={zoomFactor}
                   onZoomFactor={applyZoom}
                   onBack={() => setView("chat")}
-                  dockToggle={<DockToggle open={dockOpen} onToggle={() => setDockOpen((value) => !value)} />}
                   onUpdate={(patch) => void window.pi.updateSettings(patch).catch(() => undefined)}
                   onSaveModel={(edit) => runModelWrite(() => window.pi.saveModel(edit), t("Saved to models.json"))}
                   onDeleteModel={(provider, modelId) =>
@@ -1452,7 +1463,7 @@ function terminalCommand(tool: ToolActivity): string {
 
         <ToolDock
           state={deferredState}
-          open={dockOpen}
+          open={dockOpen && view !== "settings"}
           onOpenChange={setDockOpen}
           tool={dockTool}
           onTool={setDockTool}

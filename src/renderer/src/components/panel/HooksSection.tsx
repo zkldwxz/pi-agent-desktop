@@ -99,13 +99,8 @@ export function HooksSection() {
   const hooks = plugins.filter((plugin) => plugin.kind === "extension" || plugin.kind === "package");
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-baseline justify-between gap-3 px-0.5">
-        <h2 className="text-ui-caption font-medium text-ink">{t("Hooks")}</h2>
-        <span className="min-w-0 truncate text-ui-sm text-ink-3">
-          {t("Extensions subscribe to the agent's event stream with pi.on(event, handler)")}
-        </span>
-      </div>
+    /* the page's title and its note come from the settings page */
+    <div className="flex flex-col gap-5">
 
       <Section
         title={t("Installed hooks")}
@@ -174,12 +169,14 @@ export function HooksSection() {
         ))}
       </Section>
 
+      {/* a settings group: the heading over its card */}
+      <section className="flex flex-col">
+      <h2 className="pb-2 pl-2 text-ui-caption font-medium text-ink-2">{t("Hook events")}</h2>
       <Card index={1} className="overflow-hidden">
-        <div className="border-b border-line px-4 py-3 text-ui-base font-medium text-ink">{t("Hook events")}</div>
-        <div className="flex flex-col gap-4 px-4 py-3.5">
+        <div className="flex flex-col gap-4 px-3.5 py-3">
           {EVENT_GROUPS.map((group) => (
             <div key={group.label}>
-              <div className="mb-1.5 text-ui-xs font-medium uppercase tracking-[0.4px] text-ink-3">
+              <div className="mb-1.5 text-ui-meta font-medium text-ink-2">
                 {t(group.label)}
               </div>
               <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
@@ -201,6 +198,7 @@ export function HooksSection() {
           ))}
         </div>
       </Card>
+      </section>
 
       <p className="px-1 text-ui-sm leading-relaxed text-ink-3">
         {roots

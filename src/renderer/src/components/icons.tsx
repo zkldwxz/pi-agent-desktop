@@ -3,6 +3,7 @@ import {
   Archive,
   ArrowLeft,
   ArrowUp,
+  ArrowUpRight,
   AtSign,
   Brain,
   ChartBar,
@@ -134,6 +135,7 @@ export const KeyboardIcon = wrap(Keyboard);
 export const HookIcon = wrap(Zap);
 export const ZapIcon = wrap(Zap);
 export const TimerIcon = wrap(Clock);
+export const ArrowUpRightIcon = wrap(ArrowUpRight);
 export const SlidersIcon = wrap(SlidersHorizontal);
 export const InfinityIcon = wrap(InfinityGlyph);
 export const CoinsIcon = wrap(Coins);

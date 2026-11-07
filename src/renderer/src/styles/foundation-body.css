@@ -176,6 +176,9 @@
   --color-on-accent: var(--on-accent);
   --color-button: var(--button);
   --color-spark: var(--spark);
+  /* settings: SettingsColors.card (the page with 4% ink) and input.border */
+  --color-settings-card: color-mix(in srgb, var(--ink) 4%, var(--page));
+  --color-input-line: color-mix(in srgb, var(--line-strong) 70%, transparent);
   --color-code-block: var(--code-block);
   --color-code-inline: var(--code-inline);
   --color-code-border: var(--code-border);
