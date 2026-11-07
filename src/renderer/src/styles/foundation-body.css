@@ -61,6 +61,8 @@
   --accent-tint: rgb(226 179 115 / 0.22);
   --on-accent: #282624;
   --button: #e2b373;
+  /* button.secondaryBackground — the emphasized composer pill (the mode) */
+  --pill-emphasis: #e8e8e5;
   /* baocode's AppColors.claude — the working spark; not the theme's */
   --spark: #d97857;
 
@@ -124,6 +126,7 @@
   --on-accent: #222120;
   --button: #e5ba7d;
 
+  --pill-emphasis: #474643;
   --code-block: #212120;
   --code-inline: #1b1b1a;
   --code-border: rgb(255 255 255 / 0.08);

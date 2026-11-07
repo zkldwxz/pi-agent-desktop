@@ -495,6 +495,10 @@ const ZH: Record<string, string> = {
   "Pondering": "斟酌中",
   "Noodling": "琢磨中",
   "Mulling it over": "反复考虑中",
+  "Mode": "模式",
+  "Awaiting review": "待确认",
+  "Edits and runs commands directly": "直接修改文件、运行命令",
+  "Explores read-only, then hands you a plan": "只读探索，先给出方案再动手",
   /* ── plan quota / usage indicator ───────────────────── */
   "5-hour": "5 小时",
   "Weekly Opus": "每周 Opus",

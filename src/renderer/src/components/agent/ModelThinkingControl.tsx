@@ -141,12 +141,15 @@ export function ModelThinkingControl({
           open ? "bg-hover-2 text-ink" : "text-ink-2 hover:bg-hover",
         )}
       >
-        <span className="min-w-0 truncate">{short}</span>
-        {canThink ? (
-          <span className={cn("shrink-0 transition-colors duration-300", shown === "max" ? "text-hot-ink" : "text-ink-3")}>
-            · {t(shown)}
-          </span>
-        ) : null}
+        {/* the same pill as the mode's: icon 13, then "model · depth" in one
+            muted run, as baocode writes "deepseek-v4.1-flash · 400K · High" */}
+        <span className="flex size-[13px] shrink-0 items-center justify-center">
+          <span className="codicon codicon-sparkle text-[13px]" aria-hidden />
+        </span>
+        <span className="min-w-0 truncate">
+          {short}
+          {canThink ? ` · ${t(shown)}` : ""}
+        </span>
         <ChevronDownIcon
           size={15}
           className="shrink-0 text-ink-4 transition-transform duration-300 ease-out-strong"

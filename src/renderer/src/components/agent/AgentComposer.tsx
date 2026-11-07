@@ -6,22 +6,16 @@ import { ModelThinkingControl } from "./ModelThinkingControl";
 import { UsageIndicator, usePlanQuota } from "./UsageIndicator";
 import { t, useLocale } from "../../lib/i18n";
 import { cn } from "../../lib/cn";
-import { ListChecksIcon, LoaderIcon, PencilIcon, TerminalIcon } from "../icons";
+import { InfinityIcon, ListChecksIcon, LoaderIcon, PencilIcon, TerminalIcon } from "../icons";
+import { ComposerPill, PickerFooterRow, PickerMenu } from "./ComposerPill";
 import { useHotSweep } from "../../lib/theme";
 
-/** What the pill says, per phase. */
-const PLAN_LABEL: Record<PlanState["phase"], string> = {
-  off: "Plan",
+/** What the mode pill adds after "Plan", per phase. */
+const PLAN_STATUS: Record<PlanState["phase"], string | null> = {
+  off: null,
   planning: "Planning",
-  review: "Plan ready",
+  review: "Awaiting review",
   executing: "Building",
-};
-
-const PLAN_HINT: Record<PlanState["phase"], string> = {
-  off: "Plan mode — the agent explores read-only and hands you a plan to approve",
-  planning: "Planning, read-only — click to leave plan mode",
-  review: "A plan is waiting for review — click to open it",
-  executing: "Building the plan — click to leave plan mode",
 };
 
 /** Files this session has already read or edited, as real `@path` mentions. */
@@ -151,10 +145,11 @@ export function AgentComposer({
      the badge is the way to it; the panel carries "leave plan mode". Before a
      plan exists the badge still leaves the mode. */
   const hasPlan = Boolean(state.plan.path) && Boolean(onOpenPlan);
-  const onPlan = useCallback(() => {
-    if (hasPlan) onOpenPlan?.();
-    else onPlanAction({ action: "cancel" });
-  }, [hasPlan, onOpenPlan, onPlanAction]);
+  /* the mode pill: always there, as baocode's "Agent ▾" is — Agent or Plan,
+     switched from its menu; with a plan written, the menu opens it too */
+  const [modeOpen, setModeOpen] = useState(false);
+  const closeMode = useCallback(() => setModeOpen(false), []);
+  const planStatus = PLAN_STATUS[planPhase];
 
   /* pasted images become path references. A file already on disk keeps its
      path; anything temporary (or a raw clipboard bitmap) is copied into the
@@ -232,7 +227,21 @@ export function AgentComposer({
           forceWide={messages.length > 0}
           placeholder={messages.length ? t("Send follow-up…") : t("Ask Pi to build, analyze or explain anything…")}
           controls={
-            <ModelThinkingControl state={state} onSetModel={onSetModel} onSetThinking={onSetThinking} />
+            <>
+              <ModelThinkingControl state={state} onSetModel={onSetModel} onSetThinking={onSetThinking} />
+              {/* a live terminal, as a pill of the same shape: clicking docks onto it */}
+              {runningTerminal ? (
+                <ComposerPill
+                  title={runningTerminal.title}
+                  onClick={onOpenTerminal}
+                  icon={<LoaderIcon size={12} className="spin-fast text-accent" />}
+                  className="hidden sm:inline-flex"
+                >
+                  <TerminalIcon size={13} className="shrink-0" />
+                  <span className="tabular-nums">{runningTerminal.count}</span>
+                </ComposerPill>
+              ) : null}
+            </>
           }
           controlsTrailing={
             /* one indicator for context, cache and plan quota — it replaced
@@ -249,48 +258,52 @@ export function AgentComposer({
           appendToken={appendState}
           onPasteFiles={handlePasteFiles}
           leadingAddon={
-            /* the phase badge, not a launcher: amber the moment a plan is waiting,
-               and gone entirely while plan mode is off. Beside it, a live terminal
-               chip when the agent is running one — clicking docks onto it. */
-            <>
-              {planOn ? (
-                <button
-                  type="button"
-                  aria-label={t("Plan mode")}
-                  title={hasPlan && planPhase !== "review" ? t("Open the plan") : t(PLAN_HINT[planPhase])}
-                  onClick={onPlan}
-                  className={cn(
-                    "pressable hidden h-[22px] items-center gap-1 rounded-full pr-2 pl-1.5 text-ui-meta",
-                    "transition-[background-color,color] duration-150 sm:inline-flex",
-                    planPhase === "planning"
-                      ? "bg-accent-tint text-accent-ink hover:bg-accent-tint/80"
-                      : "bg-plan-tint text-plan-ink hover:bg-plan-tint/80",
-                  )}
-                >
-                  <ListChecksIcon size={12} />
-                  {t(PLAN_LABEL[planPhase])}
-                </button>
-              ) : null}
-              {runningTerminal ? (
-                <button
-                  type="button"
-                  aria-label={t("Running terminal")}
-                  title={runningTerminal.title}
-                  onClick={onOpenTerminal}
-                  className={cn(
-                    "pressable hidden h-[22px] items-center gap-1 rounded-full pr-2 pl-1.5 text-ui-meta text-ink-2",
-                    "transition-colors duration-150 hover:bg-hover hover:text-ink sm:inline-flex",
-                  )}
-                  style={{ animation: "pop-in 200ms var(--ease-out-strong-css) both" }}
-                >
-                  <LoaderIcon size={11} className="spin-fast shrink-0 text-accent" />
-                  <TerminalIcon size={12} className="shrink-0" />
-                  {/* icon + count only — commands stretch the bar; the full
-                      lines live in the dock and in the hover title */}
-                  <span className="shrink-0 tabular-nums">{runningTerminal.count}</span>
-                </button>
-              ) : null}
-            </>
+            /* the mode pill — the emphasized one, as baocode's "Agent ▾" */
+            <span className="relative hidden sm:inline-flex">
+              <ComposerPill
+                emphasized
+                menu
+                open={modeOpen}
+                onClick={() => setModeOpen((value) => !value)}
+                title={t("Mode")}
+                icon={planOn ? <ListChecksIcon size={13} /> : <InfinityIcon size={13} />}
+                label={planOn ? (planStatus ? `${t("Plan")} · ${t(planStatus)}` : t("Plan")) : t("Agent")}
+              />
+              <PickerMenu
+                open={modeOpen}
+                onClose={closeMode}
+                options={[
+                  {
+                    key: "agent",
+                    label: t("Agent"),
+                    description: t("Edits and runs commands directly"),
+                    icon: <InfinityIcon size={15} />,
+                    selected: !planOn,
+                    onSelect: () => {
+                      if (planOn) onPlanAction({ action: "cancel" });
+                    },
+                  },
+                  {
+                    key: "plan",
+                    label: t("Plan"),
+                    description: t("Explores read-only, then hands you a plan"),
+                    icon: <ListChecksIcon size={15} />,
+                    selected: planOn,
+                    onSelect: () => {
+                      if (!planOn) onPlanAction({ action: "toggle" });
+                    },
+                  },
+                ]}
+                footer={
+                  hasPlan ? (
+                    <PickerFooterRow icon={<ListChecksIcon size={15} />} label={t("Open the plan")} onClick={() => {
+                      setModeOpen(false);
+                      onOpenPlan?.();
+                    }} />
+                  ) : undefined
+                }
+              />
+            </span>
           }
           sweepPalette={sweepPalette}
         />

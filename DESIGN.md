@@ -148,8 +148,16 @@ UI 用系统字体（`--font-inter`：SF Pro / Segoe UI Variable / system-ui，
 - Markdown：段落 13.5 / 1.6，块间 8px，h1–h3 前 12px；列表标记列 18 / 24；
   表格贴合内容宽度、内外 1px `code-border`、表头 `bg-canvas` 半粗体；
   引用是卡片（`bg-code-block`，12/8/36/8）；代码块有语言时带标题栏（折叠、语言名、复制）。
-- 输入框：编辑区 12/10/12/2、最小 48px；工具栏 6/4/6/6；药丸 22px 全圆角 `text-ui-meta`；
-  上下文环 13px（底圈 `ink-4`、弧 `ink-2`）；发送键 24px 琥珀圆。没有听写按钮。
+- 输入框：编辑区 12/10/12/2、最小 48px；工具栏 6/4/6/6；上下文环 13px（底圈 `ink-4`、
+  弧 `ink-2`）；发送键 24px 琥珀圆。没有听写按钮。
+- **工具栏控件一律用 `ComposerPill`**（`components/agent/ComposerPill.tsx`）：22px、全圆角、
+  左 6 右 3、图标 13、`text-ui-meta` `ink-2`、有菜单时 15px `ink-4` 下拉箭头；悬停 `bg-hover`，
+  打开 `bg-hover-2`。顺序：`+` → 模式（`emphasized`，`--pill-emphasis` 底色 + 1px 线，
+  常驻"智能体 / 计划 · 状态"）→ 模型（✦ + "模型 · 深度"，同色）→ 运行中的终端。
+  风险项用 `caution`（`text-orange`）。不要在工具栏里另做彩色徽章。
+- 药丸弹出的菜单用 `PickerMenu`：药丸上方 6px，`bg-surface` + `shadow-overlay`，圆角 8，
+  内边距 4；有描述的行 40px、否则 30px，圆角 5，图标 15、间距 10、标签 12.5、描述 11；
+  选中打勾；140ms 从 0.96 放大进入。
 
 ## 侧栏（baocode 度量）
 
