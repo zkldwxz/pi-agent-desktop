@@ -879,3 +879,44 @@ html.os-mac .records-scroll {
   scrollbar-color: auto;
   scrollbar-gutter: auto;
 }
+
+/* ── Appearance prefs (lib/appearance-prefs.ts) ─────────────────────────────
+ * Painted through <html data-*> so a change is one style recalc, no React. */
+
+/* ligatures off: code, paths and commands render every character as typed */
+html[data-ligatures="off"] .font-mono,
+html[data-ligatures="off"] code,
+html[data-ligatures="off"] pre,
+html[data-ligatures="off"] .xterm {
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
+}
+
+/* full width: the column fills the conversation pane, keeping a gutter.
+ * Overrides the container-query widths in CONVERSATION_COLUMN, which both the
+ * timeline and the composer carry, so the prompt bar stays under the text. */
+html[data-chat-width="full"] .conversation-column {
+  width: calc(100% - 3rem) !important;
+  max-width: none !important;
+  transform: none !important;
+}
+
+html[data-sidebar-times="off"] [data-sidebar-time] {
+  display: none;
+}
+
+/* Colour-mode change: the old window fades into the new one instead of
+ * snapping (baocode's ColorThemeTransition). Driven by the View Transitions
+ * API from useTheme; only the root snapshot animates. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 260ms;
+  animation-timing-function: var(--ease-in-out-strong-css);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}

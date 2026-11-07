@@ -22,7 +22,7 @@ import { getLocale, t, tf, type Locale } from "./i18n";
  * would put the prompt bar out of line with the text it answers.
  */
 export const CONVERSATION_COLUMN =
-  "mx-auto w-full shrink-0 transition-[width,max-width,transform] duration-150 ease-out " +
+  "conversation-column mx-auto w-full shrink-0 transition-[width,max-width,transform] duration-150 ease-out " +
   "@min-[864px]/conversation:w-[calc(100%_-_6rem)] @min-[864px]/conversation:max-w-4xl " +
   "@min-[1280px]/conversation:w-[calc(100%_-_24rem)] @min-[1280px]/conversation:max-w-6xl " +
   "@min-[1280px]/conversation:translate-x-[var(--conversation-lean,0rem)]";

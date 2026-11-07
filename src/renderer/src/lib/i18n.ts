@@ -487,6 +487,15 @@ const ZH: Record<string, string> = {
   /* ── appearance: code style ─────────────────────────── */
   "Code style": "代码风格",
   "the palette of code blocks; follows light and dark": "代码块的配色，跟随窗口明暗模式",
+  "Code font": "代码字体",
+  "code blocks, paths and the terminal; empty uses Geist Mono": "用于代码块、路径和终端；留空使用 Geist Mono",
+  "Font name": "字体名",
+  "Font ligatures": "字体连字",
+  "Conversation width": "对话宽度",
+  "full width uses the whole pane on wide windows": "全宽时宽窗口下占满整个对话区",
+  "Full width": "全宽",
+  "Show times in the sidebar": "侧边栏显示时间",
+  "when each session was last active": "每个会话最近一次活动的时间",
 
   /* ── terminal shells ────────────────────────────────── */
   "Default shell": "默认 Shell",

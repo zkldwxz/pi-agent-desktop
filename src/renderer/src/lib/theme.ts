@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type ColorMode = "light" | "dark" | "system";
 
@@ -116,6 +116,8 @@ export function useTheme(): ThemeState {
   const [mode, setModeState] = useState<ColorMode>(readMode);
   const [systemDark, setSystemDark] = useState(systemPrefersDark);
   const [frozen, setFrozen] = useState(false);
+  /* false until the first effect: the boot paint must not animate */
+  const painted = useRef(false);
 
   useEffect(() => {
     const media = window.matchMedia(QUERY);
@@ -129,7 +131,16 @@ export function useTheme(): ThemeState {
   useEffect(() => {
     const root = document.documentElement;
     if (frozen) root.classList.add("theme-switching");
-    root.classList.toggle("dark", dark);
+    const flip = () => root.classList.toggle("dark", dark);
+    /* a real light↔dark change crossfades the window (baocode fades its
+       content out and back in over the canvas colour); the first paint and a
+       mode change that keeps the same look (dark → system-while-dark) do not */
+    const changes = root.classList.contains("dark") !== dark;
+    const start = (document as Document & { startViewTransition?: (cb: () => void) => unknown })
+      .startViewTransition;
+    if (changes && start && painted.current) start.call(document, flip);
+    else flip();
+    painted.current = true;
     localStorage.setItem(MODE_KEY, mode);
     if (!frozen) return;
     // hold the freeze for two frames so the token swap is one repaint

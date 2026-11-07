@@ -801,7 +801,10 @@ export function WorkspaceList({
                         >
                           {session.name || session.firstMessage || "New session"}
                         </span>
-                        <span className="shrink-0 font-mono text-ui-xs text-ink-3 tabular-nums group-hover/srow:opacity-0">
+                        <span
+                          data-sidebar-time
+                          className="shrink-0 font-mono text-ui-xs text-ink-3 tabular-nums group-hover/srow:opacity-0"
+                        >
                           {relativeTime(session.modified)}
                         </span>
                       </button>

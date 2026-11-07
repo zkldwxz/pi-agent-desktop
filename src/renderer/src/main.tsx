@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { applyCodeTheme, getCodeTheme } from "./lib/code-theme";
+import { applyAppearance, loadAppearance } from "./lib/appearance-prefs";
 import { installInteractionSounds } from "./lib/sound";
 import { IS_MAC } from "./lib/platform";
 import "./index.css";
@@ -13,6 +14,8 @@ document.documentElement.classList.toggle("os-mac", IS_MAC);
 /* the stored code palette applies before first paint, so a code block never
    flashes the default theme on its way to the saved one */
 applyCodeTheme(getCodeTheme());
+/* same for the code font, ligatures, conversation width and sidebar times */
+applyAppearance(loadAppearance());
 
 /**
  * Dev-only: React's duplicate-key warning is the one class of bug that is
