@@ -183,7 +183,7 @@ export function PlanQuotaCard() {
     /* a settings group: the heading (with when and a refresh) over its card */
     <section className="mb-3 flex flex-col">
       <header className="flex items-center gap-2 pr-1 pb-2 pl-2">
-        <span className="text-ui-caption font-medium text-ink-2">{t("Plan usage")}</span>
+        <span className="text-ui-caption font-medium text-settings-muted">{t("Plan usage")}</span>
         <span className="flex-1 text-ui-xs text-ink-4">
           {tf("Last updated {time}", { time: relativeTime(new Date(fetchedAt).toISOString()) })}
         </span>

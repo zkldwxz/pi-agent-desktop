@@ -88,7 +88,7 @@ function CodeFontField({ value, onCommit }: { value: string; onCommit: (font: st
         if (event.key === "Enter") commit();
         if (event.key === "Escape") setDraft(value);
       }}
-      className="h-[26px] w-[200px] rounded-[5px] border border-input-line bg-transparent px-2 font-mono text-ui-meta text-ink outline-none placeholder:text-ink-4 focus:border-accent"
+      className="h-[26px] w-[200px] rounded-[5px] border border-input-line bg-page px-2 font-mono text-ui-meta text-ink outline-none placeholder:text-ink-4 focus:border-accent"
     />
   );
 }

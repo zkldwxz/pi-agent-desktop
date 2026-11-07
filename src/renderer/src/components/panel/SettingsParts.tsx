@@ -37,8 +37,8 @@ export function Section({
     <section className="flex flex-col">
       <div className="flex items-end gap-3 pr-1 pb-2 pl-2">
         <div className="min-w-0 flex-1">
-          <h2 className="text-ui-caption font-medium text-ink-2">{title}</h2>
-          {description ? <p className="mt-0.5 text-ui-meta leading-[1.5] text-ink-3">{description}</p> : null}
+          <h2 className="text-ui-caption font-medium text-settings-muted">{title}</h2>
+          {description ? <p className="mt-0.5 text-ui-meta leading-[1.5] text-settings-faint">{description}</p> : null}
         </div>
         {actions ? <div className="flex shrink-0 items-center gap-1.5">{actions}</div> : null}
       </div>
@@ -73,7 +73,7 @@ export function Row({
         <div className="min-w-0 flex-1">
           <div className={cn("text-ui-step leading-[1.4] text-ink", mono && "font-mono text-ui-meta")}>{title}</div>
           {/* descriptions wrap rather than truncate: a cut sentence reads like a bug */}
-          {hint ? <div className="mt-px text-ui-meta leading-[1.5] text-ink-2">{hint}</div> : null}
+          {hint ? <div className="mt-px text-ui-meta leading-[1.5] text-settings-muted">{hint}</div> : null}
         </div>
         {children ? <div className="flex shrink-0 items-center gap-1.5">{children}</div> : null}
       </div>
@@ -134,9 +134,11 @@ export function Select({
         title={title}
         onChange={(event) => onChange(event.target.value)}
         className={cn(
-          "h-[26px] min-w-[72px] appearance-none rounded-[6px] border border-input-line bg-transparent pr-6 pl-[9px] text-ui-caption text-ink outline-none transition-colors duration-100 hover:bg-hover focus-visible:border-accent",
+          /* dropdown.background (the page colour, so it reads white on a card)
+             under a solid dropdown.border */
+          "h-[26px] min-w-[72px] appearance-none rounded-[6px] border border-line-strong bg-page pr-6 pl-[9px] text-ui-caption text-ink outline-none transition-colors duration-100 hover:bg-[color-mix(in_srgb,var(--ink)_4%,var(--page))] focus-visible:border-accent",
           mono && "font-mono text-ui-meta",
-          disabled && "cursor-default text-ink-3 hover:bg-transparent",
+          disabled && "cursor-default text-ink-3 hover:bg-page",
         )}
       >
         {options.map((option) =>
@@ -179,7 +181,7 @@ export function TextField({
       spellCheck={false}
       style={{ width }}
       className={cn(
-        "h-[26px] rounded-[5px] border border-input-line bg-transparent px-2 text-ink outline-none placeholder:text-ink-4 focus:border-accent",
+        "h-[26px] rounded-[5px] border border-input-line bg-page px-2 text-ink outline-none placeholder:text-ink-4 focus:border-accent",
         mono ? "font-mono text-ui-meta" : "text-ui-caption",
       )}
     />

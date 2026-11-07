@@ -237,7 +237,7 @@ export function SettingsView({
   const tokens = state.snapshot?.stats?.tokens;
 
   return (
-    <div className="flex min-h-0 flex-1">
+    <div className="flex min-h-0 flex-1 bg-page">
       {/* category rail — the reference layout: a search field, then grouped
           rows with an icon each and a rule between groups. It runs the full
           height of the window because settings *is* this rail: the session
@@ -248,22 +248,22 @@ export function SettingsView({
           row, the way back, a 28px search, then 30px rows (icon 15, label 13,
           radius 6, the 6% ink fill for the one shown and the hovered); groups
           14px apart, no group labels */}
-      <nav className="flex w-[240px] shrink-0 flex-col">
+      <nav className="flex w-[240px] shrink-0 flex-col bg-canvas">
         <div className="titlebar-drag h-9 shrink-0" />
         <div className="shrink-0 px-2 pt-1.5">
           <button
             type="button"
             data-nav-back
             onClick={onBack}
-            className="pressable flex h-7 w-full items-center gap-1.5 rounded-[6px] px-2 text-left text-ui-step text-ink-2 transition-colors duration-100 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] hover:text-ink"
+            className="pressable flex h-7 w-full items-center gap-1.5 rounded-[6px] px-2 text-left text-ui-step text-settings-muted transition-colors duration-100 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] hover:text-ink"
           >
             <ArrowLeftIcon size={15} className="shrink-0" />
             {t("Back")}
           </button>
         </div>
         <div className="shrink-0 px-2 pt-1.5 pb-2.5">
-          <label className="flex h-7 items-center gap-1.5 rounded-[6px] border border-[color-mix(in_srgb,var(--ink)_8%,transparent)] bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] px-2 transition-colors duration-150 focus-within:border-accent">
-            <SearchIcon size={15} className="shrink-0 text-ink-3" />
+          <label className="flex h-7 items-center gap-1.5 rounded-[6px] border border-input-line bg-page px-2 transition-colors duration-150 focus-within:border-accent">
+            <SearchIcon size={15} className="shrink-0 text-settings-icon" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -302,10 +302,10 @@ export function SettingsView({
                       "pressable mb-px flex h-[30px] w-full items-center gap-2 rounded-[6px] px-2.5 text-left text-ui-step transition-colors duration-100",
                       active
                         ? "bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] text-ink"
-                        : "text-ink-2 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]",
+                        : "text-settings-muted hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]",
                     )}
                   >
-                    <span className={cn("flex size-[15px] shrink-0 items-center justify-center", active ? "text-ink" : "text-ink-3")}>
+                    <span className={cn("flex size-[15px] shrink-0 items-center justify-center", active ? "text-ink" : "text-settings-icon")}>
                       {entry.icon}
                     </span>
                     <span className="min-w-0 flex-1 truncate">{t(entry.label)}</span>
@@ -327,9 +327,9 @@ export function SettingsView({
               disabled={!sessionFile}
               title={sessionFile ?? t("No session file yet")}
               onClick={() => sessionFile && void window.pi.showItem(sessionFile)}
-              className="pressable flex h-[30px] w-full items-center gap-2 rounded-[6px] px-2.5 text-left text-ui-step text-ink-2 transition-colors duration-100 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] disabled:opacity-40"
+              className="pressable flex h-[30px] w-full items-center gap-2 rounded-[6px] px-2.5 text-left text-ui-step text-settings-muted transition-colors duration-100 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] disabled:opacity-40"
             >
-              <FilePenIcon size={15} className="shrink-0 text-ink-3" />
+              <FilePenIcon size={15} className="shrink-0 text-settings-icon" />
               <span className="min-w-0 flex-1 truncate">{t("Transcript")}</span>
               <ArrowUpRightIcon size={13} className="shrink-0 text-ink-4" />
             </button>
@@ -337,11 +337,13 @@ export function SettingsView({
         </div>
       </nav>
 
-        {/* the page: an island, as the conversation's — 6px from the window's
-            edges, radius 12, a 1px line; a 30px drag row over it (the window
-            buttons off macOS), then the page's own title */}
-        <div className="my-1.5 mr-1.5 flex min-w-0 flex-1 flex-col overflow-hidden rounded-window border border-line bg-page">
-          <div className="titlebar-drag flex h-[30px] shrink-0 items-center justify-end pr-1.5">
+        {/* the page, as baocode's settings window has it: not an island — the
+            page colour to the window's edges, a 1px line between it and the
+            rail (the IDE's side bar beside its editor); a drag row over it the
+            traffic lights' height (the window buttons off macOS), then the
+            page's own title */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-l border-line bg-page">
+          <div className="titlebar-drag flex h-9 shrink-0 items-center justify-end pr-1.5">
             <WindowControls />
           </div>
           <div key={category} className="view-enter scrollbar-thin min-h-0 flex-1 overflow-y-auto">
@@ -354,7 +356,7 @@ export function SettingsView({
           <div className="flex items-start gap-3 px-2">
             <div className="min-w-0 flex-1">
               <h1 className="text-ui-xl font-semibold text-ink">{t(ALL_ROWS.find((row) => row.key === category)?.label ?? "Settings")}</h1>
-              {PAGE_NOTE[category] ? <p className="mt-1 text-ui-meta leading-[1.5] text-ink-2">{t(PAGE_NOTE[category]!)}</p> : null}
+              {PAGE_NOTE[category] ? <p className="mt-1 text-ui-meta leading-[1.5] text-settings-muted">{t(PAGE_NOTE[category]!)}</p> : null}
             </div>
             {category === "general" ? (
               <button
@@ -445,7 +447,7 @@ export function SettingsView({
                       step={512}
                       value={budgetDraft[level] ?? settings.thinkingBudgets?.[level] ?? 0}
                       onChange={(event) => setBudgetDraft({ ...budgetDraft, [level]: Number(event.target.value) || 0 })}
-                      className="h-[26px] w-20 rounded-[5px] border border-input-line bg-transparent px-2 font-mono text-ui-meta text-ink tabular-nums outline-none focus:border-accent"
+                      className="h-[26px] w-20 rounded-[5px] border border-input-line bg-page px-2 font-mono text-ui-meta text-ink tabular-nums outline-none focus:border-accent"
                     />
                   </label>
                 ))}
@@ -593,7 +595,7 @@ export function SettingsView({
                 defaultValue={terminal?.customPath ?? ""}
                 onBlur={(event) => setCustomShellPath(event.target.value)}
                 placeholder={SHELL_EXAMPLE}
-                className="h-[26px] w-56 rounded-[5px] border border-input-line bg-transparent px-2 font-mono text-ui-meta text-ink outline-none placeholder:text-ink-4 focus:border-accent"
+                className="h-[26px] w-56 rounded-[5px] border border-input-line bg-page px-2 font-mono text-ui-meta text-ink outline-none placeholder:text-ink-4 focus:border-accent"
               />
             </Row>
           </Section>
@@ -607,7 +609,7 @@ export function SettingsView({
                 defaultValue={settings.shellPath ?? ""}
                 onBlur={(event) => onUpdate({ shellPath: event.target.value.trim() })}
                 placeholder={SHELL_EXAMPLE}
-                className="h-[26px] w-56 rounded-[5px] border border-input-line bg-transparent px-2 font-mono text-ui-meta text-ink outline-none placeholder:text-ink-4 focus:border-accent"
+                className="h-[26px] w-56 rounded-[5px] border border-input-line bg-page px-2 font-mono text-ui-meta text-ink outline-none placeholder:text-ink-4 focus:border-accent"
               />
             </Row>
             <Row title={t("Command prefix")} hint={t("prepended to every command the agent runs")}>
@@ -615,7 +617,7 @@ export function SettingsView({
                 defaultValue={settings.shellCommandPrefix ?? ""}
                 onBlur={(event) => onUpdate({ shellCommandPrefix: event.target.value.trim() })}
                 placeholder="shopt -s expand_aliases"
-                className="h-[26px] w-56 rounded-[5px] border border-input-line bg-transparent px-2 font-mono text-ui-meta text-ink outline-none placeholder:text-ink-4 focus:border-accent"
+                className="h-[26px] w-56 rounded-[5px] border border-input-line bg-page px-2 font-mono text-ui-meta text-ink outline-none placeholder:text-ink-4 focus:border-accent"
               />
             </Row>
             <Row title={t("npm command")} hint={t("argv used for package lookups; comma separated")}>
@@ -630,7 +632,7 @@ export function SettingsView({
                   })
                 }
                 placeholder="npm"
-                className="h-[26px] w-56 rounded-[5px] border border-input-line bg-transparent px-2 font-mono text-ui-meta text-ink outline-none placeholder:text-ink-4 focus:border-accent"
+                className="h-[26px] w-56 rounded-[5px] border border-input-line bg-page px-2 font-mono text-ui-meta text-ink outline-none placeholder:text-ink-4 focus:border-accent"
               />
             </Row>
           </Section>

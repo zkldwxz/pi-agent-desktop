@@ -179,6 +179,11 @@
   /* settings: SettingsColors.card (the page with 4% ink) and input.border */
   --color-settings-card: color-mix(in srgb, var(--ink) 4%, var(--page));
   --color-input-line: color-mix(in srgb, var(--line-strong) 70%, transparent);
+  /* SettingsColors: the editor's ink at 74% (descriptions, headings, rail
+     labels), 60% (a group's description), 52% (icons not selected) */
+  --color-settings-muted: color-mix(in srgb, var(--ink) 74%, transparent);
+  --color-settings-faint: color-mix(in srgb, var(--ink) 60%, transparent);
+  --color-settings-icon: color-mix(in srgb, var(--ink) 52%, transparent);
   --color-code-block: var(--code-block);
   --color-code-inline: var(--code-inline);
   --color-code-border: var(--code-border);

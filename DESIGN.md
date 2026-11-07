@@ -181,7 +181,8 @@ UI 用系统字体（`--font-inter`：SF Pro / Segoe UI Variable / system-ui，
 
 ## 设置页（baocode settings_dialog / settings_widgets）
 
-- 骨架：导航 240px 贴在窗口底色上（顶部 36px 留给红绿灯），页面是右侧岛屿卡片；
+- 骨架：导航 240px 用侧栏底色（顶部 36px 留给红绿灯），页面用正文底色铺满到窗口边缘，
+  两者之间一条 1px `line`——**设置页不是岛屿卡片**（baocode settings_dialog: 侧栏旁的编辑器）；
   没有"设置 · 写入 …"之类的全局标题行，每页内容顶部是自己的标题（`text-ui-xl` 半粗体）
   和一行说明（`PAGE_NOTE`）。内容最宽 720 + 两侧 32。
 - 导航：返回 + 28px 搜索（6% 底、8% 线、圆角 6）；导航项 30px、圆角 6、图标 15、文字 13；
@@ -191,6 +192,9 @@ UI 用系统字体（`--font-inter`：SF Pro / Segoe UI Variable / system-ui，
   行间 1px 4% 前景色、左右缩进 12px。
 - 行 `Row`：内边距 14/12；标签 13 / 1.4 `ink`，说明 12 / 1.5 `ink-2`；控件在右，间距 20；
   需要预览时用 `below`。
-- 控件：`Switch` 28×16 琥珀（关时淡灰）；`Select` 26px、圆角 6、1px `input-line`；
-  输入框 26px、圆角 5、1px `input-line`、等宽 12、聚焦变强调色；按钮 24px、圆角 4。
+- 控件：`Switch` 28×16 琥珀（关时淡灰）；`Select` 26px、圆角 6、`bg-page` + 1px `line-strong`
+  （dropdown.background / dropdown.border，卡片上读作白底）；输入框 26px、圆角 5、`bg-page` + 1px
+  `input-line`、等宽 12、聚焦变强调色；按钮 24px、圆角 4。
+- 文字灰阶用 baocode 的 SettingsColors：说明、分组标题、导航未选中 `text-settings-muted`（74%），
+  分组说明 `text-settings-faint`（60%），未选中图标 `text-settings-icon`（52%）。
 - 值列不显示内部标识（函数名、分区名、API 名），下拉选项必须有人话标签。

@@ -196,7 +196,7 @@ export function ModelManagerSection({
       /* a settings group: the heading and its controls over the card */
       <section className="flex flex-col">
         <div className="flex items-center gap-3 pr-1 pb-2 pl-2">
-          <h2 className="min-w-0 flex-1 truncate text-ui-caption font-medium text-ink-2">{t("Model management")}</h2>
+          <h2 className="min-w-0 flex-1 truncate text-ui-caption font-medium text-settings-muted">{t("Model management")}</h2>
           <div className="flex items-center gap-2">
             {/* two readings of one list: the flat catalogue, or a block per
                 endpoint with its keys named once above it */}

@@ -171,7 +171,7 @@ export function HooksSection() {
 
       {/* a settings group: the heading over its card */}
       <section className="flex flex-col">
-      <h2 className="pb-2 pl-2 text-ui-caption font-medium text-ink-2">{t("Hook events")}</h2>
+      <h2 className="pb-2 pl-2 text-ui-caption font-medium text-settings-muted">{t("Hook events")}</h2>
       <Card index={1} className="overflow-hidden">
         <div className="flex flex-col gap-4 px-3.5 py-3">
           {EVENT_GROUPS.map((group) => (
