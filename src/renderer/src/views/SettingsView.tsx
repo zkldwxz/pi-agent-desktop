@@ -635,6 +635,7 @@ export function SettingsView({
             <Row title={t("Agent tools")} hint={t("registered as a pi extension — seven tools, no MCP layer")}>
               <span className="font-mono text-ui-sm text-ink-3">browser_*</span>
             </Row>
+            <ExternalBrowserRow />
           </Section>
           ) : null}
 
@@ -774,5 +775,26 @@ function AboutRows() {
       </div>
       {exportPath ? <div className="pb-2 break-all font-mono text-ui-xs text-ink-3">{exportPath}</div> : null}
     </div>
+  );
+}
+
+/** "drive the real Chrome" — the CDP takeover switch and its status line. */
+function ExternalBrowserRow() {
+  const [status, setStatus] = useState<string | null>(null);
+  return (
+    <Row title={t("External browser")} hint={t("drive the real Chrome over CDP — launches with a debug port, no extension needed")}>
+      {status ? <span className="mr-1 text-ui-xs text-ink-3">{status}</span> : null}
+      <button
+        type="button"
+        onClick={() =>
+          void window.pi.externalBrowserLaunch().then((result) =>
+            setStatus(result.ok ? t("Running") : (result.error ?? t("Failed"))),
+          )
+        }
+        className="pressable rounded-control border border-line px-3 py-1.5 text-ui-caption text-ink hover:bg-hover"
+      >
+        {t("Launch with takeover")}
+      </button>
+    </Row>
   );
 }
