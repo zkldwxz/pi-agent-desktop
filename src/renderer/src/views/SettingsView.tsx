@@ -27,6 +27,7 @@ import { NavRow } from "../components/NavRow";
 import { TextRow } from "../components/beautiful/atoms/TextRow";
 import { AppearanceSection } from "../components/panel/AppearanceSection";
 import { HooksSection } from "../components/panel/HooksSection";
+import { SshServersSection } from "./SshServersSection";
 import { ModelManagerSection, SMART_KEY } from "../components/panel/ModelManager";
 import type { QueueBehavior } from "../components/agent/QueueBar";
 import { ShortcutsSection } from "../components/panel/ShortcutsSection";
@@ -46,7 +47,7 @@ import { UsageView } from "./UsageView";
  *  placeholder is an example to copy, and a Git Bash drive letter is not one. */
 const SHELL_EXAMPLE = IS_WINDOWS ? "D:/Git/bin/bash.exe" : IS_MAC ? "/bin/zsh" : "/bin/bash";
 
-type SettingsCategory = "appearance" | "general" | "models" | "agent" | "browser" | "tasks" | "hooks" | "keyboard" | "data" | "usage";
+type SettingsCategory = "appearance" | "general" | "models" | "agent" | "browser" | "remote" | "tasks" | "hooks" | "keyboard" | "data" | "usage";
 
 type SettingsRow = { key: SettingsCategory; label: string; icon: React.ReactNode };
 
@@ -77,6 +78,7 @@ const GROUPS: Array<{ label?: string; items: SettingsRow[] }> = [
     label: "Workspace",
     items: [
       { key: "browser", label: "Browser & network", icon: <GlobeIcon size={14} /> },
+      { key: "remote", label: "SSH servers", icon: <TerminalIcon size={14} /> },
       { key: "data", label: "Data", icon: <DatabaseIcon size={14} /> },
       { key: "usage", label: "Usage & cache", icon: <GaugeIcon size={14} /> },
     ],
@@ -618,6 +620,7 @@ export function SettingsView({
           </>
           ) : null}
 
+          {category === "remote" ? <SshServersSection /> : null}
           {category === "browser" ? (
           <Section title={t("Browser")} index={0}>
             <Row title={t("Embedded browser")} hint={t("an isolated Chromium session — site logins persist between runs")}>

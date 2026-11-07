@@ -92,8 +92,16 @@ export class SshHost {
     const id = input.id ?? randomUUID();
     const previous = this.profiles.get(id);
     if (previous?.fingerprint && previous.fingerprint !== input.fingerprint) throw new Error("SSH host key changed. Remove this saved connection and verify the new fingerprint.");
-    const profile: SshProfile = { id, name: input.name?.trim() || `${input.username}@${target.host}`, ...target, username: input.username.trim(), privateKeyPath: input.privateKeyPath || undefined, fingerprint: input.fingerprint, status: "connecting" };
+    const profile: SshProfile = { id, name: input.name?.trim() || `${input.username}@${target.host}`, ...target, username: input.username.trim(), privateKeyPath: input.privateKeyPath || undefined, fingerprint: input.fingerprint, jumpHostId: input.jumpHostId || undefined, status: "connecting" };
     await this.disconnect(id);
+    /* A jump host is a transport, not a credential: the bastion must already
+     * be connected — we borrow its channel, not its secrets. */
+    let jumpClient: Client | undefined;
+    if (input.jumpHostId) {
+      const jump = this.connections.get(input.jumpHostId);
+      if (!jump) throw new Error("The jump host is not connected. Connect it first.");
+      jumpClient = jump.client;
+    }
     this.profiles.set(id, profile);
     this.onChange();
     const client = new SshClient();
@@ -103,6 +111,15 @@ export class SshHost {
     try {
       const privateKey = input.privateKeyPath ? await readFile(input.privateKeyPath) : undefined;
       const config: ConnectConfig = { ...target, username: profile.username, privateKey, passphrase: input.passphrase || undefined, password: input.password || undefined, agent: !privateKey && !input.password ? (process.env.SSH_AUTH_SOCK || (process.platform === "win32" ? "\\\\.\\pipe\\openssh-ssh-agent" : undefined)) : undefined, readyTimeout: 20_000, keepaliveInterval: 15_000, keepaliveCountMax: 3, hostVerifier: (key: Buffer) => fingerprintOf(key) === input.fingerprint, tryKeyboard: Boolean(input.password) };
+      /* Bastion hop: ssh2's `forwardOut` hands back a channel the inner client
+       * uses as its socket — `sock` replaces host/port on the wire, so the
+       * target fields stay only for naming and the host-key check stays on the
+       * *target's* fingerprint, which is what the probe verified. */
+      if (jumpClient) {
+        config.sock = await new Promise<ClientChannel>((resolve, reject) =>
+          jumpClient.forwardOut("127.0.0.1", 0, target.host, target.port, (error: Error | undefined, channel: ClientChannel) => error ? reject(error) : resolve(channel)),
+        );
+      }
       if (input.password) client.on("keyboard-interactive", (_n, _i, _l, prompts, finish) => finish(prompts.map(() => input.password!)));
       await new Promise<void>((resolve, reject) => { client.once("ready", resolve); client.once("error", reject); client.connect(config); });
       profile.phase = "opening-sftp"; this.onChange();

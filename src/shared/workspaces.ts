@@ -22,6 +22,8 @@ export interface SshProfile {
   username: string;
   privateKeyPath?: string;
   fingerprint?: string;
+  /** Reach the target through this already-connected profile — the bastion. */
+  jumpHostId?: string;
   /** Last connected remote folder, so reconnecting reopens the same workspace anchor. */
   folder?: string;
   status: "disconnected" | "connecting" | "connected" | "error";
@@ -41,6 +43,8 @@ export interface SshConnectInput {
   /** Verify the SHA256 fingerprint observed through probeSsh before authentication. */
   fingerprint: string;
   folder: string;
+  /** A saved profile to tunnel through; it must already be connected. */
+  jumpHostId?: string;
 }
 
 export interface SshProbe { fingerprint: string; algorithm: string }
