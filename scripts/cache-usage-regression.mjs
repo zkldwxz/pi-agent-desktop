@@ -11,10 +11,10 @@
  *               serialized message the turn footer reads — one number, several
  *               consumers
  *   the prefix  plan mode must not touch the tool catalog or the system prompt
- *               (both are part of the cached prefix), and the Ultra grant must
- *               be a pure function of state: byte-identical across turns, absent
- *               when its state says so. Reminders are checked the same way —
- *               unchanged state, unchanged bytes.
+ *               (both are part of the cached prefix), and plan reminders must
+ *               be a pure function of state: byte-identical across turns.
+ *               Reminders are checked the same way — unchanged state,
+ *               unchanged bytes.
  *
  * The scanner runs against a synthetic agent directory, so no real session log
  * is read or written. `node scripts/plan-mode-smoke.mjs` covers the full plan
@@ -218,25 +218,6 @@ try {
     assert.deepEqual(resumed.catalogWrites, [], "no catalog change on resume either");
     const refused = await resumed.fire("tool_call", { type: "tool_call", toolCallId: "t", toolName: "edit", input: {} });
     assert.equal(refused[0]?.block, true, "the review plan still refuses writes");
-  });
-
-  /* ── the Ultra grant: a pure function of state ─────────────────── */
-
-  const { registerUltraPolicy } = await jiti.import(join(root, "src/main/ultra-extension.ts"));
-  let ultraHandler;
-  registerUltraPolicy({ on: (_name, fn) => (ultraHandler = fn), getActiveTools: () => ["spawn_agent"] }, {
-    isUltra: () => true,
-    maxAgents: () => 3,
-  });
-
-  await check("the Ultra grant is byte-stable and carries no clock", async () => {
-    const first = await ultraHandler({ systemPrompt: "base" });
-    const second = await ultraHandler({ systemPrompt: "base" });
-    assert.equal(first.systemPrompt, second.systemPrompt, "same state, same bytes");
-    assert.ok(first.systemPrompt.startsWith("base\n\n"), "it extends the prompt instead of replacing it");
-    assert.match(first.systemPrompt, /3 sub-agent slots/);
-    assert.equal(/\d{4}-\d{2}-\d{2}/.test(first.systemPrompt), false, "no date in the cached prefix");
-    assert.equal(/\b\d{10,}\b/.test(first.systemPrompt), false, "no timestamp in the cached prefix");
   });
 
   await check("a plan reminder is byte-stable while its state is", async () => {

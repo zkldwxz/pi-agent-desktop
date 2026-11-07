@@ -52,7 +52,6 @@ function coerceTerminal(raw: unknown): TerminalConfig {
 const DEFAULT_CONFIG: DesktopConfig = {
   capabilities: { browser: true, todos: true },
   onboardingDone: false,
-  ultra: {},
   agents: { ...DEFAULT_AGENTS },
   terminal: { ...DEFAULT_TERMINAL },
 };
@@ -68,7 +67,6 @@ export async function readConfig(): Promise<DesktopConfig> {
     return {
       capabilities: { ...DEFAULT_CONFIG.capabilities, ...(parsed.capabilities ?? {}) },
       onboardingDone: Boolean(parsed.onboardingDone),
-      ultra: parsed.ultra ?? {},
       buildModel:
         parsed.buildModel && typeof parsed.buildModel.provider === "string" && typeof parsed.buildModel.id === "string"
           ? { provider: parsed.buildModel.provider, id: parsed.buildModel.id }
@@ -102,7 +100,6 @@ async function writeConfigNow(patch: Partial<DesktopConfig>): Promise<DesktopCon
   const next: DesktopConfig = {
     capabilities: { ...current.capabilities, ...(patch.capabilities ?? {}) },
     onboardingDone: patch.onboardingDone ?? current.onboardingDone,
-    ultra: patch.ultra ?? current.ultra,
     /* the model the last Build ran with — written once per build, read on every
        boot, so the plan panel opens on the choice you made last time */
     buildModel: "buildModel" in patch ? patch.buildModel : current.buildModel,
@@ -163,7 +160,7 @@ const EXTENSION_META: Record<string, { name: string; description: string }> = {
   "agent-team": {
     name: "Agent team",
     description:
-      "Codex-style sub-agents: spawn_agent, wait_agent, list_agents and interrupt_agent backed by real in-process sessions with their own context windows. Required for Ultra's proactive delegation.",
+      "Codex-style sub-agents: spawn_agent, wait_agent, list_agents and interrupt_agent backed by real in-process sessions with their own context windows.",
   },
 };
 

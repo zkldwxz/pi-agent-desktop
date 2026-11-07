@@ -9,7 +9,7 @@ import { ContextBadge } from "../panel/ContextBadge";
 import { t, useLocale } from "../../lib/i18n";
 import { cn } from "../../lib/cn";
 import { ListChecksIcon, LoaderIcon, PencilIcon, TerminalIcon } from "../icons";
-import { useUltraSweep } from "../../lib/theme";
+import { useHotSweep } from "../../lib/theme";
 
 /** What the pill says, per phase. */
 const PLAN_LABEL: Record<PlanState["phase"], string> = {
@@ -192,9 +192,9 @@ export function AgentComposer({
     },
     [appendToDraft, isTempPath],
   );
-  /* the travelling light is the Ultra hue: the sweep is a Max-depth moment, and
+  /* the travelling light is the hot hue: the sweep is a Max-depth moment, and
      Max is where the track and the level label go purple */
-  const sweepPalette = useUltraSweep();
+  const sweepPalette = useHotSweep();
 
   return (
     <div className="flex w-full flex-col items-center px-6 pb-3 pt-1">

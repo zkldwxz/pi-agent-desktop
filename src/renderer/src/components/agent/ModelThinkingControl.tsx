@@ -89,8 +89,8 @@ export function ModelThinkingControl({
   /* The ramp comes from the session, not from the model row. The catalogue's own
      list is derived in `thinkingLevelsFor`, which hands every reasoning model the
      full seven steps unless its entry declares a `thinkingLevelMap` — so a proxy
-     that stops at `high` got offered `max` and Ultra, and the host then refused
-     both, which read as the chip snapping back on its own. */
+     that stops at `high` got offered `max`, and the host then refused
+     it, which read as the chip snapping back on its own. */
   const levels = state.snapshot?.thinkingLevels ?? current?.thinkingLevels ?? ["off"];
   const canThink = levels.length > 1;
   /* the track is told what is committed, never what the pointer is hovering —

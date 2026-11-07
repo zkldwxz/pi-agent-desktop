@@ -10,8 +10,7 @@
  *
  * The tools are registered unconditionally, exactly like Codex V2: the
  * *policy* (delegate proactively vs. only on explicit request) is not a gate
- * here — the spawn_agent description carries the explicit-request clause, and
- * an active Ultra grant from the host's ultra extension is what overrides it.
+ * here — the spawn_agent description carries the explicit-request clause.
  *
  * Delivery protocol: a settled sub-agent is reported to the model exactly
  * once — to a pending wait_agent, or (when the parent is idle and

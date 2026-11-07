@@ -16,7 +16,6 @@ import {
   createAgentSessionServices,
   createCodemodeExtension,
   createMcpExtension,
-  createToolSearchExtension,
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import type {
@@ -38,8 +37,6 @@ import type {
   DesktopConfig,
   SlashCommand,
   ToolActivity,
-  UltraMode,
-  UltraSetting,
 } from "@shared/types";
 import type { TerminalResult } from "@shared/workspace";
 import {
@@ -63,7 +60,7 @@ import {
 } from "./mcp";
 import type { McpExposure, McpServerConfig } from "@earendil-works/pi-coding-agent";
 import { createRule, deletePlugin, listPlugins, readPluginText, setPluginEnabled, writePluginText } from "./plugins";
-import { toolDisplayDetails, serializeMessage, serializeMessages, serializeModel, serializeSessionList, textFromContent, thinkingLevelsFor, withUltra } from "./serialize";
+import { toolDisplayDetails, serializeMessage, serializeMessages, serializeModel, serializeSessionList, textFromContent, thinkingLevelsFor } from "./serialize";
 import { registerBrowserTools } from "./browser-extension";
 import { registerDesktopBridge } from "./desktop-bridge-extension";
 import { registerSubagentTools, type NamedExtensionFactory } from "./subagent-tools-extension";
@@ -71,7 +68,6 @@ import { registerAgentTools } from "./agent-tools/extension";
 import { registerWebTools } from "./web/extension";
 import { EMPTY_PLAN } from "./plan-state";
 import { EMPTY_TODOS, registerTodoTools, type TodoState } from "./todo-extension";
-import { registerUltraPolicy } from "./ultra-extension";
 import { readConfig, writeConfig } from "./install";
 import { UiBridge } from "./ui-bridge";
 import type { UiAnswer, UiNotification, UiRequest } from "@shared/ui";
@@ -685,28 +681,17 @@ export class PiHost {
 
   async setThinkingLevel(level: string): Promise<void> {
     const session = this.requireSession();
-    /* pi clamps a level it does not know down to the model's lowest, so Ultra is
-       translated here rather than sent: the request is Max, and the delegation
-       policy the composer adds is what makes the two differ. */
-    const ultra = level === "ultra";
-    const offered = withUltra(session.getAvailableThinkingLevels(), this.ultraMode(session));
+    const offered = session.getAvailableThinkingLevels() as string[];
     if (!offered.includes(level)) {
       /* name what the model does take: the refusal alone leaves the user with a
          dead end, and this is the one message that can tell them the depth is
          the channel's limit rather than a broken control */
       throw new Error(`${level} is not one of this model's depths: ${offered.join(" / ")}`);
     }
-    const wire = (ultra ? "max" : level) as never;
-    session.setThinkingLevel(wire);
+    session.setThinkingLevel(level as never);
     const model = session.model;
     if (model) {
-      const key = `${model.provider}/${model.id}`;
-      const entry = this.desktop?.ultra[key];
-      if (entry && this.desktop) {
-        this.desktop = { ...this.desktop, ultra: { ...this.desktop.ultra, [key]: { ...entry, picked: ultra } } };
-        this.desktop = await writeConfig({ ultra: this.desktop.ultra });
-      }
-      this.settingsManager.setModelThinkingLevel(model.provider, model.id, wire);
+      this.settingsManager.setModelThinkingLevel(model.provider, model.id, level as never);
     }
     await this.settingsManager.flush();
     this.emit();
@@ -779,16 +764,6 @@ export class PiHost {
         this.settingsManager.setModelThinkingLevel(provider, rest.join("/"), level as never);
       }
     }
-    if (patch.ultra !== undefined) {
-      /* an entry survives only while it names a mode, and `picked` is dropped
-         with it — clearing Ultra for the running model is what takes the label
-         off the composer without a second round trip */
-      const ultra: Record<string, UltraSetting> = {};
-      for (const [key, entry] of Object.entries(patch.ultra)) {
-        if (entry?.mode) ultra[key] = { mode: entry.mode, picked: Boolean(entry.picked) };
-      }
-      this.desktop = await writeConfig({ ultra });
-    }
     if (patch.agents !== undefined) {
       /* the agent-team plugin reads this block from disk when its session
        * binds — write it, then reload so the new limits take effect now */
@@ -819,8 +794,7 @@ export class PiHost {
     if (errors.length) throw new Error(errors.map((entry) => entry.error.message).join("; "));
     // Desktop-only preferences are read on demand. Reloading the session here
     // would shut down a running fleet just because the user changed shells.
-    if (Object.keys(patch).every((key) => key === "terminal" || key === "ultra")) {
-      if (patch.ultra !== undefined) await this.refreshModels();
+    if (Object.keys(patch).every((key) => key === "terminal")) {
       this.emit();
       return;
     }
@@ -1309,15 +1283,14 @@ export class PiHost {
         // in this process, so the tools call the embedded view directly.
         resourceLoaderOptions: {
           extensionFactories: [
-            /* The three built-in extensions the CLI loads and SDK sessions do
+            /* The built-in extensions the CLI loads and SDK sessions do
                not. MCP servers come from `mcp.json` — the one in the agent
                directory and, for a trusted project, the one under `.pi/`.
-               `codemode` and `tool_search` are registered inactive: they switch
-               on through `defaultTools`, or on their own when a server's
-               exposure needs them. `openUrl` hands an OAuth authorization page
-               to the real browser, which is what the CLI's own sign-in does. */
+               `codemode` is registered inactive: it switches on through
+               `defaultTools`, or on its own when a server's exposure needs
+               it. `openUrl` hands an OAuth authorization page to the real
+               browser, which is what the CLI's own sign-in does. */
             createCodemodeExtension(),
-            createToolSearchExtension(),
             createMcpExtension({ openUrl: (url) => void shell.openExternal(url) }),
             /* The window's tools, in every session. A sub-agent session loads
                the same two factories — agent-team asks the provisioning
@@ -1354,17 +1327,6 @@ export class PiHost {
                   },
                 ]
               : []),
-            /* Not gated on a capability the way the two above are: the depth can
-               change without the session being rebuilt, so the handler has to be
-               installed and ask each turn. It costs nothing while it is off. */
-            {
-              name: "pi-desktop-ultra",
-              factory: (pi: ExtensionAPI) =>
-                registerUltraPolicy(pi, {
-                  isUltra: () => this.ultraActive(),
-                  maxAgents: () => this.desktop?.agents.maxConcurrent ?? 3,
-                }),
-            },
             /* The window's own plumbing. Plan mode lives in `~/.pi/agent/extensions`
                as a normal plugin, so the only way to see what it is doing is to
                listen on the bus it publishes to; the same widget carries the real
@@ -1526,24 +1488,6 @@ export class PiHost {
     void this.refreshSessions().then(() => this.emit()).catch(() => undefined);
   }
 
-  /** Ultra borrows Max's request, so the flag that says which one the user
-   *  picked has to live on this side of the wire. */
-  private ultraMode(session: AgentSession | null | undefined): UltraMode | undefined {
-    const model = session?.model;
-    if (!model || !this.desktop) return undefined;
-    return this.desktop.ultra[`${model.provider}/${model.id}`]?.mode;
-  }
-
-  /** Whether the session is running at Ultra, not merely at Max. */
-  private ultraActive(): boolean {
-    const session = this.runtime?.session ?? null;
-    if (!session || session.thinkingLevel !== "max") return false;
-    const model = session.model;
-    if (!model || !this.desktop) return false;
-    const entry = this.desktop.ultra[`${model.provider}/${model.id}`];
-    return Boolean(entry?.mode && entry.picked);
-  }
-
   private async refreshModels(): Promise<void> {
     const session = this.runtime?.session;
     if (!session) {
@@ -1559,10 +1503,7 @@ export class PiHost {
       const info = serializeModel(model as never)!;
       return {
         ...info,
-        thinkingLevels: withUltra(
-          availableThinkingLevels(model as never),
-          this.desktop?.ultra[`${model.provider}/${model.id}`]?.mode,
-        ),
+        thinkingLevels: availableThinkingLevels(model as never),
         thinkingLevelMap: (model as { thinkingLevelMap?: Record<string, string | null> }).thinkingLevelMap,
         source: fromFile ? "models.json" : "builtin",
       } satisfies ModelInfo;
@@ -1711,7 +1652,6 @@ export class PiHost {
       defaultModel: settings.defaultModel,
       defaultThinkingLevel: settings.defaultThinkingLevel,
       modelThinkingLevels: this.settingsManager.getAllModelThinkingLevels() as Record<string, string>,
-      ultra: this.desktop?.ultra ?? {},
       thinkingBudgets: this.settingsManager.getThinkingBudgets() as Record<string, number> | undefined,
       enabledModels: settings.enabledModels,
       defaultTools: settings.defaultTools,
@@ -1782,9 +1722,9 @@ export class PiHost {
             cwd: this.cwd,
             model: this.allModels.find(
               (model) => model.provider === session.model?.provider && model.id === session.model?.id,
-            ) ?? serializeModel(session.model, this.ultraMode(session)),
-            thinkingLevel: this.ultraActive() ? "ultra" : session.thinkingLevel,
-            thinkingLevels: withUltra(session.getAvailableThinkingLevels(), this.ultraMode(session)),
+            ) ?? serializeModel(session.model),
+            thinkingLevel: session.thinkingLevel,
+            thinkingLevels: session.getAvailableThinkingLevels(),
             isStreaming: session.isStreaming,
             isIdle: session.isIdle,
             isCompacting: session.isCompacting,

@@ -280,6 +280,21 @@ await checkAsync("pi's exposure alias reads as its current name without rewritin
   assert.equal(doc(safetyFile).mcpServers.echo.exposure, "codemode-deferred");
 });
 
+await checkAsync("retired deferred exposure migrates to codemode on read", async () => {
+  /* deferred only worked through tool_search, which is no longer registered —
+     pi reads mcp.json directly, so the file itself must be healed */
+  await writeFile(
+    safetyFile,
+    `${JSON.stringify({ mcpServers: { echo: { command: "node", exposure: "deferred", toolExposure: { read: "deferred" } } } }, null, 2)}\n`,
+    "utf8",
+  );
+  const view = readMcpConfig(safetyCwd, safetyAgent);
+  assert.equal(view.servers.find((server) => server.name === "echo").exposure, "codemode");
+  const written = doc(safetyFile).mcpServers.echo;
+  assert.equal(written.exposure, "codemode");
+  assert.equal(written.toolExposure.read, "codemode");
+});
+
 await checkAsync("names that fold into one namespace are reported, not both loaded", async () => {
   await writeFile(
     safetyFile,

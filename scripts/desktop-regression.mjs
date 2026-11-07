@@ -15,7 +15,10 @@ const cwd = join(sandbox, "project");
 await mkdir(cwd, { recursive: true });
 await cp(join(root, "resources/extensions/plan-mode"), join(sandbox, "agent/extensions/plan-mode"), { recursive: true });
 await cp(join(root, "resources/extensions/agent-team"), join(sandbox, "agent/extensions/agent-team"), { recursive: true });
-const jiti = createJiti(import.meta.url, { nativeModules: ["electron"], alias: { electron: "electron/main" } });
+const jiti = createJiti(import.meta.url, {
+  nativeModules: ["electron"],
+  alias: { electron: "electron/main", "@shared": join(root, "src/shared") },
+});
 let host;
 let count = 0;
 function check(label, fn) { fn(); count++; console.log(`PASS ${label}`); }
@@ -25,13 +28,11 @@ try {
   await writeConfig({ capabilities: { browser: false, todos: true }, onboardingDone: true });
   await Promise.all([
     writeConfig({ terminal: { preferred: "cmd" } }),
-    writeConfig({ ultra: { "test/model": { mode: "coexist", picked: true } } }),
     writeConfig({ agents: { maxConcurrent: 2, wakeOnCompletion: false } }),
   ]);
   const config = await readConfig();
   check("concurrent config updates preserve unrelated fields", () => {
     assert.equal(config.terminal.preferred, "cmd");
-    assert.equal(config.ultra["test/model"].picked, true);
     assert.equal(config.agents.maxConcurrent, 2);
   });
   host = new PiHost(cwd);
@@ -319,7 +320,7 @@ try {
 
   check("a settled turn leaves no live activity for the next turn to inherit", () => {
     host.onEvent({ type: "tool_execution_start", toolCallId: "ghost-2", toolName: "bash", args: { command: "echo hi" } });
-    host.onEvent({ type: "tool_execution_end", toolCallId: "ghost-2", isError: false, result: {} });
+    host.onEvent({ type: "tool_execution_end", toolCallId: "ghost-2", toolName: "bash", isError: false, result: {} });
     assert.equal(host.toolActivity().length, 1);
     host.onEvent({ type: "agent_settled" });
     assert.deepEqual(host.toolActivity(), []);
@@ -399,20 +400,6 @@ try {
     terminals.write(terminal.id, "exit\r");
     await exitPromise;
   } finally { terminals.dispose(); }
-  const { registerUltraPolicy } = await jiti.import(join(root, "src/main/ultra-extension.ts"));
-  let beforeStart;
-  let ultra = true;
-  let active = ["spawn_agent"];
-  registerUltraPolicy({ on: (_name, fn) => { beforeStart = fn; }, getActiveTools: () => active }, {
-    isUltra: () => ultra, maxAgents: () => 2,
-  });
-  const granted = await beforeStart({ systemPrompt: "base" });
-  check("Ultra grant injected with active delegation tools", () => assert(granted.systemPrompt.includes("2 sub-agent slots")));
-  ultra = false;
-  assert.equal(await beforeStart({ systemPrompt: "base" }), undefined);
-  ultra = true; active = [];
-  assert.equal(await beforeStart({ systemPrompt: "base" }), undefined);
-  count++; console.log("PASS Ultra revoked when disabled or delegation tools inactive");
   console.log(`${count} desktop regression checks passed (offline)`);
 } catch (error) {
   console.error(error);

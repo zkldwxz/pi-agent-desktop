@@ -16,10 +16,8 @@ export interface ModelInfo {
   reasoning: boolean;
   supportsImages: boolean;
   input: string[];
-  /** the depths this model can take, Ultra included when it is configured */
+  /** the depths this model can take */
   thinkingLevels: string[];
-  /** the model tops out at Max over XHigh, which is the one shape Ultra fits */
-  supportsUltra: boolean;
   thinkingLevelMap?: Record<string, string | null>;
   cost: {
     input: number;
@@ -28,22 +26,6 @@ export interface ModelInfo {
     cacheWrite: number;
   };
   source: "builtin" | "models.json" | "extension";
-}
-
-/**
- * How a model gets the Ultra step. pi has no `ultra` thinking level, so the
- * desktop owns it: the wire level stays `max` and the difference is a per-turn
- * delegation policy added to the system prompt.
- *
- * `replace` takes Max's slot; `coexist` puts Ultra after it.
- */
-export type UltraMode = "replace" | "coexist";
-
-export interface UltraSetting {
-  mode: UltraMode;
-  /** Ultra is the depth currently picked for this model. Only `picked` models
-   *  send the delegation policy — Max alone does not. */
-  picked: boolean;
 }
 
 /** The agent-team plugin's sub-agents, as the desktop mirrors them. */
@@ -256,8 +238,6 @@ export interface RuntimeSettings {
   defaultModel?: string;
   defaultThinkingLevel?: string;
   modelThinkingLevels: Record<string, string>;
-  /** per-model Ultra setup, keyed `provider/modelId` — lives in desktop.json */
-  ultra?: Record<string, UltraSetting>;
   thinkingBudgets?: Record<string, number>;
   enabledModels?: string[];
   defaultTools?: string[];
@@ -567,8 +547,6 @@ export type HostSnapshot = HostUpdate & { messages: ChatMessage[] };
 export interface DesktopConfig {
   capabilities: { browser: boolean; todos: boolean };
   onboardingDone: boolean;
-  /** per-model Ultra setup, keyed `provider/modelId` */
-  ultra: Record<string, UltraSetting>;
   /** the model Build last ran with; written when the user picks one */
   buildModel?: { provider: string; id: string };
   /** delegation fleet settings — the agent-team plugin reads the same block */

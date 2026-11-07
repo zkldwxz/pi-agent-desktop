@@ -34,13 +34,21 @@ export interface McpConfigView {
 }
 
 /** How a server's tools reach the model, weakest exposure first. */
-export const MCP_EXPOSURES: McpExposure[] = ["codemode", "deferred", "direct", "hidden"];
+export const MCP_EXPOSURES: McpExposure[] = ["codemode", "direct", "hidden"];
 
 /** pi's name rule, kept in step with it: names reach the model as `mcp__<name>__<tool>`. */
 const SERVER_NAME = /^[A-Za-z0-9_-]+$/;
 
-/** Older exposure names, replaced by their current spelling when validated. */
-const MCP_EXPOSURE_ALIASES: Readonly<Record<string, McpExposure>> = { "codemode-deferred": "codemode" };
+/* `deferred` is retired: it only ever worked through pi's `tool_search`
+   extension, which this build no longer registers — a deferred server would
+   ask for a tool that does not exist and leave its tools unreachable. Old
+   entries read as `codemode`, the other exposure that keeps tools out of the
+   model's declarations. `codemode-deferred` is pi's own legacy spelling of
+   `codemode`. */
+const MCP_EXPOSURE_ALIASES: Readonly<Record<string, McpExposure>> = {
+  "codemode-deferred": "codemode",
+  deferred: "codemode",
+};
 
 const LOOPBACK_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
 

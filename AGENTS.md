@@ -34,7 +34,7 @@ src/shared/     跨层复用的类型与纯函数
 ```
 
 - 渲染进程**只**通过 `window.pi`（`src/preload/index.ts` 的 `PiBridge`）访问能力，不 require 主进程模块。`vite-env.d.ts` 里的类型导入是例外。
-- MCP 服务器配置在 `mcp.json`：跨层类型在 `src/shared/mcp.ts`，读写（含增删改、启停、exposure）在 `src/main/mcp.ts`，界面在 `src/renderer/src/views/McpView.tsx`。**SDK 会话不加载 pi 的内建扩展**，`pi-host.ts` 的 `extensionFactories` 必须显式带上 `createMcpExtension()` / `createCodemodeExtension()` / `createToolSearchExtension()`，漏掉其中一个对应能力就静默失效；这三个工厂只在主会话注入，子智能体会话（`SESSION_TOOLS`）不带。
+- MCP 服务器配置在 `mcp.json`：跨层类型在 `src/shared/mcp.ts`，读写（含增删改、启停、exposure）在 `src/main/mcp.ts`，界面在 `src/renderer/src/views/McpView.tsx`。**SDK 会话不加载 pi 的内建扩展**，`pi-host.ts` 的 `extensionFactories` 必须显式带上 `createMcpExtension()` / `createCodemodeExtension()`，漏掉其中一个对应能力就静默失效；这两个工厂只在主会话注入，子智能体会话（`SESSION_TOOLS`）不带。`tool_search` 已移除：`deferred` exposure 随之退役，`readMcpConfig` 会把存量 `deferred` 改写成 `codemode`。
 - 多文件夹工作区类型在 `src/shared/workspaces.ts`，成员持久化与路径校验在 `src/main/workspaces.ts`。SSH/SFTP/PTY 在 `src/main/remote-ssh.ts`，远端核心工具在 `workspace-tools.ts`，Git 在 `remote-git.ts`。本机运行 pi SDK，远端不部署服务；密码/私钥内容不落盘。所有文件/命令工具（含 PowerShell）一起覆盖，恢复不同工作区的会话必须重建对应工具 transport。切换文件夹和工作区成员变更只在任务空闲时允许（包含 shell、后台回合与子智能体），上下文目录列表字节稳定以保留缓存前缀。缺失远端 anchor 元数据必须报错，禁止合成本机工作区；删除当前远端工作区先切回本机。已保存 SSH 连接被工作区引用时禁止删除。计划插件仍在本机，通过不接受路径入参的 `readPlan()` 读取当前计划文件。
 - 主进程不碰渲染层任何东西。
 - 只有被纯 node 加载器直接 import 的模块（如 `src/main/model-config.ts`、`serialize.ts`）里，从 `src/shared` 引**值**必须用相对路径带扩展名：`from "../shared/channel.ts"`。`@shared/*` 别名只有 vite 认识，`scripts/*-regression.mjs` 用 `await import()` / jiti 加载时会 `ERR_MODULE_NOT_FOUND`。纯 `import type` 不受影响（会被擦除）。

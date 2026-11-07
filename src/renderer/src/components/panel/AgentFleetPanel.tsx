@@ -124,7 +124,7 @@ export function AgentFleetPanel({ fleet, onInterrupt }: { fleet: FleetAgent[]; o
         <div className="my-auto">
           <EmptyState
             title={t("No sub-agents")}
-            body={t("When the model delegates work — Ultra's proactive mode does this on its own — the sub-agents appear here with their status and results.")}
+            body={t("When the model delegates work, the sub-agents appear here with their status and results.")}
           />
         </div>
       </div>

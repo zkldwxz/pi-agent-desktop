@@ -323,10 +323,7 @@ export function ModelsView({
                       <span>ctx {formatContext(model.contextWindow)}</span>
                       <span>max {formatContext(model.maxTokens)}</span>
                       <span>
-                        {/* Ultra is the desktop's overlay on Max, not a depth the
-                            channel serves, so it is not counted here */}
-                        {model.thinkingLevels.filter((level) => level !== "off" && level !== "ultra").length}{" "}
-                        {t("levels")}
+                        {model.thinkingLevels.filter((level) => level !== "off").length} {t("levels")}
                       </span>
                     </div>
                   </button>

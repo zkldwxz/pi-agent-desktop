@@ -1,4 +1,4 @@
-import type { ChatBlock, ChatMessage, ModelInfo, SessionListItem, SessionStatus, UltraMode } from "@shared/types";
+import type { ChatBlock, ChatMessage, ModelInfo, SessionListItem, SessionStatus } from "@shared/types";
 import { THINKING_LEVELS } from "../shared/thinking.ts";
 
 /** Structural stand-in for pi's message type (kept local so the desktop build
@@ -186,24 +186,7 @@ export function thinkingLevelsFor(model: ModelLike): string[] {
   return levels.length ? levels : ["off"];
 }
 
-/**
- * Ultra borrows Max's request — same wire level, longer run — so it is only
- * offered to a model that already has both steps. A model that stops at
- * `xhigh` cannot be promised a depth it has nowhere to send.
- */
-export function supportsUltra(levels: readonly string[]): boolean {
-  return levels.includes("xhigh") && levels.includes("max");
-}
-
-/** Add the desktop's Ultra step to a model's own levels. */
-export function withUltra(levels: string[], mode: UltraMode | undefined): string[] {
-  if (!mode || !supportsUltra(levels)) return levels;
-  return mode === "replace"
-    ? levels.map((level) => (level === "max" ? "ultra" : level))
-    : levels.flatMap((level) => (level === "max" ? ["max", "ultra"] : [level]));
-}
-
-export function serializeModel(model: ModelLike | null | undefined, ultra?: UltraMode): ModelInfo | null {
+export function serializeModel(model: ModelLike | null | undefined): ModelInfo | null {
   if (!model) return null;
   const base = thinkingLevelsFor(model);
   return {
@@ -217,8 +200,7 @@ export function serializeModel(model: ModelLike | null | undefined, ultra?: Ultr
     reasoning: Boolean(model.reasoning),
     input: model.input ?? ["text"],
     supportsImages: (model.input ?? []).includes("image"),
-    thinkingLevels: withUltra(base, ultra),
-    supportsUltra: supportsUltra(base),
+    thinkingLevels: base,
     thinkingLevelMap: model.thinkingLevelMap,
     cost: {
       input: model.cost?.input ?? 0,

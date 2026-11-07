@@ -6,8 +6,8 @@
  * codex-rs/prompts/src/multi_agent_instructions.rs, as quoted in the analysis
  * doc §2.3–§2.4), trimmed to what this implementation actually provides:
  * no nested spawning, no context forking. The explicit-request clause lives in
- * the spawn_agent tool description — that is Codex's own mechanism for the
- * non-Ultra mode, so no extra hard gate is invented here.
+ * the spawn_agent tool description — that is Codex's own mechanism, so no
+ * extra hard gate is invented here.
  */
 
 /** Appended to a sub-agent's system prompt. Mirrors Codex's subagent role. */

@@ -137,15 +137,14 @@ function toConfig(draft: Draft, previous?: McpServerConfig): McpServerConfig {
 const namespaceOf = (name: string): string => name.replace(/[^A-Za-z0-9_]/g, "_");
 
 /**
- * The two tools pi ships as extensions rather than as built-ins.
+ * The tool pi ships as an extension rather than as a built-in.
  *
- * Both are registered inactive, so `defaultTools` is the switch: `+name` adds
- * one to the default set, `-name` vetoes it. A `codemode` or `deferred` MCP
- * server turns them on by itself, which is why the veto exists at all.
+ * It is registered inactive, so `defaultTools` is the switch: `+name` adds it
+ * to the default set, `-name` vetoes it. A `codemode` MCP server turns it on
+ * by itself, which is why the veto exists at all.
  */
 const TOOL_SWITCHES: Array<{ tool: string; hint: string }> = [
   { tool: "codemode", hint: "codemode — the model writes one script that calls tools in a single turn" },
-  { tool: "tool_search", hint: "tool_search — the model finds tools that are not declared up front" },
 ];
 
 function toolEnabled(list: string[] | undefined, tool: string): boolean {
@@ -597,7 +596,7 @@ export function McpView({
               </Field>
               <p className="-mt-1.5 text-ui-xs leading-relaxed text-ink-3">
                 {t(
-                  "codemode keeps the tools out of the model's declarations and lets scripts call them; deferred declares them once tool_search loads them; direct declares them right away; hidden makes them unreachable.",
+                  "codemode keeps the tools out of the model's declarations and lets scripts call them; direct declares them right away; hidden makes them unreachable.",
                 )}
               </p>
 
@@ -690,7 +689,7 @@ export function McpView({
               </div>
               <p className="mt-2.5 text-ui-xs leading-relaxed text-ink-3">
                 {t(
-                  "A server with codemode or deferred exposure switches these on by itself; turning one off here records an explicit veto.",
+                  "A server with codemode exposure switches it on by itself; turning it off here records an explicit veto.",
                 )}
               </p>
             </div>

@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
-import type { ChannelEdit, HostState, ModelEdit, RuntimeSettings, UltraMode, UsageStats } from "@shared/types";
+import { useEffect, useMemo, useState } from "react";
+import type { ChannelEdit, HostState, ModelEdit, RuntimeSettings, UsageStats } from "@shared/types";
 import { cn } from "../lib/cn";
 import { getCodeTheme, setCodeTheme, type CodeTheme } from "../lib/code-theme";
 import { setSoundsEnabled, soundsEnabled } from "../lib/sound";
@@ -16,7 +16,6 @@ import {
   RefreshIcon,
   SearchIcon,
   SparkIcon,
-  WarningIcon,
   SettingsIcon,
   SunIcon,
   TerminalIcon,
@@ -186,15 +185,6 @@ export function SettingsView({
   /* the id reader is the same kind of habit: some people want a form that fills
      itself in, some want one that never guesses on their behalf */
   const [smartMatch, setSmartMatch] = useState(() => localStorage.getItem(SMART_KEY) !== "off");
-  /* the Ultra explainer shows once per machine; dismissed it becomes the small
-     amber mark beside the model row instead of a banner on every model */
-  const [ultraHintOpen, setUltraHintOpen] = useState(() => localStorage.getItem("pi-ultra-hint-dismissed") !== "1");
-  const dismissUltraHint = () => {
-    setUltraHintOpen(false);
-    try {
-      localStorage.setItem("pi-ultra-hint-dismissed", "1");
-    } catch {}
-  };
   const toggleSound = (next: boolean) => {
     setSoundOn(next);
     localStorage.setItem("pi-sound-done", next ? "on" : "off");
@@ -213,14 +203,6 @@ export function SettingsView({
   };
 
   const modelRows = state.models.map((model) => ({ key: `${model.provider}/${model.id}`, model }));
-
-  /** `off` deletes the entry: the step leaves the model's level list entirely */
-  const setUltraMode = (key: string, mode: string) => {
-    const next = { ...settings.ultra };
-    if (mode === "off") delete next[key];
-    else next[key] = { mode: mode as UltraMode, picked: Boolean(next[key]?.picked) };
-    onUpdate({ ultra: next });
-  };
 
   /* searching filters the rail; empty groups drop out entirely */
   const groups = useMemo(() => {
@@ -419,62 +401,21 @@ export function SettingsView({
             <div className="border-b border-line bg-canvas/40 px-4 py-1.5 text-ui-xs tracking-[0.4px] text-ink-3 uppercase">
               {t("Per-model overrides · inherit follows the startup level")}
             </div>
-            {modelRows.map(({ key, model }) => {
-              const ultra = settings.ultra?.[key];
-              return (
-                <Fragment key={key}>
-                  <Row title={key} mono>
-                    <Select
-                      mono
-                      value={settings.modelThinkingLevels[key] ?? "inherit"}
-                      options={["inherit", ...model.thinkingLevels.filter((level) => level !== "ultra"), ...(model.supportsUltra && !model.thinkingLevels.includes("max") ? ["max"] : [])]}
-                      onChange={(value) => {
-                        const next = { ...settings.modelThinkingLevels };
-                        if (value === "inherit") delete next[key];
-                        else next[key] = value;
-                        onUpdate({ modelThinkingLevels: next });
-                      }}
-                    />
-                    {/* the column is there even when the model cannot take it —
-                        a ragged right edge reads as a bug, a greyed control
-                        reads as a limit of the model */}
-                    <Select
-                      mono
-                      title={model.supportsUltra ? t("Ultra mode") : t("Ultra needs XHigh and Max")}
-                      disabled={!model.supportsUltra}
-                      value={ultra?.mode ?? "off"}
-                      options={["off", "replace", "coexist"]}
-                      onChange={(value) => setUltraMode(key, value)}
-                    />
-                    {ultra?.mode && !ultraHintOpen ? (
-                      /* the explainer ran once; the amber mark is what remains —
-                         hover repeats it, right here where the mode was set */
-                      <span
-                        title={t("Ultra thinks at Max and hands work to other agents when it can. Long tasks finish sooner and read better; cache writes and cost go up.")}
-                        className="shrink-0 text-orange"
-                      >
-                        <WarningIcon size={12} />
-                      </span>
-                    ) : null}
-                  </Row>
-                  {ultra?.mode && ultraHintOpen ? (
-                    <div className="flex items-start gap-2 border-b border-line bg-ultra-tint px-4 py-2 text-ui-sm leading-snug text-ink-2">
-                      <span className="mt-[5px] size-1.5 shrink-0 rounded-full bg-ultra" />
-                      <span className="min-w-0 flex-1">{t("Ultra thinks at Max and hands work to other agents when it can. Long tasks finish sooner and read better; cache writes and cost go up.")}</span>
-                      <button
-                        type="button"
-                        aria-label={t("Dismiss")}
-                        title={t("Dismiss")}
-                        onClick={dismissUltraHint}
-                        className="pressable flex size-4 shrink-0 items-center justify-center rounded-tiny text-ink-3 hover:bg-hover hover:text-ink"
-                      >
-                        <XIcon size={10} />
-                      </button>
-                    </div>
-                  ) : null}
-                </Fragment>
-              );
-            })}
+            {modelRows.map(({ key, model }) => (
+              <Row key={key} title={key} mono>
+                <Select
+                  mono
+                  value={settings.modelThinkingLevels[key] ?? "inherit"}
+                  options={["inherit", ...model.thinkingLevels]}
+                  onChange={(value) => {
+                    const next = { ...settings.modelThinkingLevels };
+                    if (value === "inherit") delete next[key];
+                    else next[key] = value;
+                    onUpdate({ modelThinkingLevels: next });
+                  }}
+                />
+              </Row>
+            ))}
             <Row title={t("Thinking token budgets")} hint={t("applies to providers that accept explicit budgets")}>
               <div className="flex items-center gap-1.5">
                 {(["minimal", "low", "medium", "high"] as const).map((level) => (
@@ -500,16 +441,16 @@ export function SettingsView({
             </Row>
           </Section>
 
-          {/* Delegation lives under Models & thinking because it is what Ultra
-              spends: the grant is a thinking-level policy, and the slots are
-              the bill that comes with it */}
+          {/* Delegation lives under Models & thinking: the slots bound the
+              fleet a turn can spend, and the wake switch is what brings a
+              finished sub-agent's result back into the conversation */}
           <Section title={t("Delegation")} index={2}>
             {!state.tools.includes("spawn_agent") ? (
               <div className="border-b border-line bg-orange-tint px-4 py-2 text-ui-sm leading-relaxed text-ink-2">
-                {t("Agent team is not loaded. Ultra uses Max reasoning until the extension is installed and enabled.")}
+                {t("Agent team is not loaded. Install and enable the extension to get the sub-agent tools.")}
               </div>
             ) : null}
-            <Row title={t("Sub-agent slots")} hint={t("how many sub-agents may run at once — used by Ultra's proactive mode")}>
+            <Row title={t("Sub-agent slots")} hint={t("how many sub-agents may run at once")}>
               <Select
                 mono
                 value={String(settings.agents?.maxConcurrent ?? 3)}
@@ -538,8 +479,8 @@ export function SettingsView({
               />
             </Row>
             {(settings.agents?.maxConcurrent ?? 3) >= 8 ? (
-              <div className="flex items-start gap-2 border-b border-line bg-ultra-tint px-4 py-2 text-ui-sm leading-snug text-ink-2">
-                <span className="mt-[5px] size-1.5 shrink-0 rounded-full bg-ultra" />
+              <div className="flex items-start gap-2 border-b border-line bg-hot-tint px-4 py-2 text-ui-sm leading-snug text-ink-2">
+                <span className="mt-[5px] size-1.5 shrink-0 rounded-full bg-hot" />
                 <span>{t("Eight or more concurrent sub-agents can increase usage quickly. Codex warns at this threshold too.")}</span>
               </div>
             ) : null}

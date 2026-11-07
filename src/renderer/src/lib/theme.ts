@@ -8,7 +8,7 @@ const THEME_KEY = "pi-accent-theme";
 
 const QUERY = "(prefers-color-scheme: dark)";
 
-const FALLBACK_ULTRA = "oklch(0.606 0.25 292.717)";
+const FALLBACK_HOT = "oklch(0.606 0.25 292.717)";
 
 /** oklch → sRGB hex. The composer sweep is painted into a canvas gradient, so it
  *  is handed plain hex rather than a colour syntax the 2D context may not parse. */
@@ -35,7 +35,7 @@ function oklchToHex(l: number, c: number, hDeg: number): string {
 }
 
 /**
- * The composer sweep's palette: the Ultra hue, run through itself.
+ * The composer sweep's palette: the hot hue, run through itself.
  *
  * The sweep only ever fires at Max depth (picking the flagship model, or the
  * depth slider reaching the top), and that is exactly where the track and the
@@ -44,15 +44,15 @@ function oklchToHex(l: number, c: number, hDeg: number): string {
  * tint instead of through hues, which keeps the travelling light visible rather
  * than flattening into one flat block of purple.
  */
-export function ultraSweep(): readonly string[] {
+export function hotSweep(): readonly string[] {
   const raw =
     (typeof document !== "undefined"
-      ? getComputedStyle(document.documentElement).getPropertyValue("--ultra").trim()
-      : "") || FALLBACK_ULTRA;
+      ? getComputedStyle(document.documentElement).getPropertyValue("--hot").trim()
+      : "") || FALLBACK_HOT;
   const parts = raw.replace(/^oklch\(/, "").replace(/\)$/, "").split(/[\s/]+/).filter(Boolean);
   const [l, c, h] = parts.map(Number);
   if (parts.length < 3 || [l, c, h].some((n) => Number.isNaN(n))) {
-    const hex = /^#|^rgb/.test(raw) ? raw : FALLBACK_ULTRA;
+    const hex = /^#|^rgb/.test(raw) ? raw : FALLBACK_HOT;
     return [hex, hex, hex];
   }
   const at = (delta: number, drift: number) =>
@@ -60,12 +60,12 @@ export function ultraSweep(): readonly string[] {
   return [at(-0.16, -10), at(-0.02, -3), at(0.13, 6), at(0.26, 12)];
 }
 
-/** `ultraSweep()` re-read when the painted theme changes, not on every render. */
-export function useUltraSweep(): readonly string[] {
-  const [palette, setPalette] = useState<readonly string[]>(ultraSweep);
+/** `hotSweep()` re-read when the painted theme changes, not on every render. */
+export function useHotSweep(): readonly string[] {
+  const [palette, setPalette] = useState<readonly string[]>(hotSweep);
   useEffect(() => {
     const root = document.documentElement;
-    const read = () => setPalette(ultraSweep());
+    const read = () => setPalette(hotSweep());
     const theme = window.matchMedia(QUERY);
     theme.addEventListener("change", read);
     const observed = new MutationObserver(read);

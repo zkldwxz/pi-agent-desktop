@@ -132,12 +132,46 @@ function serversOf(
   return out;
 }
 
+/**
+ * `deferred` exposure only ever worked through pi's `tool_search` extension,
+ * which this build does not register — left in the file it would ask for a
+ * tool that does not exist and leave the server's tools unreachable. Rewrite
+ * such entries to `codemode` (the other exposure that keeps tools out of the
+ * model's declarations) so pi, which reads the file directly, sees a value it
+ * can honour. Runs on read so a hand-edited or pre-removal file heals itself.
+ */
+function migrateDeferredExposure(path: string, doc: Record<string, unknown>): void {
+  const servers = serverEntries(doc);
+  if (!servers) return;
+  let dirty = false;
+  for (const entry of Object.values(servers)) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const record = entry as Record<string, unknown>;
+    if (record.exposure === "deferred") {
+      record.exposure = "codemode";
+      dirty = true;
+    }
+    const perTool = record.toolExposure;
+    if (perTool && typeof perTool === "object" && !Array.isArray(perTool)) {
+      for (const [tool, exposure] of Object.entries(perTool)) {
+        if (exposure === "deferred") {
+          (perTool as Record<string, unknown>)[tool] = "codemode";
+          dirty = true;
+        }
+      }
+    }
+  }
+  if (dirty) writeDoc(path, doc);
+}
+
 export function readMcpConfig(cwd: string, agentDir: string): McpConfigView {
   const errors: string[] = [];
   const globalPath = mcpFile(cwd, agentDir, "global");
   const projectPath = mcpFile(cwd, agentDir, "project");
   const globalDoc = readDoc(globalPath, errors);
   const projectDoc = readDoc(projectPath, errors);
+  migrateDeferredExposure(globalPath, globalDoc);
+  migrateDeferredExposure(projectPath, projectDoc);
 
   const byName = new Map<string, McpServerView>();
   const taken = new Map<string, string>();

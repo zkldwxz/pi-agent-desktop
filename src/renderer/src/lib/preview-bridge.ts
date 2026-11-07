@@ -36,11 +36,6 @@ import type { AppOpener, FileContent, FileEntry } from "@shared/workspace";
  * `window.pi`, which only happens outside Electron.
  */
 
-/* what each model can take before Ultra is layered on — `withUltra` in the main
-   process replaces or appends to this, and the preview has to derive from the
-   same pristine ramp rather than from levels it already edited */
-const BASE_RAMP: Record<string, string[]> = {};
-
 /**
  * Rules for the browser preview, keyed by path like the host's own map.
  *
@@ -133,7 +128,7 @@ const PREVIEW_MCP = {
       file: "~/.pi/agent/mcp.json",
       config: { type: "http", url: "https://example.com/mcp", headers: { Authorization: "Bearer ${DOCS_TOKEN}" } },
       enabled: true,
-      exposure: "deferred",
+      exposure: "codemode",
     },
     {
       name: "sentry",
@@ -165,7 +160,6 @@ const model = (
 ): ModelInfo => {
   const vision = options.vision ?? true;
   const thinkingLevels = reasoning ? ["off", "low", "medium", "high", "xhigh", "max"] : ["off"];
-  BASE_RAMP[`${provider}/${id}`] = thinkingLevels;
   return {
     id,
     name,
@@ -176,10 +170,8 @@ const model = (
     reasoning,
     supportsImages: vision,
     input: vision ? ["text", "image"] : ["text"],
-    /* the whole ramp, because that is what a reasoning model offers here — and the
-       xhigh + max pair is what makes a model eligible for Ultra in the list */
+    /* the whole ramp, because that is what a reasoning model offers here */
     thinkingLevels,
-    supportsUltra: reasoning,
     cost: { input: 0.5, output: 1.5, cacheRead: 0.1, cacheWrite: 0.2 },
     source: "models.json",
   };
@@ -197,7 +189,7 @@ const MODELS: ModelInfo[] = [
   model("gpt-5.2-codex", "GPT-5.2 Codex", "openai", true, { contextWindow: 272_000 }),
   model("gpt-5.2-mini", "GPT-5.2 Mini", "openai", true, { contextWindow: 400_000 }),
   /* one non-reasoning model, so the preview also shows what a model that takes
-     no depths at all looks like — no depth chip, and no Ultra column entry */
+     no depths at all looks like — no depth chip at all */
   model("gemini-3.8-flash", "Gemini 3.8 Flash 1M", "google", false),
   model("gemini-3.8-pro", "Gemini 3.8 Pro", "google", true, { contextWindow: 2_000_000 }),
   model("qwen3-coder", "Qwen3 Coder 480B", "qwen", true, { contextWindow: 131_072 }),
@@ -437,9 +429,7 @@ const STATE: HostState = {
     sessionName: "Settings polish and @ search",
     cwd: "F:/Projects/pi-agent-desktop",
     model: MODELS[0],
-    /* Ultra is the model's own configured depth, not pi's, so the snapshot names
-       it directly — `applyUltra` rebuilds the ramp from BASE_RAMP on load */
-    thinkingLevel: "ultra",
+    thinkingLevel: "max",
     thinkingLevels: ["off", "low", "medium", "high", "xhigh", "max"],
     isStreaming: true,
     isIdle: false,
@@ -511,13 +501,12 @@ const STATE: HostState = {
     retry: { enabled: true, maxRetries: 3, baseDelayMs: 2_000 },
     showCacheMissNotices: false,
     hideThinkingBlock: false,
-    ultra: { "deepseek/deepseek-v4-flash": { mode: "coexist", picked: true } },
   },
   /* the agent's own list — the task monitor writes it out, so the preview needs
      one to show that section at all */
   todos: [
     { id: "td1", label: "把每模型覆盖拆成独立分组", amount: "", status: "done", details: [] },
-    { id: "td2", label: "给 thinking 深度加上 Ultra 配置", amount: "", status: "done", details: [] },
+    { id: "td2", label: "给 thinking 深度选择器加上键盘支持", amount: "", status: "done", details: [] },
     { id: "td3", label: "检查 dock 的高度上限", amount: "2/3", status: "running", details: [] },
     { id: "td4", label: "把 @ 引用扩到整个工作区", amount: "", status: "pending", details: [] },
   ],
@@ -615,32 +604,6 @@ _Written by plan mode · 2026-09-21T04:12:00.000Z · deepseek-v4-flash_
 - 取消后 Build 不再出现，文件仍留在磁盘上
 - 复制为 Markdown 与复制文件路径都取自磁盘上的那一份
 `;
-
-/** mirror of `withUltra` in src/main/serialize.ts */
-function ultraLevels(base: string[], mode: string | undefined): string[] {
-  if (!mode || !base.includes("xhigh") || !base.includes("max")) return base;
-  return mode === "replace"
-    ? base.map((level) => (level === "max" ? "ultra" : level))
-    : base.flatMap((level) => (level === "max" ? ["max", "ultra"] : [level]));
-}
-
-/* the settings screen edits one record and every level list downstream depends
-   on it, so the preview has to re-derive them the way the host does */
-function applyUltra(): void {
-  const ultra = STATE.settings.ultra ?? {};
-  for (const entry of MODELS) {
-    const key = `${entry.provider}/${entry.id}`;
-    entry.thinkingLevels = ultraLevels(BASE_RAMP[key] ?? entry.thinkingLevels, ultra[key]?.mode);
-  }
-  const model = STATE.snapshot?.model;
-  if (STATE.snapshot && model) {
-    const key = `${model.provider}/${model.id}`;
-    STATE.snapshot.thinkingLevels = ultraLevels(
-      BASE_RAMP[key] ?? STATE.snapshot.thinkingLevels,
-      ultra[key]?.mode,
-    );
-  }
-}
 
 const BROWSER: BrowserState = {
   url: "",
@@ -945,7 +908,6 @@ export function installPreviewBridge(): void {
   if (w.pi) return;
   /* only inside a browser tab served over http — never inside Electron */
   if (!/^https?:$/.test(window.location.protocol)) return;
-  applyUltra();
 
   const listeners = new Set<(payload: unknown) => void>();
   /* mutable so `newSession` can clear it — the empty session is the greeting
@@ -1088,18 +1050,13 @@ export function installPreviewBridge(): void {
       const snapshot = STATE.snapshot;
       if (!snapshot || snapshot.thinkingLevel === level) return;
       snapshot.thinkingLevel = level;
-      /* Ultra is a desktop depth over the model's Max, and the entry's `picked`
-         bit is what the host flips so the choice survives a reload */
-      const key = `${snapshot.model?.provider}/${snapshot.model?.id}`;
-      const entry = STATE.settings.ultra?.[key];
-      if (entry) entry.picked = level === "ultra";
       emit();
     },
     setModel: async (provider: string, modelId: string) => {
       const model = MODELS.find((m) => m.provider === provider && m.id === modelId);
       if (STATE.snapshot && model && STATE.snapshot.model?.id !== modelId) {
         STATE.snapshot.model = model;
-        applyUltra();
+        STATE.snapshot.thinkingLevels = model.thinkingLevels;
         const { thinkingLevels } = STATE.snapshot;
         if (!thinkingLevels.includes(STATE.snapshot.thinkingLevel)) {
           STATE.snapshot.thinkingLevel =
@@ -1110,13 +1067,6 @@ export function installPreviewBridge(): void {
     },
     updateSettings: async (patch: Record<string, unknown>) => {
       Object.assign(STATE.settings, patch);
-      applyUltra();
-      /* turning Ultra off can retire the depth on screen; the host falls back to
-         what the model still offers, and the chip must not be left naming nothing */
-      const snapshot = STATE.snapshot;
-      if (snapshot && !snapshot.thinkingLevels.includes(snapshot.thinkingLevel)) {
-        snapshot.thinkingLevel = snapshot.thinkingLevels.at(-1) ?? "off";
-      }
       emit();
     },
     /* Channels behave like the real writer in here: an endpoint lands as one

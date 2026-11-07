@@ -8,8 +8,8 @@ const THUMB = 28;
 const HALF = THUMB / 2;
 const RAIL = 22;
 
-/** the two levels that mean "delegate proactively" — they get the purple end */
-const HOT = new Set(["max", "ultra"]);
+/** the level that means "delegate proactively" — it gets the purple end */
+const HOT = new Set(["max"]);
 /** the levels just under it, which get the blue */
 const COOL = new Set(["high", "xhigh"]);
 
@@ -19,7 +19,7 @@ const COOL = new Set(["high", "xhigh"]);
    instead of stretching with the bar. */
 const TAIL = `color-mix(in oklab, var(--accent) 52%, var(--surface))`;
 const FILL_COOL = `linear-gradient(90deg, ${TAIL} 0%, var(--accent) 34%, var(--accent) 100%)`;
-const FILL_HOT = `linear-gradient(90deg, ${TAIL} 0%, var(--accent) 8%, var(--ultra) 22%, var(--ultra) 100%)`;
+const FILL_HOT = `linear-gradient(90deg, ${TAIL} 0%, var(--accent) 8%, var(--hot) 22%, var(--hot) 100%)`;
 
 /* Fixed so the field does not shuffle on every render: dots and four-point stars
    at hand-placed spots, in % of the rail. They ride inside the clipped fill, so
@@ -52,14 +52,14 @@ const SPARKS: Array<[x: number, y: number, size: number, alpha: number, star?: b
  * colour as the fill it sits on makes the choice legible without the track.
  */
 export function thinkingLevelClass(level: string): string {
-  if (HOT.has(level)) return "text-ultra-ink";
+  if (HOT.has(level)) return "text-hot-ink";
   if (COOL.has(level)) return "text-accent-ink";
   return "text-ink-2";
 }
 
 /** The same ramp as a chip behind the word, for the composer's trigger. */
 export function thinkingBadgeClass(level: string): string {
-  if (HOT.has(level)) return "bg-ultra-tint text-ultra-ink";
+  if (HOT.has(level)) return "bg-hot-tint text-hot-ink";
   if (COOL.has(level)) return "bg-accent-tint text-accent-ink";
   return "bg-field text-ink-2";
 }
@@ -71,8 +71,8 @@ export function thinkingBadgeClass(level: string): string {
  * length, so the thumb, the clip, the colour and every dot hang off one number and
  * cannot drift apart mid-flight.
  *
- * Depth is not a colour ramp: the bar stays blue until Max, and only Max and Ultra
- * turn it purple and light the field. That is the step that changes what a run
+ * Depth is not a colour ramp: the bar stays blue until Max, and only Max
+ * turns it purple and lights the field. That is the step that changes what a run
  * costs, so it is the step the bar is willing to look different for.
  *
  * While the pointer is down the thumb is at the pointer, not at the nearest step —

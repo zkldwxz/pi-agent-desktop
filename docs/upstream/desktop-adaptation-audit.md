@@ -8,9 +8,9 @@
 
 - Rules：创建、读取、编辑、保存、删除到回收目录。保存后重载资源，避免 prompt template 仍使用旧内容；限制管理目录和编辑大小，拒绝越界与管理根目录操作。
 - 模型：新增、编辑、自定义模型删除、渠道/Key 管理已有；内建模型通过启停控制可见性。设置页顶部搜索模型名/ID/provider/渠道，默认平铺、自定义优先（显式选择的渠道分组会保留），列表 52vh 限高滚动。自定义空渠道可搜索。
-- MCP：主会话显式注入 MCP、codemode、tool_search 工厂；管理 stdio/HTTP server，增删改、启停、exposure、login/logout/reconnect，工具开关通过 defaultTools 的增量配置。配置损坏时拒绝覆盖，并校验 namespace 冲突。
+- MCP：主会话显式注入 MCP、codemode 工厂（tool_search 已移除，deferred exposure 随之退役并在读取时迁移为 codemode）；管理 stdio/HTTP server，增删改、启停、exposure、login/logout/reconnect，工具开关通过 defaultTools 的增量配置。配置损坏时拒绝覆盖，并校验 namespace 冲突。
 - MCP 聊天：服务器/工具名称、参数、JSON、文本、图片、资源、错误与复制；二层详情只有一个滚动边界。MCP 内容块在主进程转成有界 IPC 展示数据，实时输出上限由 400 字符提高到 128KiB。
-- pi 1.0 中 codemode 描述瘦身、MCP 懒连接、OAuth issuer 校验与 scope 合并、工具搜索恢复、模型查找性能等，由升级的 SDK 实现提供；桌面未重新实现这些逻辑。
+- pi 1.0 中 codemode 描述瘦身、MCP 懒连接、OAuth issuer 校验与 scope 合并、模型查找性能等，由升级的 SDK 实现提供；桌面未重新实现这些逻辑。tool_search 上游仍在，但桌面不再注册它——其命中即永久激活的机制会把本应只在脚本里可见的工具声明进 prompt，是噪音来源。
 - Web 搜索：免 key Tavily、DuckDuckGo 回退、自托管 SearXNG；直接抓取网页正文。保留缓存 TTL/内存预算、并发合并、快照分页、取消隔离和静态工具描述。
 - 真实 SSH 与多文件夹工作区：见 `docs/ssh-workspaces.md`。本机 SDK 操作远端文件与 shell，不部署远端 pi 服务。
 
@@ -22,7 +22,7 @@
 - Radius 一键登录并生成 MCP 配置、Anthropic copy-code 专属登录页。底层 SDK 支持，但桌面没有完整引导。
 - 图像生成模型/分类模型独立管理，以及 virtual model 路由后的模型与成本展示。当前模型管理依旧针对 chat 模型。
 - codemode 的模型调用成本、持久化 nestedCalls 的完整树状详情。普通 MCP 调用卡片可展示，嵌套模型调用还需专门设计。
-- 内建扩展 disable 的全套配置管理、llama.cpp 下载/加载/自动 preset 管理。现有 codemode/tool_search 开关只控制工具启停。
+- 内建扩展 disable 的全套配置管理、llama.cpp 下载/加载/自动 preset 管理。现有 codemode 开关只控制工具启停。
 - 新版图像输入限制、模型 operation 类型、context editing 等高级配置的专用表单。
 
 这些是接入缺口；SDK 支持与桌面有可用入口是两件分别验证的事。纯 TUI 的 fullscreen、终端主题/quietStartup/鼠标滚轮配置不对应 Electron 界面，不需要迁移。

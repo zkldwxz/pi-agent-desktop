@@ -403,34 +403,27 @@ const ZH: Record<string, string> = {
   "high": "高",
   "xhigh": "极高",
   "max": "最高",
-  "ultra": "极致",
   "inherit": "跟随默认",
 
   /* ── thinking & context readout ─────────────────────── */
   "No model": "无可用模型",
-  "replace": "替换 Max",
-  "coexist": "与 Max 并存",
-  "Agent team is not loaded. Ultra uses Max reasoning until the extension is installed and enabled.":
-    "Agent team 尚未加载。安装并启用该扩展后，Ultra 才能主动委派任务；目前仅使用 Max 思考强度。",
-  "Ultra mode": "Ultra 模式",
-  "Ultra needs XHigh and Max": "Ultra 需要模型同时支持极高与最高",
-  "Ultra thinks at Max and hands work to other agents when it can. Long tasks finish sooner and read better; cache writes and cost go up.":
-    "Ultra 以最高的强度思考，并在可以时把工作交给其他智能体。长任务的耗时与效果更好，但缓存写入与费用可能增加。",
+  "Agent team is not loaded. Install and enable the extension to get the sub-agent tools.":
+    "Agent team 尚未加载。安装并启用该扩展后即可获得子智能体工具。",
 
   /* ── delegation fleet (agent-team) ──────────────────── */
   "Agents": "子智能体",
   "Agent team": "Agent 团队",
   "No sub-agents": "暂无子智能体",
-  "When the model delegates work — Ultra's proactive mode does this on its own — the sub-agents appear here with their status and results.":
-    "当模型委派任务时——Ultra 的主动模式会自行委派——子智能体会显示在这里，包含状态与结果。",
+  "When the model delegates work, the sub-agents appear here with their status and results.":
+    "当模型委派任务时，子智能体会显示在这里，包含状态与结果。",
   "Interrupted": "已中断",
   "Errored": "出错",
   "Interrupt": "中断",
   "Interrupt all": "全部中断",
   "Delegation": "任务委派",
   "Sub-agent slots": "子智能体槽位",
-  "how many sub-agents may run at once — used by Ultra's proactive mode":
-    "同时可运行的子智能体数量——Ultra 主动模式使用",
+  "how many sub-agents may run at once":
+    "同时可运行的子智能体数量",
   "Wake when agents finish": "完成后唤醒",
   "a finished sub-agent starts a new turn when the parent is idle":
     "子智能体完成时，若主智能体空闲则自动开启新回合",
@@ -816,8 +809,8 @@ const ZH: Record<string, string> = {
   "one sentence — it lists the server in the system prompt":
     "一句话说明 —— 它会出现在系统提示的服务器列表里",
   "Tool exposure": "工具暴露方式",
-  "codemode keeps the tools out of the model's declarations and lets scripts call them; deferred declares them once tool_search loads them; direct declares them right away; hidden makes them unreachable.":
-    "codemode 不把工具写进模型的工具声明，由脚本调用；deferred 等 tool_search 加载后再声明；direct 立即声明；hidden 则完全不可达。",
+  "codemode keeps the tools out of the model's declarations and lets scripts call them; direct declares them right away; hidden makes them unreachable.":
+    "codemode 不把工具写进模型的工具声明，由脚本调用；direct 立即声明；hidden 则完全不可达。",
   "Enabled": "启用",
   "a disabled server stays in the file": "禁用的服务器仍保留在文件中",
   "Timeout": "超时",
@@ -836,10 +829,8 @@ const ZH: Record<string, string> = {
   "Tool extensions": "工具扩展",
   "codemode — the model writes one script that calls tools in a single turn":
     "codemode —— 模型写一段脚本，在一轮内调用多个工具",
-  "tool_search — the model finds tools that are not declared up front":
-    "tool_search —— 模型按需查找未预先声明的工具",
-  "A server with codemode or deferred exposure switches these on by itself; turning one off here records an explicit veto.":
-    "以 codemode 或 deferred 方式暴露的服务器会自动开启它们；在这里关闭表示明确否决。",
+  "A server with codemode exposure switches it on by itself; turning it off here records an explicit veto.":
+    "以 codemode 方式暴露的服务器会自动开启它；在这里关闭表示明确否决。",
   "Servers come from ~/.pi/agent/mcp.json and, in a trusted project, .pi/mcp.json. A project entry replaces a global one with the same name. Tools are named mcp__server__tool and every call runs through the same permission pipeline as a built-in tool.":
     "服务器来自 ~/.pi/agent/mcp.json，以及在受信任项目中的 .pi/mcp.json。同名项目条目会覆盖全局条目。工具名为 mcp__server__tool，每次调用都走和内置工具相同的权限流程。",
   "Plan mode": "计划模式",
