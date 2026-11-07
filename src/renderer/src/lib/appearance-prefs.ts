@@ -12,7 +12,7 @@
 export type ChatWidth = "default" | "full";
 
 export interface AppearancePrefs {
-  /** a font family name; empty = the bundled Geist Mono */
+  /** a font family name; empty = JetBrains Mono / Menlo / Consolas, as baocode */
   codeFont: string;
   ligatures: boolean;
   chatWidth: ChatWidth;
@@ -27,7 +27,8 @@ export const APPEARANCE_DEFAULT: AppearancePrefs = {
 };
 
 const KEY = "pi:appearance";
-const BUNDLED_MONO = '"Geist Mono Variable"';
+/** baocode's code stack, then the bundled face */
+const BUNDLED_MONO = '"JetBrains Mono", "Fira Code", Menlo, Consolas, "Cascadia Mono", "Geist Mono Variable"';
 
 const listeners = new Set<(prefs: AppearancePrefs) => void>();
 

@@ -907,7 +907,7 @@ function terminalCommand(tool: ToolActivity): string {
           header): the traffic lights' room on macOS, the sidebar toggle, what is
           open, then the working controls and — off macOS — the window buttons.
           Everything that is not a control drags the window. */}
-      <header className="titlebar-drag flex h-10 shrink-0 items-center gap-1 border-b border-line/70 bg-canvas pr-2 pl-2">
+      <header className="titlebar-drag flex h-8 shrink-0 items-center gap-1 border-b border-line bg-canvas pr-1.5 pl-2">
         {TRAFFIC_LIGHTS_WIDTH ? <div aria-hidden className="shrink-0" style={{ width: TRAFFIC_LIGHTS_WIDTH - 8 }} /> : null}
         {view === "settings" ? null : (
           <button
@@ -915,7 +915,7 @@ function terminalCommand(tool: ToolActivity): string {
             aria-label={sidebarCollapsed ? t("Expand sidebar") : t("Collapse sidebar")}
             title={sidebarCollapsed ? t("Expand sidebar") : t("Collapse sidebar")}
             onClick={() => setSidebarCollapsed((value) => !value)}
-            className="titlebar-no-drag pressable flex size-7 shrink-0 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
+            className="titlebar-no-drag pressable flex size-6 shrink-0 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
           >
             <PanelLeftIcon size={15} />
           </button>
@@ -936,7 +936,7 @@ function terminalCommand(tool: ToolActivity): string {
             aria-pressed={monitorOpen}
             onClick={() => setMonitorOpen((value) => !value)}
             className={cn(
-              "pressable flex size-7 items-center justify-center rounded-chip",
+              "pressable flex size-6 items-center justify-center rounded-chip",
               monitorOpen ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
             )}
           >
@@ -951,7 +951,7 @@ function terminalCommand(tool: ToolActivity): string {
               setDockOpen(true);
             }}
             className={cn(
-              "pressable flex size-7 items-center justify-center rounded-chip",
+              "pressable flex size-6 items-center justify-center rounded-chip",
               dockOpen && dockTool === "terminal" ? "bg-field text-ink" : "text-ink-3 hover:bg-hover hover:text-ink",
             )}
           >

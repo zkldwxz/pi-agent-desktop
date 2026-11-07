@@ -21,7 +21,7 @@ export const CONVERSATION_COLUMN =
    * width and sits dead-centre whatever opens beside it. The old breakpoints
    * (896 → 1152px) and the off-centre lean when a dock opened made the text
    * jump sideways and left a wide dead gutter on the left. */
-  "conversation-column mx-auto w-full max-w-[960px] shrink-0 transition-[max-width] duration-150 ease-out";
+  "conversation-column mx-auto w-full max-w-[752px] shrink-0 transition-[max-width] duration-150 ease-out";
 
 export type TextSegment =
   | { kind: "text"; text: string }

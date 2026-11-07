@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { promptTokens } from "@shared/cache-usage";
 import type { ChatMessage, HostState, PlanAction, PlanState } from "@shared/types";
 import PromptBar from "../beautiful/primitives/PromptBar";
 import { buildTurns, CONVERSATION_COLUMN, toolSignature } from "../../lib/agent-view";
 import { ModelThinkingControl } from "./ModelThinkingControl";
-import { CacheRing } from "./CacheRing";
-import { ContextBadge } from "../panel/ContextBadge";
+import { UsageIndicator, usePlanQuota } from "./UsageIndicator";
 import { t, useLocale } from "../../lib/i18n";
 import { cn } from "../../lib/cn";
 import { ListChecksIcon, LoaderIcon, PencilIcon, TerminalIcon } from "../icons";
@@ -131,7 +129,7 @@ export function AgentComposer({
   }, [signature, workspaceFiles]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* the session's token accounting, on the same row as the model pill */
-  const tokens = state.snapshot?.stats?.tokens;
+  const quota = usePlanQuota(Boolean(state.snapshot?.isStreaming));
 
   /* pasted images append their path references to whatever is being typed */
   const [appendState, setAppendState] = useState<
@@ -238,14 +236,9 @@ export function AgentComposer({
             <ModelThinkingControl state={state} onSetModel={onSetModel} onSetThinking={onSetThinking} />
           }
           controlsTrailing={
-            <>
-              {tokens && promptTokens(tokens) > 0 ? (
-                <CacheRing
-                  stats={{ input: tokens.input, cacheRead: tokens.cacheRead, cacheWrite: tokens.cacheWrite }}
-                />
-              ) : null}
-              <ContextBadge state={state} />
-            </>
+            /* one indicator for context, cache and plan quota — it replaced
+               two unlabeled rings */
+            <UsageIndicator state={state} quotas={quota.quotas} loading={quota.loading} onRefresh={quota.refresh} />
           }
           commands={commands}
           sources={sources}
@@ -268,7 +261,7 @@ export function AgentComposer({
                   title={hasPlan && planPhase !== "review" ? t("Open the plan") : t(PLAN_HINT[planPhase])}
                   onClick={onPlan}
                   className={cn(
-                    "pressable hidden h-7 items-center gap-1 rounded-control px-1.5 text-ui-sm font-medium",
+                    "pressable hidden h-[22px] items-center gap-1 rounded-full px-2 text-ui-sm",
                     "transition-[background-color,color] duration-150 sm:inline-flex",
                     planPhase === "planning"
                       ? "bg-accent-tint text-accent-ink hover:bg-accent-tint/80"
@@ -286,8 +279,8 @@ export function AgentComposer({
                   title={runningTerminal.title}
                   onClick={onOpenTerminal}
                   className={cn(
-                    "pressable hidden h-7 items-center gap-1.5 rounded-control bg-field px-1.5 text-ui-sm text-ink-2",
-                    "transition-colors duration-150 hover:bg-hover-2 hover:text-ink sm:inline-flex",
+                    "pressable hidden h-[22px] items-center gap-1.5 rounded-full px-2 text-ui-sm text-ink-2",
+                    "transition-colors duration-150 hover:bg-hover hover:text-ink sm:inline-flex",
                   )}
                   style={{ animation: "pop-in 200ms var(--ease-out-strong-css) both" }}
                 >
@@ -295,7 +288,7 @@ export function AgentComposer({
                   <TerminalIcon size={12} className="shrink-0" />
                   {/* icon + count only — commands stretch the bar; the full
                       lines live in the dock and in the hover title */}
-                  <span className="shrink-0 font-mono text-ui-xs tabular-nums">{runningTerminal.count}</span>
+                  <span className="shrink-0 text-ui-sm tabular-nums">{runningTerminal.count}</span>
                 </button>
               ) : null}
             </>

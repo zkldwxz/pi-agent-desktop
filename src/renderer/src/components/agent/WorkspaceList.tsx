@@ -672,7 +672,7 @@ export function WorkspaceList({
           <button
             type="button"
             onClick={() => setOpen((current) => ({ ...current, [workspace.key]: !isOpen }))}
-            className="pressable flex h-8 min-w-0 flex-1 items-center gap-2 px-1 text-left"
+            className="pressable flex h-[30px] min-w-0 flex-1 items-center gap-2 px-1 text-left"
           >
             <span className="relative flex size-4 shrink-0 items-center justify-center text-ink-3">
               {isHome ? (
@@ -692,7 +692,7 @@ export function WorkspaceList({
                 </>
               )}
             </span>
-            <span className="min-w-0 flex-1 truncate text-ui-base text-ink-2">{isHome ? t("Home") : workspace.label}</span>
+            <span className="min-w-0 flex-1 truncate text-ui-caption font-medium text-ink">{isHome ? t("Home") : workspace.label}</span>
             {/* the count says how much is folded away, so it only shows while
                 folded (baocode); it sits on the same right edge as the session
                 times below and gives way to the hover actions */}
@@ -794,9 +794,10 @@ export function WorkspaceList({
                         onClick={() => choose(session.path)}
                         style={stagger(index)}
                         className={cn(
-                          "glide-row pressable flex w-full items-center gap-2 rounded-chip py-1.5 pr-2 pl-2 text-left outline-none",
+                          "glide-row pressable flex h-7 w-full items-center gap-2 rounded-chip pr-2 pl-2 text-left outline-none",
                           "focus-visible:bg-surface focus-visible:shadow-hairline",
-                          active && "row-picked bg-surface shadow-hairline",
+                          /* baocode: the picked chat takes the selection tint */
+                          active && "row-picked bg-accent-tint",
                         )}
                       >
                         {/* the left slot carries the run state: a spinner while
@@ -814,8 +815,8 @@ export function WorkspaceList({
                         </span>
                         <span
                           className={cn(
-                            "min-w-0 flex-1 truncate text-ui-base",
-                            active ? "font-medium text-ink" : isUnread ? "text-ink" : "text-ink-2",
+                            "min-w-0 flex-1 truncate text-ui-caption",
+                            active ? "text-ink" : isUnread ? "font-semibold text-ink" : "text-ink-2",
                           )}
                         >
                           {session.name || session.firstMessage || "New session"}

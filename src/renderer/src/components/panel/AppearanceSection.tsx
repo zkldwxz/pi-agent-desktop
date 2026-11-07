@@ -223,7 +223,7 @@ function CodeFontField({ value, onCommit }: { value: string; onCommit: (font: st
     <input
       value={draft}
       spellCheck={false}
-      placeholder="Geist Mono"
+      placeholder="JetBrains Mono"
       aria-label={t("Font name")}
       onChange={(event) => setDraft(event.target.value)}
       onBlur={commit}
@@ -249,7 +249,7 @@ function DisplayPrefs() {
   return (
     <>
       <div className="mt-4 flex flex-col gap-2">
-        <PrefHeading title={t("Code font")} hint={t("code blocks, paths and the terminal; empty uses Geist Mono")} />
+        <PrefHeading title={t("Code font")} hint={t("code blocks, paths and the terminal; empty uses JetBrains Mono, Menlo or Consolas")} />
         <div className="flex flex-wrap items-center gap-3">
           <CodeFontField value={prefs.codeFont} onCommit={(codeFont) => update({ codeFont })} />
           <label className="flex items-center gap-2 text-ui-caption text-ink-2">

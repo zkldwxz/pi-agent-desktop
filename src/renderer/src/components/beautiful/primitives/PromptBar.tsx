@@ -649,12 +649,15 @@ export default function PromptBar({
           popovers open upward — clipped, they would never be visible, so the
           clip is dropped whenever the host supplies that slot. */}
       <div
-        className={`relative isolate flex flex-col border border-line bg-surface shadow-card transition-[border-color,border-radius] duration-150 focus-within:border-line-strong ${
+        /* baocode's composer: the input fill, a 1px bubble border, no shadow;
+           typing pulls the border 20% towards the accent (150ms) */
+        className={`relative isolate flex flex-col border border-line-strong bg-field transition-[border-color,border-radius] duration-150 focus-within:border-[color-mix(in_srgb,var(--line-strong)_75%,var(--accent))] ${
           controls ? "overflow-visible" : "overflow-hidden"
         } ${
           tall ? "gap-2 p-3" : "gap-1.5 p-1.5"
         } ${
-          pill ? (attachments.length > 0 || wide ? "rounded-[24px]" : "rounded-full") : tall ? "rounded-[22px]" : "rounded-window"
+          /* baocode's composer is 12 whatever its height */
+          pill ? (attachments.length > 0 || wide ? "rounded-[24px]" : "rounded-full") : "rounded-window"
         }`}
       >
         {/* rainbow glimm sweep — plays across the interior on model change.
@@ -770,7 +773,9 @@ export default function PromptBar({
             }}
             placeholder={listening ? tr("Listening…") : placeholder ?? tr("Write a message…")}
             aria-label={tr("Prompt")}
-            className={`${tall ? "min-h-10 px-2 py-1.5 text-ui-base leading-5" : "min-h-7 px-1 py-[5px] text-ui-base leading-[18px]"} min-w-0 w-full resize-none bg-transparent text-ink outline-none [overflow-wrap:anywhere] placeholder:text-ink-4 ${
+            /* tall: the shell's 12px inset is the text's inset — the typed text
+               starts on the same line as the text in the prompt cards above */
+            className={`${tall ? "min-h-10 px-0 py-1.5 text-ui-base leading-[1.5]" : "min-h-7 px-1 py-[5px] text-ui-base leading-[18px]"} min-w-0 w-full resize-none bg-transparent text-ink outline-none [overflow-wrap:anywhere] placeholder:text-ink-4 ${
               wide ? "col-span-full col-start-1 row-start-1" : "col-start-2 row-start-1"
             }`}
           />
@@ -825,25 +830,22 @@ export default function PromptBar({
             )}
           </button>
 
-          {/* send — tactile square (round in the pill variant). While the agent
-              is running it becomes a stop control. */}
+          {/* send — baocode's: a 24px amber circle, an 8px square while the
+              agent runs (stop), no fill and a faint arrow when there is nothing
+              to send. Centred in the row's 28px cell. */}
           <button
             type="button"
             aria-label={streaming ? tr("Stop") : tr("Send")}
             disabled={streaming ? false : !canSend}
             onClick={streaming ? () => onAbort?.() : send}
-            className={`flex size-7 shrink-0 items-center justify-center transition-[background-color,color,transform] duration-200 enabled:active:scale-[0.94] ${
-              pill ? "rounded-full" : "rounded-control"
-            } ${wide ? "col-start-5 row-start-2" : "col-start-5 row-start-1"}`}
-            style={{
-              background: streaming || canSend ? "var(--ink)" : "var(--line-strong)",
-              color: streaming || canSend ? "var(--surface)" : "var(--ink-2)",
-            }}
+            className={`flex size-6 shrink-0 items-center justify-center justify-self-center rounded-full transition-[background-color,color,transform] duration-150 enabled:hover:bg-accent-strong enabled:active:scale-[0.94] ${
+              wide ? "col-start-5 row-start-2" : "col-start-5 row-start-1"
+            } ${streaming || canSend ? "bg-button text-on-accent" : "bg-transparent text-ink-4"}`}
           >
             {streaming ? (
-              <span className="size-2.5 rounded-[2px] bg-current" />
+              <span className="size-2 rounded-[1.5px] bg-current" />
             ) : (
-              <Icon size={16} strokeWidth={2.4}><path d="M12 19V5M5 12l7-7 7 7" /></Icon>
+              <Icon size={15} strokeWidth={2.4}><path d="M12 19V5M5 12l7-7 7 7" /></Icon>
             )}
           </button>
         </div>

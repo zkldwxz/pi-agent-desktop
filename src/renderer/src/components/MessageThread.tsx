@@ -99,7 +99,7 @@ export function MessageThread({
            both edges. Everything a turn produces sits a further px-3.5 in, on
            the same line as the text inside the prompt card (baocode). */
         CONVERSATION_COLUMN,
-        "flex flex-col gap-5 px-4",
+        "flex flex-col gap-8 px-4",
       )}
     >
 
@@ -121,7 +121,7 @@ export function MessageThread({
         <section
           key={turn.key}
           data-turn={turn.key}
-          className="group/turn flex scroll-mt-4 flex-col gap-3"
+          className="group/turn flex scroll-mt-4 flex-col gap-3.5"
           style={globalIndex >= turns.length - 3 ? stagger(0) : undefined}
         >
           {turn.boundary ? <TurnBoundary text={turn.boundary} /> : null}
@@ -157,7 +157,9 @@ export function MessageThread({
             </div>
           ))}
 
-          <div className="flex flex-col gap-3 px-3.5">
+          {/* relative: the hover footer hangs below, in the 32px gap before
+              the next prompt, instead of taking height of its own */}
+          <div className="relative flex flex-col gap-2.5 px-3">
             <TurnItems turn={turn} onFork={onFork} live={isLive} />
 
             {/* the gap line — only the beat the transcript itself cannot show */}
@@ -177,7 +179,7 @@ export function MessageThread({
       })}
 
       {awaitingFirstToken ? (
-        <div className="px-3.5">
+        <div className="px-3">
           <AgentWorking />
         </div>
       ) : null}
@@ -233,14 +235,17 @@ function plainBoundary(text: string): string {
 function PromptCard({ text, onEdit, onRetry }: { text: string; onEdit?: () => void; onRetry?: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const lines = text.split("\n").length;
-  const long = lines > 4 || text.length > 320;
+  /* folded to three lines, as baocode folds it */
+  const long = lines > 3 || text.length > 240;
 
   return (
-    <div className="group/prompt relative overflow-hidden rounded-card bg-surface px-3.5 py-2.5 text-ui-base leading-6 text-ink shadow-hairline">
+    /* baocode's sticky prompt: the composer's fill and 1px border, radius 8,
+       padding 12 / 10 / 12 / 11, 13.5px at 1.5 */
+    <div className="group/prompt relative overflow-hidden rounded-card border border-line-strong bg-field px-3 pt-2.5 pb-[11px] text-ui-base leading-[1.5] text-ink">
       <div
         className={cn(
           "scrollbar-thin whitespace-pre-wrap break-words pr-12",
-          long && !expanded && "max-h-24 overflow-hidden",
+          long && !expanded && "max-h-[61px] overflow-hidden",
           long && expanded && "max-h-[40vh] overflow-y-auto",
         )}
       >
@@ -318,7 +323,7 @@ function TurnFooter({
        changes how the answer above should be read. */
     <div
       className={cn(
-        "group/footer flex min-h-6 items-center gap-2 text-ui-sm text-ink-3",
+        "group/footer absolute inset-x-3 top-full mt-1 flex h-6 items-center gap-2 text-ui-sm text-ink-3",
         "transition-opacity duration-150 focus-within:opacity-100",
         stopped ? "" : "opacity-0 group-hover/turn:opacity-100",
       )}

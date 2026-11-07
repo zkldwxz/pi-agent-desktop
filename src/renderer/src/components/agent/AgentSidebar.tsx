@@ -65,8 +65,9 @@ function RailRow({
       active={active}
       title={title}
       onClick={onClick}
-      className="side-pane-row h-8"
+      className="side-pane-row h-[30px]"
       iconSize={14}
+      labelSize="text-ui-caption"
       copyClassName="side-pane-copy"
     />
   );
@@ -264,7 +265,7 @@ export function AgentSidebar({
             <button
               type="button"
               onClick={onNew}
-              className="pressable mb-1 flex h-8 w-full items-center gap-2 rounded-control bg-surface px-2 text-left text-ui-base text-ink shadow-hairline hover:bg-hover"
+              className="pressable mb-1.5 flex h-[30px] w-full items-center gap-2 rounded-control border border-line bg-page px-2 text-left text-ui-caption text-ink hover:bg-hover"
             >
               <span className="flex size-4 shrink-0 items-center justify-center">
                 <PlusIcon size={14} className="text-ink-2" />

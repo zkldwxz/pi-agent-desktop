@@ -6,6 +6,7 @@ import { cn } from "../lib/cn";
 import { localeTag, t, tf } from "../lib/i18n";
 import { ClockIcon, RefreshIcon } from "../components/icons";
 import { Card, Chip, EmptyState, Skeleton, StatCard, ViewHeader } from "../components/ui";
+import { PlanQuotaCard } from "../components/agent/UsageIndicator";
 import { GlideList, SlidingGroup } from "../components/motion";
 import {
   ActivityHeatmap,
@@ -355,6 +356,8 @@ export function UsageView({
       <div className="flex flex-col gap-3">
         <div className={embedded ? "" : "scrollbar-thin min-h-0 flex-1 overflow-y-auto"}>
           <div className={embedded ? "" : "mx-auto flex w-full max-w-[1180px] flex-col gap-3 p-4"}>
+          {/* the subscription plans first: what is left matters before what was spent */}
+          <PlanQuotaCard />
           <div className="flex items-center gap-1">
             {(
               [

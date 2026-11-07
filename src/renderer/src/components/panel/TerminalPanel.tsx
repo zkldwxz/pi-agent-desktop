@@ -76,7 +76,7 @@ function terminalTheme() {
  *  is read off <html> rather than handed the CSS variable. */
 function terminalFont(): string {
   const face = getComputedStyle(document.documentElement).getPropertyValue("--font-mono-face").trim();
-  return `${face || '"Geist Mono Variable"'}, ui-monospace, "PingFang SC", "Microsoft YaHei UI", Menlo, Consolas, monospace`;
+  return `${face || '"JetBrains Mono", Menlo, Consolas, "Geist Mono Variable"'}, ui-monospace, "PingFang SC", "Microsoft YaHei UI", Menlo, Consolas, monospace`;
 }
 
 function PtyTerminal({ id }: { id: string }) {

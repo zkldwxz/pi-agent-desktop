@@ -16,6 +16,7 @@
     "smoke:web": "node scripts/web-smoke.mjs",
     "test:tools": "node scripts/tool-policy-regression.mjs && node scripts/cache-usage-regression.mjs",
     "test:models": "node --test scripts/model-manager-regression.mjs scripts/model-list-regression.mjs",
+    "test:quota": "node --test scripts/quota-regression.mjs",
     "test:mcp": "node scripts/mcp-regression.mjs",
     "test:workspace": "node scripts/workspace-regression.mjs",
     "vendor:zcode": "node scripts/vendor-zcode.mjs",

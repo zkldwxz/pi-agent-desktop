@@ -61,8 +61,8 @@ export function ChatCode({ lang, text }: { lang: string; text: string }) {
     });
   };
   return (
-    <div className="group/code relative my-3 rounded-card bg-field/70">
-      <pre className="hljs scrollbar-thin overflow-x-auto px-3.5 py-3 font-mono text-ui-caption leading-[1.65]">
+    <div className="group/code relative my-2.5 rounded-card border border-code-border bg-code-block">
+      <pre className="hljs scrollbar-thin overflow-x-auto px-3 py-2.5 font-mono text-ui-sm leading-[1.5]">
         {html ? (
           // eslint-disable-next-line react/no-danger -- highlight.js escapes its input
           <code dangerouslySetInnerHTML={{ __html: html }} />
@@ -104,10 +104,10 @@ const InlineCode: NonNullable<Components["code"]> = ({ children, className }) =>
   return (
     <code
       className={cn(
-        "rounded-tiny px-[3px] py-[1px] font-mono text-ui-sm",
+        "rounded-[3px] px-1 py-px font-mono text-ui-caption",
         PATH_LIKE.test(text)
           ? "text-accent-ink hover:underline decoration-accent/40 underline-offset-2"
-          : "bg-inset text-ink-2 shadow-hairline",
+          : "bg-code-inline text-ink",
       )}
     >
       {children}
@@ -170,12 +170,13 @@ function PanelCode({ lang, text }: { lang: string; text: string }) {
 /* ── the transcript ─────────────────────────────────────── */
 
 const threadComponents: Components = {
-  p: ({ children }) => <p className="my-2 text-ui-base leading-[21px] text-ink first:mt-0 last:mb-0">{children}</p>,
+  p: ({ children }) => <p className="my-2 text-ui-base leading-[1.6] text-ink first:mt-0 last:mb-0">{children}</p>,
 
-  h1: ({ children }) => <h3 className="mt-4 mb-2 text-ui-lg font-semibold tracking-[-0.01em] text-ink">{children}</h3>,
-  h2: ({ children }) => <h3 className="mt-4 mb-2 text-ui-lg font-semibold tracking-[-0.01em] text-ink">{children}</h3>,
-  h3: ({ children }) => <h4 className="mt-3 mb-1.5 text-ui-base font-semibold text-ink">{children}</h4>,
-  h4: ({ children }) => <h4 className="mt-3 mb-1.5 text-ui-base font-medium text-ink">{children}</h4>,
+  /* baocode's heading ramp: 19 / 17 / 15 / body, semibold, line-height 1.4 */
+  h1: ({ children }) => <h3 className="mt-5 mb-2 text-ui-xl leading-[1.4] font-semibold text-ink">{children}</h3>,
+  h2: ({ children }) => <h3 className="mt-4 mb-2 text-ui-lg leading-[1.4] font-semibold text-ink">{children}</h3>,
+  h3: ({ children }) => <h4 className="mt-3.5 mb-1.5 text-ui-base leading-[1.4] font-semibold text-ink">{children}</h4>,
+  h4: ({ children }) => <h4 className="mt-3 mb-1.5 text-ui-base leading-[1.4] font-semibold text-ink">{children}</h4>,
   /* h5 / h6 used to fall through to the browser default — dark grey, 0.83em,
      bold — which read as unstyled next to the mapped levels above. */
   h5: ({ children }) => <h5 className="mt-3 mb-1.5 text-ui-caption font-medium text-ink-2">{children}</h5>,
@@ -196,7 +197,7 @@ const threadComponents: Components = {
     // keeps the item's own attributes so nesting and `start` keep working.
     // `node` is react-markdown's own hast node and must not reach the DOM —
     // spreading it renders `node="[object Object]"` as an attribute.
-    <li className={cn("text-ui-base leading-[21px] text-ink marker:text-ink-3", className)} {...rest}>
+    <li className={cn("text-ui-base leading-[1.6] text-ink marker:text-ink-3", className)} {...rest}>
       {children}
     </li>
   ),
@@ -249,7 +250,7 @@ const threadComponents: Components = {
   },
 
   table: ({ children }) => (
-    <div className="scrollbar-thin my-3 max-w-full overflow-x-auto rounded-card shadow-hairline">
+    <div className="scrollbar-thin my-2.5 max-w-full overflow-x-auto rounded-card border border-line">
       <table className="w-full border-collapse text-ui-caption">{children}</table>
     </div>
   ),

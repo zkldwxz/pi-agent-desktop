@@ -227,7 +227,7 @@ export function BrowserPanel({
           onClick={() => void window.pi.setDesignMode(!state.designMode)}
           className={cn(
             "pressable flex size-[28px] shrink-0 items-center justify-center rounded-chip",
-            state.designMode ? "bg-accent text-white" : "text-ink-2 hover:bg-hover",
+            state.designMode ? "bg-accent text-on-accent" : "text-ink-2 hover:bg-hover",
           )}
         >
           <PencilIcon size={14} />

@@ -49,7 +49,7 @@ export function WindowControls() {
 }
 
 /** Room the native macOS traffic lights take at the left of the header
- *  (`trafficLightPosition` x 20 + three 12px lights and their gaps). */
+ *  (`trafficLightPosition` x 16 + three 12px lights and their gaps), baocode's 78. */
 export const TRAFFIC_LIGHTS_WIDTH = IS_MAC ? 78 : 0;
 
 /**

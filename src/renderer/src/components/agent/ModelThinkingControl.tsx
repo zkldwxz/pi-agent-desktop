@@ -4,7 +4,7 @@ import { cn } from "../../lib/cn";
 import { formatContext } from "../../lib/format";
 import { t, tf } from "../../lib/i18n";
 import { GlideList, Popover } from "../motion";
-import { ThinkingTrack, ThinkingTrackEnds, thinkingBadgeClass, thinkingLevelClass } from "../ThinkingTrack";
+import { ThinkingTrack, ThinkingTrackEnds, thinkingLevelClass } from "../ThinkingTrack";
 import { ArrowLeftIcon, CheckIcon, ChevronDownIcon, ImageIcon, RefreshIcon } from "../icons";
 
 /**
@@ -135,26 +135,21 @@ export function ModelThinkingControl({
         onClick={toggle}
         title={tf("Model — {model}", { model: current?.name ?? t("No model") })}
         className={cn(
-          /* 28px like the attach / dictation / send buttons beside it — the whole
-             row shares one height and one bottom line */
-          "pressable inline-flex h-7 min-w-0 items-center gap-1.5 rounded-control py-0 pl-2 pr-1.5",
-          open ? "bg-field text-ink" : "text-ink-2 hover:bg-hover-2",
+          /* baocode's composer pill: 22px, fully round, muted 12px text, a
+             faint chevron; the depth rides as plain text ("· High") */
+          "pressable inline-flex h-[22px] min-w-0 items-center gap-1 rounded-full py-0 pr-[3px] pl-1.5 text-ui-sm",
+          open ? "bg-hover-2 text-ink" : "text-ink-2 hover:bg-hover",
         )}
       >
-        <span className="min-w-0 truncate text-ui-caption">{short}</span>
+        <span className="min-w-0 truncate">{short}</span>
         {canThink ? (
-          <span
-            className={cn(
-              "shrink-0 rounded-chip px-1 py-px text-ui-xs leading-[15px] transition-colors duration-300",
-              thinkingBadgeClass(shown),
-            )}
-          >
-            {t(shown)}
+          <span className={cn("shrink-0 transition-colors duration-300", shown === "max" ? "text-hot-ink" : "text-ink-3")}>
+            · {t(shown)}
           </span>
         ) : null}
         <ChevronDownIcon
-          size={12}
-          className="shrink-0 text-ink-3 transition-transform duration-300 ease-out-strong"
+          size={13}
+          className="shrink-0 text-ink-4 transition-transform duration-300 ease-out-strong"
           style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
         />
       </button>

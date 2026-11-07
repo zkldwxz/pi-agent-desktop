@@ -16,132 +16,138 @@
  * color used sparingly as a condiment.
  * ────────────────────────────────────────────────────────── */
 
+/* ── Bao Light / Bao Dark ───────────────────────────────────────
+ * Values from baocode's default themes (packages/bao_editor/.../theme-bao,
+ * bao-light-color-theme.json / bao-dark-color-theme.json), mapped onto this
+ * app's token names:
+ *   page        editor.background        the conversation and main views
+ *   canvas      sideBar.background       sidebar, header, rails
+ *   surface     raised cards, popovers   (menus: editorWidget/menu.background)
+ *   field       agentsChatInput          prompt cards, the composer, chips
+ *   line        panel.border / sideBar.border
+ *   line-strong bubbleBorder             lerp(field → foreground, .12) → accent .03
+ *   ink…ink-4   foreground, descriptionForeground, placeholder, disabled
+ *   accent      focusBorder / button.background (amber), accent-ink = textLink
+ * Borders are 1px lines; only overlays (menus, popovers) cast a shadow,
+ * baocode's `0 0 12px #00000024`.
+ * ────────────────────────────────────────────────────────────── */
 :root {
-  /* surfaces — cool, blue-tinted neutrals */
-  --page: oklch(0.985 0.001 286.376);
-  --canvas: oklch(0.961 0.002 247.84);
-  --surface: oklch(1 0 0);
-  --inset: oklch(0.979 0.002 247.839);
-  --hover: oklch(0.97 0.002 247.839);
-  --hover-2: oklch(0.933 0.003 247.86);
+  /* surfaces — warm neutrals */
+  --page: #fcfbfa;
+  --canvas: #f3f3f1;
+  --surface: #fefefd;
+  --inset: #f7f7f5;
+  --hover: rgb(37 35 30 / 0.06);
+  --hover-2: rgb(37 35 30 / 0.1);
 
   /* ink ramp */
-  --ink: oklch(0.247 0.006 258.361);
-  --ink-2: oklch(0.506 0.01 264.477);
-  --ink-3: oklch(0.695 0.009 264.505);
+  --ink: #292927;
+  --ink-2: #656360;
+  --ink-3: #8a8984;
 
-  /* borders — solid and crisp, not alpha */
-  --line: oklch(0.946 0.003 264.542);
-  --line-strong: oklch(0.912 0.005 258.326);
-  --line-soft: oklch(0.966 0.002 264.542);
+  /* borders — 1px lines */
+  --line: #e6e6e3;
+  --line-strong: #d3d1cd;
+  --line-soft: #ededea;
   --grid-line: color-mix(in srgb, var(--line) 78%, transparent);
-  --field: oklch(0.961 0.001 286.375);
-  --stripe: oklch(0.405 0 0 / 0.075);
-  --stripe-bg: oklch(0.97 0 0);
+  --field: #ecece9;
+  --stripe: rgb(37 35 30 / 0.06);
+  --stripe-bg: #f3f3f1;
 
-  /* accent */
-  --accent: oklch(0.626 0.205 254.947);
-  --accent-ink: oklch(0.556 0.187 255.617);
-  --accent-tint: oklch(0.96 0.019 252.878);
+  /* accent — amber */
+  --accent: #c4975a;
+  --accent-strong: #d9a862;
+  --accent-ink: #8f6528;
+  --accent-tint: rgb(226 179 115 / 0.22);
+  --on-accent: #282624;
+  --button: #e2b373;
 
-  /* depth ceiling — the purple the thinking track ends on, and the colour the
-   * top level (max) takes wherever it is written as text */
+  /* code — textCodeBlock / textPreformat backgrounds, chat.requestBorder */
+  --code-block: #eeeeeb;
+  --code-inline: #e9e9e6;
+  --code-border: rgb(0 0 0 / 0.07);
+
+  /* depth ceiling — the colour the top thinking level (max) takes */
   --hot: oklch(0.606 0.25 292.717);
   --hot-ink: oklch(0.541 0.281 293.009);
   --hot-tint: oklch(0.962 0.019 296.5);
 
-  /* semantic */
-  --green: oklch(0.603 0.155 150.883);
-  --green-tint: oklch(0.958 0.017 159.118);
-  --orange: oklch(0.689 0.179 49.902);
-  --orange-tint: oklch(0.964 0.021 67.581);
-  --red: oklch(0.621 0.192 23.042);
-  --red-tint: oklch(0.956 0.017 17.462);
+  /* semantic — git added / deleted, editorWarning */
+  --green: #5c7f37;
+  --green-tint: rgb(92 127 55 / 0.12);
+  --orange: #b08a2c;
+  --orange-tint: rgb(176 138 44 / 0.14);
+  --red: #b0443a;
+  --red-tint: rgb(176 68 58 / 0.1);
 
-  /* chart overlays — neutral system colors with enough contrast on either theme */
-  --tooltip-bg: oklch(0.272 0.008 264.435);
-  --tooltip-fg: oklch(0.976 0.002 247.839);
-  --tooltip-muted: oklch(0.731 0.008 260.731);
-  --tooltip-border: oklch(0.356 0.007 264.474);
+  /* chart overlays */
+  --tooltip-bg: #31312f;
+  --tooltip-fg: #e1e0dc;
+  --tooltip-muted: #b0afa9;
+  --tooltip-border: #474643;
 
-  /* shadows — our solid hairline ring + shadow-plugin's smooth layered stacks
-   * (--shadow-xs…lg come from shadow-plugin/unprefixed) so every surface reads
-   * consistently across the app. */
+  /* shadows: a 1px line for anything that sits in the page; a soft halo only
+     for what floats over it (baocode's menus and popovers) */
   --shadow-hairline: 0 0 0 1px var(--line);
-  --shadow-btn: 0 0 0 1px var(--line-strong), var(--shadow-xs);
-  --shadow-card: 0 0 0 1px var(--line), var(--shadow-sm);
-  --shadow-raised: 0 0 0 1px var(--line), var(--shadow-md);
-  --shadow-overlay: 0 0 0 1px var(--line), var(--shadow-lg);
-  --shadow-inset-field: inset 0 1px 2px oklch(0 0 0 / 0.12);
+  --shadow-btn: 0 0 0 1px var(--line-strong);
+  --shadow-card: 0 0 0 1px var(--line);
+  --shadow-raised: 0 0 0 1px var(--line), 0 0 12px rgb(0 0 0 / 0.08);
+  --shadow-overlay: 0 0 0 1px #dfdedb, 0 0 12px rgb(0 0 0 / 0.14);
+  --shadow-inset-field: inset 0 0 0 1px var(--line-strong);
 }
 
 .dark {
-  /* HOST TUNING (deviation from the vendored palette, deliberate).
-   *
-   * Measured against the registry values this app shipped with:
-   *   · page ↔ canvas separation was 1.054 — the sidebar and the main column
-   *     painted almost the same shade, so the window had no structure and read
-   *     as one flat slab.
-   *   · --ink-3 on --surface was 3.08:1, under the 4.5:1 floor, so every
-   *     tertiary label (file paths, timestamps, hints) was hard to read.
-   *   · the whole ramp sat at L 0.209–0.26, which is a medium grey rather than
-   *     a dark theme.
-   *
-   * These values deepen the base and spread the three tiers to ~0.032 L apart,
-   * which is a visible step, and lift --ink-3 to 4.76:1 on a card. Light mode is
-   * untouched. */
-  --page: oklch(0.166 0.004 265);
-  --canvas: oklch(0.198 0.004 265);
-  --surface: oklch(0.232 0.005 268);
-  --inset: oklch(0.19 0.004 265);
-  --hover: oklch(0.252 0.005 268);
-  --hover-2: oklch(0.286 0.006 270);
+  --page: #282827;
+  --canvas: #212120;
+  --surface: #31312f;
+  --inset: #242423;
+  --hover: rgb(240 239 236 / 0.07);
+  --hover-2: rgb(240 239 236 / 0.11);
 
-  --ink: oklch(0.968 0.002 248);
-  --ink-2: oklch(0.768 0.008 261);
-  --ink-3: oklch(0.628 0.009 264);
+  --ink: #e1e0dc;
+  --ink-2: #b0afa9;
+  --ink-3: #8f8e89;
 
-  --line: oklch(0.292 0.006 258);
-  --line-strong: oklch(0.352 0.007 264);
-  --line-soft: oklch(0.262 0.006 258);
-  --field: oklch(0.268 0.005 271);
-  --stripe: oklch(1 0 0 / 0.05);
-  --stripe-bg: oklch(0.192 0.004 265);
+  --line: #373735;
+  --line-strong: #51504c;
+  --line-soft: #2f2f2e;
+  --field: #393937;
+  --stripe: rgb(240 239 236 / 0.05);
+  --stripe-bg: #212120;
 
-  --accent: oklch(0.68 0.173 253.301);
-  --accent-ink: oklch(0.788 0.113 248.33);
-  --accent-tint: oklch(0.68 0.173 253.301 / 0.16);
+  --accent: #e5ba7d;
+  --accent-strong: #edc994;
+  --accent-ink: #edc994;
+  --accent-tint: rgb(229 186 125 / 0.17);
+  --on-accent: #222120;
+  --button: #e5ba7d;
+
+  --code-block: #212120;
+  --code-inline: #1b1b1a;
+  --code-border: rgb(255 255 255 / 0.08);
 
   --hot: oklch(0.68 0.19 292.717);
   --hot-ink: oklch(0.78 0.125 292.717);
   --hot-tint: oklch(0.68 0.19 292.717 / 0.16);
 
-  --green: oklch(0.705 0.154 153.814);
-  --green-tint: oklch(0.705 0.154 153.814 / 0.14);
-  --orange: oklch(0.746 0.156 55.642);
-  --orange-tint: oklch(0.746 0.156 55.642 / 0.14);
-  --red: oklch(0.666 0.18 21.433);
-  --red-tint: oklch(0.666 0.18 21.433 / 0.14);
+  --green: #9dc08b;
+  --green-tint: rgb(157 192 139 / 0.14);
+  --orange: #e0a95f;
+  --orange-tint: rgb(224 169 95 / 0.15);
+  --red: #e8877a;
+  --red-tint: rgb(232 135 122 / 0.14);
 
-  --tooltip-bg: oklch(0.182 0.004 264.459);
-  --tooltip-fg: oklch(0.964 0.002 247.839);
-  --tooltip-muted: oklch(0.731 0.008 260.731);
-  --tooltip-border: oklch(0.308 0.006 258.354);
+  --tooltip-bg: #1b1b1a;
+  --tooltip-fg: #e1e0dc;
+  --tooltip-muted: #b0afa9;
+  --tooltip-border: #373735;
 
   --shadow-hairline: 0 0 0 1px var(--line);
-  /* Elevation rings go to a subtle *light* hairline in dark mode: the ring
-   * paints over the surface behind the element, so a low-alpha white edge
-   * dissolves into the shadow as one continuous stroke (per smooth-shadow-ring),
-   * graduated by how far the surface floats. */
-  --shadow-btn: 0 0 0 1px oklch(1 0 0 / 0.1), 0 1px 2px oklch(0 0 0 / 0.3);
-  --shadow-card:
-    0 0 0 1px oklch(1 0 0 / 0.11), 0 1px 2px oklch(0 0 0 / 0.2),
-    0 2px 6px oklch(0 0 0 / 0.2);
-  --shadow-raised:
-    0 0 0 1px oklch(1 0 0 / 0.13), 0 2px 10px oklch(0 0 0 / 0.22);
-  --shadow-overlay:
-    0 0 0 1px oklch(1 0 0 / 0.15), 0 8px 28px oklch(0 0 0 / 0.34);
-  --shadow-inset-field: inset 0 1px 2px oklch(0 0 0 / 0.4);
+  --shadow-btn: 0 0 0 1px var(--line-strong);
+  --shadow-card: 0 0 0 1px var(--line);
+  --shadow-raised: 0 0 0 1px var(--line), 0 0 12px rgb(0 0 0 / 0.25);
+  --shadow-overlay: 0 0 0 1px #474643, 0 0 12px rgb(0 0 0 / 0.35);
+  --shadow-inset-field: inset 0 0 0 1px var(--line-strong);
 }
 
 @theme inline {
@@ -161,6 +167,12 @@
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
   --color-accent-tint: var(--accent-tint);
+  --color-accent-strong: var(--accent-strong);
+  --color-on-accent: var(--on-accent);
+  --color-button: var(--button);
+  --color-code-block: var(--code-block);
+  --color-code-inline: var(--code-inline);
+  --color-code-border: var(--code-border);
   --color-hot: var(--hot);
   --color-hot-ink: var(--hot-ink);
   --color-hot-tint: var(--hot-tint);
@@ -183,11 +195,12 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-face), ui-monospace, "SF Mono", monospace;
 
-  /* radii — chips 6, controls 8, cards 10, windows 14, pills 999 */
+  /* radii — baocode's: rows and icon buttons 6, controls / menus / code /
+     prompt cards 8, panels 10, the composer and island cards 12, pills 999 */
   --radius-chip: 6px;
   --radius-control: 8px;
-  --radius-card: 10px;
-  --radius-window: 14px;
+  --radius-card: 8px;
+  --radius-window: 12px;
 
   /* easing — strong curves; built-ins are too weak */
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);

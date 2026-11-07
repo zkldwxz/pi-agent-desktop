@@ -22,6 +22,7 @@ import type { McpConfigView, McpExposure, McpScope, McpServerConfig } from "@sha
 import type { PtyData, PtyExit, PtySession, TerminalShell } from "@shared/terminal";
 import type { BrowserBounds, BrowserState, DesignPick } from "@shared/browser";
 import type { UiAnswer } from "@shared/ui";
+import type { PlanQuota } from "@shared/quota";
 import type { WorkspaceInfo, SshProfile, SshProbe, SshConnectInput } from "@shared/workspaces";
 
 
@@ -144,6 +145,8 @@ export interface PiBridge {
   revealFile: (filePath: string) => Promise<void>;
   /** applications the OS has registered for this file type */
   listOpeners: (filePath: string) => Promise<AppOpener[]>;
+  /** subscription plan quota; cached five minutes unless `force` */
+  planQuota: (force?: boolean) => Promise<PlanQuota[]>;
   openWith: (filePath: string, openerId: string) => Promise<{ ok: boolean; error?: string }>;
   /* git, for the monitor's environment rows — always the workspace folder */
   gitStatus: () => Promise<GitState>;
@@ -292,6 +295,7 @@ const api: PiBridge = {
   readFile: (filePath) => ipcRenderer.invoke("fs:read", filePath),
   revealFile: (filePath) => ipcRenderer.invoke("fs:reveal", filePath),
   listOpeners: (filePath) => ipcRenderer.invoke("fs:openers", filePath),
+  planQuota: (force) => ipcRenderer.invoke("quota:plan", force),
   openWith: (filePath, openerId) => ipcRenderer.invoke("fs:openWith", filePath, openerId),
   gitStatus: () => ipcRenderer.invoke("git:status"),
   gitBranches: () => ipcRenderer.invoke("git:branches"),
