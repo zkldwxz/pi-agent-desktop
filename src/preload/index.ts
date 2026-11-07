@@ -119,6 +119,12 @@ export interface PiBridge {
   updateCheck: () => Promise<{ current?: string; latest?: string; newer?: string | null; error?: string }>;
   /** write a sanitized diagnostics bundle to a user-chosen file */
   exportDiagnostics: () => Promise<{ ok: boolean; output?: string; error?: string }>;
+  /* external browser takeover — the user's real Chrome over CDP */
+  externalBrowserLaunch: (url?: string) => Promise<{ ok: boolean; error?: string }>;
+  externalBrowserTargets: () => Promise<{ id: string; title: string; url: string; type: string }[]>;
+  externalBrowserNavigate: (url: string, targetId?: string) => Promise<{ ok: boolean; error?: string }>;
+  externalBrowserEvaluate: (expression: string, targetId?: string) => Promise<{ ok: boolean; value?: unknown; error?: string }>;
+  externalBrowserScreenshot: (targetId?: string) => Promise<{ ok: boolean; data?: string; error?: string }>;
   /** persist a pasted image (data URL) into the app's paste dir; returns its path */
   savePasteImage: (dataUrl: string, extension?: string) => Promise<string>;
   /** the absolute path of a File from the clipboard (Electron webUtils) */
@@ -262,6 +268,11 @@ const api: PiBridge = {
   testChannel: (providerId) => ipcRenderer.invoke("pi:testChannel", providerId),
   updateCheck: () => ipcRenderer.invoke("pi:updateCheck"),
   exportDiagnostics: () => ipcRenderer.invoke("pi:diagnostics"),
+  externalBrowserLaunch: (url) => ipcRenderer.invoke("browser:externalLaunch", url),
+  externalBrowserTargets: () => ipcRenderer.invoke("browser:externalTargets"),
+  externalBrowserNavigate: (url, targetId) => ipcRenderer.invoke("browser:externalNavigate", url, targetId),
+  externalBrowserEvaluate: (expression, targetId) => ipcRenderer.invoke("browser:externalEvaluate", expression, targetId),
+  externalBrowserScreenshot: (targetId) => ipcRenderer.invoke("browser:externalScreenshot", targetId),
   savePasteImage: (dataUrl, extension) => ipcRenderer.invoke("pi:savePasteImage", dataUrl, extension),
   getPathForFile: (file) => {
     try {

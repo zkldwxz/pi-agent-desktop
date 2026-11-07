@@ -15,6 +15,7 @@ import { applyCatalog, bundledExtensionName, catalog, markOnboardingDone, readCo
 import { discoverTerminalShells, resolveTerminalShell } from "./shells";
 import { pluginRoots } from "./plugins";
 import { testChannel } from "./model-config";
+import { ExternalBrowser } from "./external-browser";
 import type { McpScope } from "./mcp";
 import type { McpExposure, McpServerConfig } from "@earendil-works/pi-coding-agent";
 import type { UiAnswer } from "@shared/ui";
@@ -543,6 +544,15 @@ function registerIpc(): void {
   /* "does this endpoint answer" — keys stay in the main process; the
      renderer only ever sees the status line */
   ipcMain.handle("pi:testChannel", async (_event, providerId: string) => testChannel(providerId));
+
+  /* external browser takeover — a real Chrome via CDP, beside the embedded
+     preview. The extension-free path: debug port, targets, commands. */
+  const externalBrowser = new ExternalBrowser();
+  ipcMain.handle("browser:externalLaunch", async (_event, url?: string) => externalBrowser.launch(url));
+  ipcMain.handle("browser:externalTargets", async () => externalBrowser.targets());
+  ipcMain.handle("browser:externalNavigate", async (_event, url: string, targetId?: string) => externalBrowser.navigate(url, targetId));
+  ipcMain.handle("browser:externalEvaluate", async (_event, expression: string, targetId?: string) => externalBrowser.evaluate(expression, targetId));
+  ipcMain.handle("browser:externalScreenshot", async (_event, targetId?: string) => externalBrowser.screenshot(targetId));
 
   /* update check — a plain releases read against the public repo; no
      updater package yet, so "newer exists" is the whole contract */
