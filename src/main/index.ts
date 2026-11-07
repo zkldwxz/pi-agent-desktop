@@ -538,6 +538,7 @@ function registerIpc(): void {
 
   /** namespaces whose tools the session registered — i.e. servers that connected */
   ipcMain.handle("pi:mcpConnected", () => host?.mcpConnectedNamespaces() ?? []);
+  ipcMain.handle("pi:mcpTest", async (_event, scope: McpScope, name: string) => (await host?.mcpTest(scope, name)) ?? { ok: false, detail: "host not ready" });
 
   ipcMain.handle("pi:mcpFilePath", (_event, scope: McpScope) => host?.mcpFilePath(scope) ?? "");
 

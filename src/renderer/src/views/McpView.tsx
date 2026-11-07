@@ -5,7 +5,7 @@ import type { RuntimeSettings } from "@shared/types";
 import { cn } from "../lib/cn";
 import { t, tf } from "../lib/i18n";
 import { Chip, EmptyState, Skeleton } from "../components/ui";
-import { CheckIcon, HookIcon, PlusIcon, RefreshIcon, TrashIcon } from "../components/icons";
+import { CheckIcon, HookIcon, PlusIcon, RefreshIcon, TrashIcon, ZapIcon } from "../components/icons";
 
 /**
  * MCP servers.
@@ -209,6 +209,8 @@ export function McpView({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
+  /* per-server probe results from the connectivity test */
+  const [probe, setProbe] = useState<Record<string, { ok: boolean; detail: string }>>({});
 
   const isNew = selected === NEW;
 
@@ -429,6 +431,23 @@ export function McpView({
                       </span>
                     </span>
                     <span className="w-full truncate font-mono text-ui-xs text-ink-3">{where}</span>
+                    {probe[`${server.scope}:${server.name}`] ? (
+                      <span className={cn("w-full truncate text-ui-xs", probe[`${server.scope}:${server.name}`]?.ok ? "text-green" : "text-red")}>
+                        {probe[`${server.scope}:${server.name}`]?.detail}
+                      </span>
+                    ) : null}
+                  </button>
+                  <button
+                    type="button"
+                    title={t("Test connection")}
+                    onClick={() => {
+                      const key = `${server.scope}:${server.name}`;
+                      setProbe((current) => ({ ...current, [key]: { ok: false, detail: t("Testing…") } }));
+                      void window.pi.mcpTest(server.scope, server.name).then((result) => setProbe((current) => ({ ...current, [key]: result })));
+                    }}
+                    className="pressable flex size-7 shrink-0 items-center justify-center rounded-control text-ink-3 hover:bg-hover hover:text-ink"
+                  >
+                    <ZapIcon size={13} />
                   </button>
                   <Switch
                     on={server.enabled}

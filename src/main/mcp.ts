@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { McpExposure, McpServerConfig } from "@earendil-works/pi-coding-agent";
@@ -294,4 +295,78 @@ export function removeMcpServer(cwd: string, agentDir: string, scope: McpScope, 
     delete servers[name];
   });
   return readMcpConfig(cwd, agentDir);
+}
+
+/**
+ * "Does this server answer" — the connectivity check the list shows.
+ *
+ * A streamable HTTP server is probed with a real `initialize` POST: any HTTP
+ * response means the endpoint is alive — a 4xx is still a server answering.
+ * A stdio server gets the JSON-RPC `initialize` message on its stdin and is
+ * read until it answers, exits, or the timer ends; that is the handshake pi
+ * itself performs, so a pass here means the connection works for the agent.
+ */
+export async function testMcpServer(
+  cwd: string,
+  agentDir: string,
+  scope: McpScope,
+  name: string,
+): Promise<{ ok: boolean; detail: string }> {
+  const server = readMcpConfig(cwd, agentDir).servers.find((item) => item.name === name && item.scope === scope);
+  if (!server) return { ok: false, detail: "server not found" };
+  const config = server.config as { url?: string; headers?: Record<string, string>; command?: string; args?: string[]; env?: Record<string, string> };
+
+  if (config.url) {
+    try {
+      const body = JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "pi-agent-desktop", version: "0" } },
+      });
+      const response = await fetch(config.url, {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json, text/event-stream", ...(config.headers ?? {}) },
+        body,
+        signal: AbortSignal.timeout(6000),
+      });
+      return { ok: response.status < 500, detail: `HTTP ${response.status}` };
+    } catch (error) {
+      return { ok: false, detail: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  if (config.command) {
+    return new Promise((resolve) => {
+      const done = (result: { ok: boolean; detail: string }) => {
+        clearTimeout(timer);
+        child.kill();
+        resolve(result);
+      };
+      let child: ReturnType<typeof spawn>;
+      try {
+        child = spawn(config.command!, config.args ?? [], { env: { ...process.env, ...(config.env ?? {}) }, stdio: ["pipe", "pipe", "pipe"] });
+      } catch (error) {
+        resolve({ ok: false, detail: error instanceof Error ? error.message : String(error) });
+        return;
+      }
+      const timer = setTimeout(() => done({ ok: false, detail: "no answer within 6s" }), 6000);
+      let buffer = "";
+      child.stdout!.on("data", (chunk: Buffer) => {
+        buffer += chunk.toString("utf8");
+        /* an initialize reply carries "result" or "error" on a JSON line */
+        if (/\{[^\n]*"(result|error)"/.test(buffer)) done({ ok: true, detail: "answered initialize" });
+      });
+      child.once("error", (error) => done({ ok: false, detail: error.message }));
+      child.once("exit", (code) => done({ ok: false, detail: `exited ${code}` }));
+      child.stdin!.write(JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "pi-agent-desktop", version: "0" } },
+      }) + "\n");
+    });
+  }
+
+  return { ok: false, detail: "no command or url configured" };
 }

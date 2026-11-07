@@ -128,6 +128,7 @@ export const GaugeIcon = wrap(Gauge);
 export const PuzzleIcon = wrap(Puzzle);
 export const KeyboardIcon = wrap(Keyboard);
 export const HookIcon = wrap(Zap);
+export const ZapIcon = wrap(Zap);
 export const LayersIcon = wrap(Layers);
 export const ChartBarIcon = wrap(ChartBar);
 export const DatabaseIcon = wrap(Database);

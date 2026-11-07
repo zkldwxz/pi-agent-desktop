@@ -54,6 +54,7 @@ import {
   mcpFile,
   patchMcpServer as patchMcpServerFile,
   readMcpConfig,
+  testMcpServer as testMcpServerFile,
   removeMcpServer as removeMcpServerFile,
   writeMcpServer as writeMcpServerFile,
   type McpConfigView,
@@ -1006,6 +1007,11 @@ export class PiHost {
    */
   mcpConfig(): McpConfigView {
     return readMcpConfig(this.cwd, this.agentDir);
+  }
+
+  /** "does this server answer" — the connectivity check the list shows */
+  mcpTest(scope: McpScope, name: string): Promise<{ ok: boolean; detail: string }> {
+    return testMcpServerFile(this.cwd, this.agentDir, scope, name);
   }
 
   /** Namespaces whose tools the session actually registered — i.e. connected. */

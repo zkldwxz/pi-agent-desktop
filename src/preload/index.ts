@@ -111,6 +111,8 @@ export interface PiBridge {
   removeMcpServer: (scope: McpScope, name: string) => Promise<McpConfigView>;
   /** pi's own `/mcp login|logout|reconnect <server>`, run inside the session */
   mcpCommand: (command: "login" | "logout" | "reconnect", name: string) => Promise<void>;
+  /** probe a server: initialize POST for http, a real handshake for stdio */
+  mcpTest: (scope: McpScope, name: string) => Promise<{ ok: boolean; detail: string }>;
   /** persist a pasted image (data URL) into the app's paste dir; returns its path */
   savePasteImage: (dataUrl: string, extension?: string) => Promise<string>;
   /** the absolute path of a File from the clipboard (Electron webUtils) */
@@ -250,6 +252,7 @@ const api: PiBridge = {
   patchMcpServer: (scope, name, patch) => ipcRenderer.invoke("pi:patchMcpServer", scope, name, patch),
   removeMcpServer: (scope, name) => ipcRenderer.invoke("pi:removeMcpServer", scope, name),
   mcpCommand: (command, name) => ipcRenderer.invoke("pi:mcpCommand", command, name),
+  mcpTest: (scope, name) => ipcRenderer.invoke("pi:mcpTest", scope, name),
   savePasteImage: (dataUrl, extension) => ipcRenderer.invoke("pi:savePasteImage", dataUrl, extension),
   getPathForFile: (file) => {
     try {
