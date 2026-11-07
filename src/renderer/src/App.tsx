@@ -101,6 +101,12 @@ export function App() {
   const theme = useTheme();
   const { dark, frozen: themeFrozen } = theme;
   const [view, setView] = useState<MainView>("chat");
+  /** where Settings opens: General, unless a shortcut asked for a category */
+  const [settingsCategory, setSettingsCategory] = useState<"models" | undefined>(undefined);
+  /* a shortcut's category holds for that one visit; the gear opens General */
+  useEffect(() => {
+    if (view !== "settings") setSettingsCategory(undefined);
+  }, [view]);
   const [state, setState] = useState<HostState>(emptyState);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [tools, setTools] = useState<ToolActivity[]>([]);
@@ -884,19 +890,20 @@ function terminalCommand(tool: ToolActivity): string {
       onSetThinking={(level) => void reportFailure(() => window.pi.setThinking(level))}
       onAbort={() => void window.pi.abort()}
       onSetModel={(provider, modelId) => void reportFailure(() => window.pi.setModel(provider, modelId))}
+      onManageModels={() => {
+        setSettingsCategory("models");
+        setView("settings");
+      }}
       onPlanAction={planAction}
       onOpenPlan={() => {
         setDockTool("plan");
         setDockOpen(true);
       }}
-      runningTerminal={
-        runningTerminals.length
-          ? {
-              count: runningTerminals.length,
-              title: runningTerminals.map(terminalCommand).join("\n"),
-            }
-          : null
-      }
+      runningTasks={runningTerminals.map((tool) => ({
+        id: tool.toolCallId,
+        command: terminalCommand(tool),
+        startedAt: tool.startedAt,
+      }))}
       onOpenTerminal={() => {
         setDockTool("terminal");
         setDockOpen(true);
@@ -1394,6 +1401,7 @@ function terminalCommand(tool: ToolActivity): string {
             {view === "settings" ? (
               <Suspense fallback={<ViewSkeleton />}>
                 <SettingsView
+                  initialCategory={settingsCategory}
                   state={state}
                   colorMode={theme.mode}
                   onColorMode={theme.setMode}

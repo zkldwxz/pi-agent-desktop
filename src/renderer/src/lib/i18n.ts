@@ -499,6 +499,11 @@ const ZH: Record<string, string> = {
   "Awaiting review": "待确认",
   "Edits and runs commands directly": "直接修改文件、运行命令",
   "Explores read-only, then hands you a plan": "只读探索，先给出方案再动手",
+  "Search models": "搜索模型",
+  "Manage Models…": "管理模型…",
+  "Effort": "强度",
+  "Stop the run": "停止本轮运行",
+  "{count} commands running": "{count} 条命令正在运行",
   /* ── plan quota / usage indicator ───────────────────── */
   "5-hour": "5 小时",
   "Weekly Opus": "每周 Opus",

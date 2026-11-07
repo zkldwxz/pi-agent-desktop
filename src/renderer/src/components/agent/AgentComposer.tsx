@@ -6,7 +6,8 @@ import { ModelThinkingControl } from "./ModelThinkingControl";
 import { UsageIndicator, usePlanQuota } from "./UsageIndicator";
 import { t, useLocale } from "../../lib/i18n";
 import { cn } from "../../lib/cn";
-import { InfinityIcon, ListChecksIcon, LoaderIcon, PencilIcon, TerminalIcon } from "../icons";
+import { InfinityIcon, ListChecksIcon, PencilIcon } from "../icons";
+import { ActivityStrip, type RunningTask } from "./ActivityStrip";
 import { ComposerPill, PickerFooterRow, PickerMenu } from "./ComposerPill";
 import { useHotSweep } from "../../lib/theme";
 
@@ -47,10 +48,11 @@ export function AgentComposer({
   onSend,
   onAbort,
   onSetModel,
+  onManageModels,
   onSetThinking,
   onPlanAction,
   onOpenPlan,
-  runningTerminal,
+  runningTasks = [],
   onOpenTerminal,
   editingQueued,
 }: {
@@ -61,13 +63,15 @@ export function AgentComposer({
   onSend: (text: string) => void;
   onAbort: () => void;
   onSetModel: (provider: string, modelId: string) => void;
+  /** opens Settings ▸ Models — the model menu's last row */
+  onManageModels?: () => void;
   onSetThinking: (level: string) => void;
   onPlanAction: (action: PlanAction) => void;
   /** opens the plan panel; the badge uses it whenever a plan file exists */
   onOpenPlan?: () => void;
-  /** a terminal call the agent is running right now — surfaced as a chip */
-  runningTerminal?: { count: number; title?: string } | null;
-  /** clicking the terminal chip opens the dock on that terminal */
+  /** the terminal calls the agent is running right now — the activity strip */
+  runningTasks?: RunningTask[];
+  /** clicking a running command opens the dock on the terminal */
   onOpenTerminal?: () => void;
   /** a queued message was loaded back into the editor — the shell says so */
   editingQueued?: boolean;
@@ -220,6 +224,8 @@ export function AgentComposer({
           {t("Editing a queued message — Enter sends it")}
         </div>
       ) : null}
+        {/* what is running, over the composer (baocode's activity strip) */}
+        <ActivityStrip tasks={runningTasks} onOpen={onOpenTerminal} onStop={onAbort} />
         <PromptBar
           variant="Rounded"
           tall
@@ -228,19 +234,12 @@ export function AgentComposer({
           placeholder={messages.length ? t("Send follow-up…") : t("Ask Pi to build, analyze or explain anything…")}
           controls={
             <>
-              <ModelThinkingControl state={state} onSetModel={onSetModel} onSetThinking={onSetThinking} />
-              {/* a live terminal, as a pill of the same shape: clicking docks onto it */}
-              {runningTerminal ? (
-                <ComposerPill
-                  title={runningTerminal.title}
-                  onClick={onOpenTerminal}
-                  icon={<LoaderIcon size={12} className="spin-fast text-accent" />}
-                  className="hidden sm:inline-flex"
-                >
-                  <TerminalIcon size={13} className="shrink-0" />
-                  <span className="tabular-nums">{runningTerminal.count}</span>
-                </ComposerPill>
-              ) : null}
+              <ModelThinkingControl
+                state={state}
+                onSetModel={onSetModel}
+                onSetThinking={onSetThinking}
+                onManageModels={onManageModels}
+              />
             </>
           }
           controlsTrailing={

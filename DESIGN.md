@@ -153,11 +153,20 @@ UI 用系统字体（`--font-inter`：SF Pro / Segoe UI Variable / system-ui，
 - **工具栏控件一律用 `ComposerPill`**（`components/agent/ComposerPill.tsx`）：22px、全圆角、
   左 6 右 3、图标 13、`text-ui-meta` `ink-2`、有菜单时 15px `ink-4` 下拉箭头；悬停 `bg-hover`，
   打开 `bg-hover-2`。顺序：`+` → 模式（`emphasized`，`--pill-emphasis` 底色 + 1px 线，
-  常驻"智能体 / 计划 · 状态"）→ 模型（✦ + "模型 · 深度"，同色）→ 运行中的终端。
+  常驻"智能体 / 计划 · 状态"）→ 模型（厂商 logo + "模型 · 强度"；只有别的上游也有同名模型
+  时才在前面加上游名，与 baocode `SessionModelPicker._label` 一致）。
   风险项用 `caution`（`text-orange`）。不要在工具栏里另做彩色徽章。
 - 药丸弹出的菜单用 `PickerMenu`：药丸上方 6px，`bg-surface` + `shadow-overlay`，圆角 8，
   内边距 4；有描述的行 40px、否则 30px，圆角 5，图标 15、间距 10、标签 12.5、描述 11；
   选中打勾；140ms 从 0.96 放大进入。
+- 模型菜单（`ModelThinkingControl`）：宽 260；≥10 个模型时顶部搜索；按上游分组，组标题 11px
+  `ink-4`、吸顶、除第一组外上方 1px 线；行 30px = logo 15 + 名称 12.5，当前项打勾，有强度的行带 ›，
+  悬停在右侧弹出"强度"二级菜单（28px 行）；底部"管理模型…"打开 设置 ▸ 模型。空上游不显示。
+- 厂商 logo：`components/BrandLogo.tsx` + `lib/model-brand.ts`（移植 baocode `model_brand.dart`：
+  先按模型名关键词，再按 API 域名，再按 pi 的 provider id）；图标在 `assets/model-icons/`，单色跟随文字。
+- 运行中的命令不做药丸，放在输入框上方的**活动条**（`ActivityStrip`，baocode activity_strip）：
+  左右缩进 10、`bg-field` + 1px `line-strong`、圆角 10；28px 行 = 终端图标 14 `ink-4` + 等宽命令
+  `text-ui-sm` + "运行中 · Ns" `ink-2` + 停止；≥4 条折叠；最多 4 行可见。pi 只能停整轮，停止按钮如实写"停止本轮运行"。
 
 ## 侧栏（baocode 度量）
 
