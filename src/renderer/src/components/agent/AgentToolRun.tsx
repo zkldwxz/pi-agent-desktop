@@ -24,11 +24,13 @@ export const AgentToolRun = memo(function AgentToolRun({ runs }: { runs: ToolRun
   if (!groups.length) return null;
 
   return (
-    <div className="flex w-full max-w-[560px] flex-col gap-1">
-      {/* a group is open while one of its calls is still pending, and shuts the
-          moment the last result lands — the run collapses itself */}
+    <div className="flex w-full flex-col gap-1">
+      {/* a multi-call group is open while one of its calls is still pending,
+          and shuts the moment the last result lands. A single call stays shut:
+          its header already names the call ("Terminal npm run typecheck"), and
+          opening it only repeated the same line underneath. */}
       {groups.map((group) => (
-        <GroupChips key={group.key} group={group} defaultOpen={group.running} />
+        <GroupChips key={group.key} group={group} defaultOpen={group.running && group.runs.length > 1} />
       ))}
     </div>
   );

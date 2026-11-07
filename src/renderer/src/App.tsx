@@ -1027,17 +1027,11 @@ function terminalCommand(tool: ToolActivity): string {
             {view === "chat" ? (
               <div className="relative flex min-h-0 flex-1">
               {/* the conversation container: thread, queue and composer all
-                  measure against it, so ZCode's off-centre shift applies and
-                  unwinds itself when the dock or monitor takes width */}
+                  measure against it */}
               <div
                 ref={columnRef}
                 className="@container/conversation relative flex min-w-0 flex-1 flex-col"
                 style={{
-                  /* the lean only makes sense while a right-hand panel actually
-                     claims width; with every dock closed the container spans the
-                     window and the column must sit dead-centre instead of the
-                     stale off-centre shift */
-                  "--conversation-lean": dockOpen || monitorOpen || browserDockOpen ? "-11rem" : "0rem",
                   ...(lockedColumnWidth === null ? {} : { width: lockedColumnWidth, flex: "0 0 auto" }),
                 } as React.CSSProperties}
               >

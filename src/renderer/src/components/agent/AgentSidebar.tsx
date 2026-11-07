@@ -66,6 +66,7 @@ function RailRow({
       title={title}
       onClick={onClick}
       className="side-pane-row h-8"
+      iconSize={14}
       copyClassName="side-pane-copy"
     />
   );
@@ -263,9 +264,11 @@ export function AgentSidebar({
             <button
               type="button"
               onClick={onNew}
-              className="pressable mb-1 flex h-8 w-full items-center gap-2 rounded-control bg-surface px-2.5 text-left text-ui-base text-ink shadow-hairline hover:bg-hover"
+              className="pressable mb-1 flex h-8 w-full items-center gap-2 rounded-control bg-surface px-2 text-left text-ui-base text-ink shadow-hairline hover:bg-hover"
             >
-              <PlusIcon size={14} className="text-ink-2" />
+              <span className="flex size-4 shrink-0 items-center justify-center">
+                <PlusIcon size={14} className="text-ink-2" />
+              </span>
               <span className="min-w-0 flex-1 truncate">{t("New Agent")}</span>
             </button>
           )}
@@ -287,7 +290,7 @@ export function AgentSidebar({
             render anyway and every row broke mid-word. Collapsed shows the
             icon rail only, like Cursor's. */}
         {collapsed ? null : (
-        <div className="mt-3.5 flex min-h-0 flex-1 flex-col border-t border-line/60 pt-1.5">
+        <div className="mt-4 flex min-h-0 flex-1 flex-col">
           <WorkspaceList
             sessions={all}
             prefs={prefs}
@@ -314,7 +317,7 @@ export function AgentSidebar({
         )}
 
         {/* account */}
-        <div className="side-pane-copy flex w-full shrink-0 items-center gap-2 border-t border-line px-3 py-2.5">
+        <div className="side-pane-copy flex w-full shrink-0 items-center gap-2 border-t border-line/60 py-2.5 pr-3 pl-4">
           {/* the person sitting here, not the vendor: initials avatar + the name
               they were asked for at onboarding */}
           <div

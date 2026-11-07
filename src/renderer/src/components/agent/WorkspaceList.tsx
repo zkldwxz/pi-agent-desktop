@@ -636,8 +636,8 @@ export function WorkspaceList({
               if (path) assignSession(path, workspace.key === "group:__ungrouped" ? null : workspace.label);
             }}
           >
-            <div className="flex h-8 min-w-0 flex-1 items-center gap-1.5 px-1">
-              <span className="flex size-3.5 shrink-0 items-center justify-center text-ink-3">
+            <div className="flex h-8 min-w-0 flex-1 items-center gap-2 px-1">
+              <span className="flex size-4 shrink-0 items-center justify-center text-ink-3">
                 <LayersIcon size={13} />
               </span>
               <span className="min-w-0 flex-1 truncate text-ui-base text-ink-2">{workspace.label}</span>
@@ -657,7 +657,7 @@ export function WorkspaceList({
           </div>
         ) : (
         <div
-          className="group/ws flex items-center rounded-chip px-1 hover:bg-hover-2"
+          className="group/ws relative flex items-center rounded-chip px-1 hover:bg-hover-2"
           onContextMenu={(event) => {
             event.preventDefault();
             if (isHome) return;
@@ -672,9 +672,9 @@ export function WorkspaceList({
           <button
             type="button"
             onClick={() => setOpen((current) => ({ ...current, [workspace.key]: !isOpen }))}
-            className="pressable flex h-8 min-w-0 flex-1 items-center gap-1.5 px-1 text-left"
+            className="pressable flex h-8 min-w-0 flex-1 items-center gap-2 px-1 text-left"
           >
-            <span className="relative flex size-3.5 shrink-0 items-center justify-center text-ink-3">
+            <span className="relative flex size-4 shrink-0 items-center justify-center text-ink-3">
               {isHome ? (
                 <HomeIcon size={13} />
               ) : (
@@ -693,15 +693,22 @@ export function WorkspaceList({
               )}
             </span>
             <span className="min-w-0 flex-1 truncate text-ui-base text-ink-2">{isHome ? t("Home") : workspace.label}</span>
-            <span className="shrink-0 text-ui-xs text-ink-3 tabular-nums">{sorted.length}</span>
+            {/* the count says how much is folded away, so it only shows while
+                folded (baocode); it sits on the same right edge as the session
+                times below and gives way to the hover actions */}
+            {!isOpen && sorted.length > 0 ? (
+              <span className="shrink-0 text-ui-xs text-ink-3 tabular-nums group-hover/ws:opacity-0">{sorted.length}</span>
+            ) : null}
           </button>
+          {/* hover actions float over the row's right end instead of taking
+              width, so the count and the session times share one column */}
+          <div className="absolute top-1/2 right-1 flex -translate-y-1/2 items-center opacity-0 group-hover/ws:opacity-100 focus-within:opacity-100">
           {/* hover affordances on the workspace row: open the folder itself
               (with an opener menu), then start a chat inside it */}
           {/* SSH cwd is only a local session anchor. Local folder openers
               must not reveal it as though it were the remote project. */}
           <FolderOpenButton
             path={isRemoteFolder(workspace.path || workspace.key) ? undefined : workspace.path || workspace.key}
-            className="opacity-0 group-hover/ws:opacity-100"
           />
           <button
             type="button"
@@ -711,10 +718,11 @@ export function WorkspaceList({
               event.stopPropagation();
               onNewInWorkspace?.(workspace.path || workspace.key);
             }}
-            className="pressable flex size-5.5 shrink-0 items-center justify-center rounded-chip text-ink-3 opacity-0 hover:bg-hover hover:text-ink group-hover/ws:opacity-100"
+            className="pressable flex size-5.5 shrink-0 items-center justify-center rounded-chip text-ink-3 hover:bg-hover hover:text-ink"
           >
             <PlusIcon size={12} />
           </button>
+          </div>
         </div>
         )}
 
@@ -756,7 +764,7 @@ export function WorkspaceList({
                 {/* a registered folder has no rows to lay out yet — say so, so
                     expanding it does not read as a broken toggle */}
                 {!sorted.length ? (
-                  <div className="py-1 pl-7 text-ui-sm text-ink-3">{t("No chats here yet")}</div>
+                  <div className="py-1 pl-[28px] text-ui-sm text-ink-3">{t("No chats here yet")}</div>
                 ) : null}
                 {visible.map((session, index) => {
                   const isUnread = Date.parse(session.modified) > (readAt[session.path] ?? 0);
@@ -786,7 +794,7 @@ export function WorkspaceList({
                         onClick={() => choose(session.path)}
                         style={stagger(index)}
                         className={cn(
-                          "glide-row pressable flex w-full items-center gap-1.5 rounded-chip py-1.5 pr-2 pl-2 text-left outline-none",
+                          "glide-row pressable flex w-full items-center gap-2 rounded-chip py-1.5 pr-2 pl-2 text-left outline-none",
                           "focus-visible:bg-surface focus-visible:shadow-hairline",
                           active && "row-picked bg-surface shadow-hairline",
                         )}
@@ -797,7 +805,7 @@ export function WorkspaceList({
                             same width as the workspace row's icon slot above,
                             so both rows put their glyphs and their labels on
                             one column */}
-                        <span className="flex size-3.5 shrink-0 items-center justify-center">
+                        <span className="flex size-4 shrink-0 items-center justify-center">
                           {session.status === "running" ? (
                             <LoaderIcon size={11} className="spin-fast shrink-0 text-accent" />
                           ) : isUnread ? (
@@ -814,7 +822,7 @@ export function WorkspaceList({
                         </span>
                         <span
                           data-sidebar-time
-                          className="shrink-0 font-mono text-ui-xs text-ink-3 tabular-nums group-hover/srow:opacity-0"
+                          className="shrink-0 text-ui-xs text-ink-3 tabular-nums group-hover/srow:opacity-0"
                         >
                           {relativeTime(session.modified)}
                         </span>
@@ -840,9 +848,9 @@ export function WorkspaceList({
                   <button
                     type="button"
                     onClick={() => setExpanded((current) => ({ ...current, [workspace.key]: true }))}
-                    className="pressable flex items-center gap-1.5 rounded-chip py-1 pr-2 pl-2 text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
+                    className="pressable flex items-center gap-2 rounded-chip py-1 pr-2 pl-2 text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
                   >
-                    <span className="flex size-3.5 shrink-0 items-center justify-center">
+                    <span className="flex size-4 shrink-0 items-center justify-center">
                       <ChevronDownIcon size={10} />
                     </span>
                     {tf("Show {count} more", { count: hidden })}
@@ -852,9 +860,9 @@ export function WorkspaceList({
                   <button
                     type="button"
                     onClick={() => setExpanded((current) => ({ ...current, [workspace.key]: false }))}
-                    className="pressable flex items-center gap-1.5 rounded-chip py-1 pr-2 pl-2 text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
+                    className="pressable flex items-center gap-2 rounded-chip py-1 pr-2 pl-2 text-ui-sm text-ink-3 hover:bg-hover hover:text-ink-2"
                   >
-                    <span className="flex size-3.5 shrink-0 items-center justify-center">
+                    <span className="flex size-4 shrink-0 items-center justify-center">
                       <ChevronDownIcon size={10} className="rotate-180" />
                     </span>
                     {t("Show less")}
@@ -873,7 +881,7 @@ export function WorkspaceList({
       {/* header — the workspace's own controls: the filter menu, then the
           folder opener on its right. The pane's collapse toggle lives at the
           very top of the sidebar, above New Agent, not here. */}
-      <div className="flex items-center gap-1 px-2.5 pb-1">
+      <div className="flex items-center gap-1 pr-3 pb-1 pl-4">
         <span className="text-ui-sm tracking-[0.3px] text-ink-3">{t(isGroups ? "Groups" : "Workspaces")}</span>
         <span className="flex-1" />
         <div className="relative">

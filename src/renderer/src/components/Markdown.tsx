@@ -5,7 +5,6 @@ import { cn } from "../lib/cn";
 import { highlightCode } from "../lib/highlight";
 import { t } from "../lib/i18n";
 import { CheckIcon, CopyIcon } from "./icons";
-import CodeBlock from "./beautiful/primitives/CodeBlock";
 
 /* ─────────────────────────────────────────────────────────
  * MARKDOWN
@@ -46,6 +45,47 @@ const REMARK = [remarkGfm];
 const PATH_LIKE = /^[\w.@~-]*[\\/][\w.@\\/-]+\.[\w]+$|^[\w.@~-]+\.[\w]{1,10}(:\d+)?$/;
 
 /** The fence's own text and language, pulled back out of the `pre`'s child. */
+/**
+ * A fenced block inside prose: a quiet tinted panel, no file header, no line
+ * numbers — those belong to the file viewer, where code is the subject. Here it
+ * is part of an answer (baocode's style). The language and copy sit in the
+ * corner and show on hover.
+ */
+export function ChatCode({ lang, text }: { lang: string; text: string }) {
+  const [copied, setCopied] = useState(false);
+  const html = highlightCode(text, lang);
+  const copy = () => {
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    });
+  };
+  return (
+    <div className="group/code relative my-3 rounded-card bg-field/70">
+      <pre className="hljs scrollbar-thin overflow-x-auto px-3.5 py-3 font-mono text-ui-caption leading-[1.65]">
+        {html ? (
+          // eslint-disable-next-line react/no-danger -- highlight.js escapes its input
+          <code dangerouslySetInnerHTML={{ __html: html }} />
+        ) : (
+          <code>{text}</code>
+        )}
+      </pre>
+      <div className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover/code:opacity-100 focus-within:opacity-100">
+        {lang ? <span className="px-1 font-mono text-ui-xs text-ink-4">{lang}</span> : null}
+        <button
+          type="button"
+          onClick={copy}
+          title={copied ? t("Copied") : t("Copy")}
+          aria-label={t("Copy")}
+          className="pressable flex size-6 items-center justify-center rounded-chip bg-surface text-ink-3 shadow-hairline hover:text-ink"
+        >
+          {copied ? <CheckIcon size={12} className="text-green" /> : <CopyIcon size={12} />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function fenced(children: ReactNode): { lang: string; text: string } {
   const child = Array.isArray(children) ? children[0] : children;
   const props = (child as { props?: { className?: string; children?: unknown } })?.props;
@@ -189,7 +229,9 @@ const threadComponents: Components = {
   ),
 
   blockquote: ({ children }) => (
-    <blockquote className="my-2 border-l-2 border-line-strong pl-3 text-ui-base italic text-ink-2">{children}</blockquote>
+    /* no italics: CJK has no italic face, and the browser's synthetic slant
+       made quoted Chinese look broken */
+    <blockquote className="my-2 border-l-2 border-line-strong pl-3 text-ui-base text-ink-3">{children}</blockquote>
   ),
   hr: () => <hr className="my-3 border-0 border-t border-line" />,
   img: ({ src, alt }) => (
@@ -200,18 +242,14 @@ const threadComponents: Components = {
 
   pre: ({ children }) => {
     // react-markdown hands the fenced block here; pull the raw text back out so
-    // CodeBlock can number it
+    // ChatCode can highlight it in one pass
     const { lang, text } = fenced(children);
     if (!text) return null;
-    return (
-      <div className="my-3">
-        <CodeBlock variant="Code" lines={text.split("\n")} code={text} filename={lang ? `snippet.${lang}` : "snippet"} />
-      </div>
-    );
+    return <ChatCode lang={lang} text={text} />;
   },
 
   table: ({ children }) => (
-    <div className="scrollbar-thin my-3 max-w-full overflow-x-auto rounded-card bg-surface shadow-card">
+    <div className="scrollbar-thin my-3 max-w-full overflow-x-auto rounded-card shadow-hairline">
       <table className="w-full border-collapse text-ui-caption">{children}</table>
     </div>
   ),

@@ -213,9 +213,8 @@ export function AgentComposer({
              with the text it answers. The greeting stays a centred hero. */
           messages.length > 0 ? CONVERSATION_COLUMN : "mx-auto w-full max-w-[720px]",
           "transition-transform duration-150 ease-out",
-          /* ZCode's dock insets its shell px-4 inside the shared column while
-             the text carries px-6: the shell overhangs the prose by 8px on
-             both edges, which is the breathing room their thread reads with */
+          /* the same px-4 inset the timeline carries: the shell lines up
+             with the prompt cards above it, edge for edge */
           messages.length > 0 && "px-4",
         )}
       >

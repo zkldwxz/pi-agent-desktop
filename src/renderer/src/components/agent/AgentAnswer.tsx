@@ -1,18 +1,13 @@
 import { memo } from "react";
-import CodeBlock from "../beautiful/primitives/CodeBlock";
 import StreamingText from "../beautiful/primitives/StreamingText";
 import { StreamText } from "../motion";
-import { Markdown } from "../Markdown";
+import { ChatCode, Markdown } from "../Markdown";
 import { splitSegments, type TurnItem, type TurnView } from "../../lib/agent-view";
 
+/* fenced code in an answer: the same quiet panel Markdown draws, so a block
+   reads the same whichever path split it out of the prose */
 function CodeSegment({ lang, code }: { lang: string; code: string }) {
-  const lines = code.split("\n");
-  // a short listing reads better as the plain Code view; anything long scrolls
-  return (
-    <div>
-      <CodeBlock variant="Code" lines={lines} code={code} filename={lang ? `snippet.${lang}` : "snippet"} />
-    </div>
-  );
+  return <ChatCode lang={lang} text={code} />;
 }
 
 type TextItem = Extract<TurnItem, { kind: "text" }>;
