@@ -17,7 +17,7 @@ import type {
   DesktopConfig,
 } from "@shared/types";
 import type { DirListing, FileContent, TerminalChunk, TerminalResult } from "@shared/workspace";
-import type { AppOpener, GitBranches, GitResult, GitState } from "@shared/workspace";
+import type { AppOpener, GitBranches, GitChanges, GitDiff, GitDiscardFile, GitResult, GitState } from "@shared/workspace";
 import type { McpConfigView, McpExposure, McpScope, McpServerConfig } from "@shared/mcp";
 import type { PtyData, PtyExit, PtySession, TerminalShell } from "@shared/terminal";
 import type { BrowserBounds, BrowserState, DesignPick } from "@shared/browser";
@@ -132,8 +132,14 @@ export interface PiBridge {
   gitCheckout: (name: string) => Promise<GitResult>;
   gitCreateBranch: (name: string) => Promise<GitResult>;
   gitDeleteBranch: (name: string) => Promise<GitResult>;
-  gitCommit: (message: string) => Promise<GitResult>;
+  gitCommit: (message: string, paths?: string[]) => Promise<GitResult>;
   gitPush: () => Promise<GitResult>;
+  /* the source-control panel: file rows, patches, staging verbs */
+  gitChanges: () => Promise<GitChanges>;
+  gitDiff: (path: string, flags?: { staged?: boolean; untracked?: boolean }) => Promise<GitDiff>;
+  gitStage: (paths: string[]) => Promise<GitResult>;
+  gitUnstage: (paths: string[]) => Promise<GitResult>;
+  gitDiscard: (files: GitDiscardFile[]) => Promise<GitResult>;
   runBash: (command: string) => Promise<TerminalResult>;
   abortBash: () => Promise<void>;
   bashState: () => Promise<{ running: boolean }>;
@@ -261,8 +267,13 @@ const api: PiBridge = {
   gitCheckout: (name) => ipcRenderer.invoke("git:checkout", name),
   gitCreateBranch: (name) => ipcRenderer.invoke("git:createBranch", name),
   gitDeleteBranch: (name) => ipcRenderer.invoke("git:deleteBranch", name),
-  gitCommit: (message) => ipcRenderer.invoke("git:commit", message),
+  gitCommit: (message, paths) => ipcRenderer.invoke("git:commit", message, paths),
   gitPush: () => ipcRenderer.invoke("git:push"),
+  gitChanges: () => ipcRenderer.invoke("git:changes"),
+  gitDiff: (path, flags) => ipcRenderer.invoke("git:diff", path, flags),
+  gitStage: (paths) => ipcRenderer.invoke("git:stage", paths),
+  gitUnstage: (paths) => ipcRenderer.invoke("git:unstage", paths),
+  gitDiscard: (files) => ipcRenderer.invoke("git:discard", files),
   runBash: (command) => ipcRenderer.invoke("term:run", command),
   abortBash: () => ipcRenderer.invoke("term:abort"),
   bashState: () => ipcRenderer.invoke("term:state"),

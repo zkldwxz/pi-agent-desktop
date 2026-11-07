@@ -8,7 +8,9 @@ import { BrowserHost } from "./browser";
 import { PtyHost } from "./pty";
 import { listDir, readFileForView, searchFiles } from "./fs-browser";
 import { listOpeners, openWith } from "./openers";
-import { gitBranches, gitCheckout, gitCommit, gitCreateBranch, gitDeleteBranch, gitPush, gitStatus, noRepoBranches, noRepoState } from "./git";
+import { gitBranches, gitChanges, gitCheckout, gitCommit, gitCreateBranch, gitDeleteBranch, gitDiff, gitDiscard, gitPush, gitStage, gitStatus, gitUnstage, noRepoBranches, noRepoState } from "./git";
+import type { GitDiscardFile } from "@shared/workspace";
+import { noRepoChanges } from "../shared/workspace.ts";
 import { applyCatalog, bundledExtensionName, catalog, markOnboardingDone, readConfig, syncBundledExtensions, writeConfig } from "./install";
 import { discoverTerminalShells, resolveTerminalShell } from "./shells";
 import { pluginRoots } from "./plugins";
@@ -688,8 +690,25 @@ function registerIpc(): void {
   ipcMain.handle("git:checkout", async (_event, name: string) => { const remote = await remoteGit(); return remote ? remote.mutate("checkout", name) : gitCheckout(gitCwd(), name); });
   ipcMain.handle("git:createBranch", async (_event, name: string) => { const remote = await remoteGit(); return remote ? remote.mutate("create", name) : gitCreateBranch(gitCwd(), name); });
   ipcMain.handle("git:deleteBranch", async (_event, name: string) => { const remote = await remoteGit(); return remote ? remote.mutate("delete", name) : gitDeleteBranch(gitCwd(), name); });
-  ipcMain.handle("git:commit", async (_event, message: string) => { const remote = await remoteGit(); return remote ? remote.mutate("commit", message) : gitCommit(gitCwd(), message); });
+  ipcMain.handle("git:commit", async (_event, message: string, paths?: string[]) => { const remote = await remoteGit(); return remote ? remote.mutate("commit", message, paths) : gitCommit(gitCwd(), message, paths); });
   ipcMain.handle("git:push", async () => { const remote = await remoteGit(); return remote ? remote.mutate("push") : gitPush(gitCwd()); });
+
+  /* the source-control panel: file rows, patches, staging verbs */
+  ipcMain.handle("git:changes", async () => {
+    try {
+      const remote = await remoteGit();
+      return remote ? remote.changes() : gitChanges(gitCwd());
+    } catch {
+      return noRepoChanges();
+    }
+  });
+  ipcMain.handle("git:diff", async (_event, path: string, flags?: { staged?: boolean; untracked?: boolean }) => {
+    const remote = await remoteGit();
+    return remote ? remote.diff(path, flags) : gitDiff(gitCwd(), path, flags);
+  });
+  ipcMain.handle("git:stage", async (_event, paths: string[]) => { const remote = await remoteGit(); return remote ? remote.mutateFiles("stage", paths.map((path) => ({ path }))) : gitStage(gitCwd(), paths); });
+  ipcMain.handle("git:unstage", async (_event, paths: string[]) => { const remote = await remoteGit(); return remote ? remote.mutateFiles("unstage", paths.map((path) => ({ path }))) : gitUnstage(gitCwd(), paths); });
+  ipcMain.handle("git:discard", async (_event, files: GitDiscardFile[]) => { const remote = await remoteGit(); return remote ? remote.mutateFiles("discard", files) : gitDiscard(gitCwd(), files); });
 
   ipcMain.handle("term:run", async (_event, command: string) => {
     if (!host) throw new Error("Pi agent is not connected yet.");

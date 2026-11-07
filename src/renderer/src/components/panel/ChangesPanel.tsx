@@ -214,7 +214,7 @@ export function ChangesPanel({
  * The runs that actually changed keep a stronger wash of their own, from the
  * same rows the code card renders.
  */
-function DiffPreview({ lines, file }: { lines: DiffLine[]; file: string }) {
+export function DiffPreview({ lines, file }: { lines: DiffLine[]; file: string }) {
   const rows = toDiffRows(lines);
   const lang = languageFromFilename(file);
   if (!rows.length) {

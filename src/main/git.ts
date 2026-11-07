@@ -1,11 +1,23 @@
 import { execFile } from "node:child_process";
+import { writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
-import type { GitBranches, GitResult, GitState } from "@shared/workspace";
+import type { GitBranches, GitChangeFile, GitChanges, GitDiff, GitDiscardFile, GitFileStatus, GitResult, GitState } from "@shared/workspace";
+/* value import uses the relative path with extension — this file can be
+ * loaded by the pure node loader (jiti), which does not see the @shared alias */
+import { noRepoChanges } from "../shared/workspace.ts";
 
 const run = promisify(execFile);
 
 /** a bounded walk of the working tree is enough for a status line */
 const MAX_BUFFER = 4 * 1024 * 1024;
+
+/** the panel caps its rows; a repo past this reports `truncated` */
+const MAX_CHANGES = 5000;
+
+/** a diff the panel can actually render — past this it gets cut off mid-patch */
+const MAX_DIFF_BYTES = 512 * 1024;
 
 /**
  * Run git with argv, never a shell.
@@ -186,10 +198,19 @@ export async function gitDeleteBranch(cwd: string, name: string): Promise<GitRes
   }
 }
 
-export async function gitCommit(cwd: string, message: string): Promise<GitResult> {
+export async function gitCommit(cwd: string, message: string, paths?: string[]): Promise<GitResult> {
   const text = message.trim();
   if (!text) return { ok: false, error: "Empty commit message" };
   try {
+    if (paths?.length) {
+      /* The panel's checked rows are what "commit" means. `add` brings
+       * untracked files into the index first — `commit -- paths` refuses a
+       * pathspec that matches nothing tracked — then path-limited commit
+       * leaves every other staged file where it was. */
+      await git(cwd, ["add", "--", ...paths]);
+      const out = await git(cwd, ["commit", "-m", text, "--", ...paths]);
+      return { ok: true, output: out.trim() };
+    }
     await git(cwd, ["add", "-A"]);
     const out = await git(cwd, ["commit", "-m", text]);
     return { ok: true, output: out.trim() };
@@ -219,5 +240,171 @@ export async function gitPush(cwd: string): Promise<GitResult> {
     } catch (retryError) {
       return { ok: false, error: `${message}\n${failure(retryError)}` };
     }
+  }
+}
+
+/* ── source control: file-level working tree state ─────────────────────
+ * The monitor's `gitStatus` answers "is anything dirty"; these answer
+ * "which files, on which side of the index" — what the SCM panel rows
+ * need to stage, discard and commit by name. */
+
+/** a porcelain v2 XY letter → the word the panel shows */
+function statusLetter(letter: string): GitFileStatus | undefined {
+  switch (letter) {
+    case "M": return "modified";
+    case "A": return "added";
+    case "D": return "deleted";
+    case "R": return "renamed";
+    case "C": return "copied";
+    case "T": return "typechange";
+    case "U": return "unmerged";
+    default: return undefined;
+  }
+}
+
+/**
+ * `git status --porcelain=v2 -z` entries → staged/unstaged buckets.
+ *
+ * `-z` terminates every record with NUL and never C-quotes paths — without
+ * it, a file named "my file.ts" arrives as `"my file.ts"` and field
+ * splitting falls apart. Entry fields stay space-separated: `1`/`2` put
+ * the path at field 8, `u` at field 10, and a rename's origPath is the
+ * NUL field right after its own entry.
+ */
+export function parseChanges(output: string): GitChanges {
+  const staged: GitChangeFile[] = [];
+  const unstaged: GitChangeFile[] = [];
+  let truncated = false;
+  const entries = output.split("\0");
+  for (let i = 0; i < entries.length; i += 1) {
+    const entry = entries[i];
+    if (!entry || entry[0] === "#") continue;
+    if (staged.length + unstaged.length >= MAX_CHANGES) {
+      truncated = true;
+      break;
+    }
+    if (entry[0] === "?") {
+      unstaged.push({ path: entry.slice(2), untracked: true });
+      continue;
+    }
+    if (entry[0] === "u") {
+      unstaged.push({ path: entry.split(" ").slice(10).join(" "), unmerged: true });
+      continue;
+    }
+    if (entry[0] !== "1" && entry[0] !== "2") continue; // `!` ignored entries are not changes
+    const xy = entry.slice(2, 4);
+    /* `2` entries carry a similarity score (`R100`) the `1` entries do not,
+     * so the path starts one field later */
+    const path = entry.split(" ").slice(entry[0] === "2" ? 9 : 8).join(" ");
+    /* rename/copy rows are followed by their source path as its own field */
+    const origPath = entry[0] === "2" ? entries[(i += 1)] || undefined : undefined;
+    const index = statusLetter(xy[0]);
+    const worktree = statusLetter(xy[1]);
+    if (index) staged.push({ path, origPath, index });
+    if (worktree) unstaged.push({ path, origPath, worktree });
+  }
+  return { repo: true, staged, unstaged, truncated };
+}
+
+export async function gitChanges(cwd: string): Promise<GitChanges> {
+  let out: string;
+  try {
+    out = await git(cwd, ["status", "--porcelain=v2", "--untracked-files=normal", "-z"]);
+  } catch (error) {
+    if (notRepo(error)) return noRepoChanges();
+    throw new Error(failure(error));
+  }
+  return parseChanges(out);
+}
+
+/**
+ * A file's patch at panel width.
+ *
+ * `staged` diffs the index against HEAD; an untracked file has no index
+ * side at all, so it is diffed against an empty temp file — `--no-index`
+ * reports exit 1 when the files differ, which here is success, so the
+ * stdout it carried is what gets returned.
+ */
+export async function gitDiff(cwd: string, path: string, flags: { staged?: boolean; untracked?: boolean } = {}): Promise<GitDiff> {
+  const args = flags.untracked
+    ? (() => { const empty = join(tmpdir(), "pi-scm-empty"); return ["diff", "--no-index", "--", empty, path]; })()
+    : flags.staged
+      ? ["diff", "--cached", "--", path]
+      : ["diff", "--", path];
+  try {
+    if (flags.untracked) await writeFile(join(tmpdir(), "pi-scm-empty"), "");
+    const { stdout } = await run("git", args, { cwd, windowsHide: true, maxBuffer: MAX_BUFFER });
+    return { path, staged: Boolean(flags.staged), diff: clip(stdout), truncated: stdout.length > MAX_DIFF_BYTES };
+  } catch (error) {
+    const { stdout, code } = (error ?? {}) as { stdout?: unknown; code?: unknown };
+    /* --no-index exits 1 on a found difference — that is the diff */
+    if (flags.untracked && code === 1 && typeof stdout === "string") {
+      return { path, staged: false, diff: clip(stdout), truncated: stdout.length > MAX_DIFF_BYTES };
+    }
+    return { path, staged: Boolean(flags.staged), diff: "", truncated: false, error: failure(error) };
+  }
+}
+
+function clip(diff: string): string {
+  return diff.length > MAX_DIFF_BYTES ? diff.slice(0, MAX_DIFF_BYTES) : diff;
+}
+
+/** stage rows by path — untracked files enter the index the same way */
+export async function gitStage(cwd: string, paths: string[]): Promise<GitResult> {
+  if (!paths.length) return { ok: false, error: "No paths to stage" };
+  try {
+    const out = await git(cwd, ["add", "--", ...paths]);
+    return { ok: true, output: out.trim() };
+  } catch (error) {
+    return { ok: false, error: failure(error) };
+  }
+}
+
+/**
+ * Unstage by path.
+ *
+ * `restore --staged` reads the index against HEAD; on a repository whose
+ * first commit has not landed yet there is no HEAD to restore to, so the
+ * fallback removes the paths from the index — which is exactly what
+ * "unstaged" means before the first commit: the file goes back to
+ * untracked.
+ */
+export async function gitUnstage(cwd: string, paths: string[]): Promise<GitResult> {
+  if (!paths.length) return { ok: false, error: "No paths to unstage" };
+  try {
+    const out = await git(cwd, ["restore", "--staged", "--", ...paths]);
+    return { ok: true, output: out.trim() };
+  } catch (error) {
+    if (!/could not resolve|ambiguous argument|unknown revision|unborn/i.test(failure(error))) {
+      return { ok: false, error: failure(error) };
+    }
+    try {
+      const out = await git(cwd, ["rm", "--cached", "-q", "--", ...paths]);
+      return { ok: true, output: out.trim() };
+    } catch (retryError) {
+      return { ok: false, error: failure(retryError) };
+    }
+  }
+}
+
+/**
+ * Revert files to their committed state.
+ *
+ * Untracked rows go through `clean -f`; tracked rows restore both index
+ * and worktree from HEAD, because "discard" means the file reads as the
+ * last commit again — not that its staged half survives to surprise the
+ * next commit.
+ */
+export async function gitDiscard(cwd: string, files: GitDiscardFile[]): Promise<GitResult> {
+  if (!files.length) return { ok: false, error: "No files to discard" };
+  const tracked = files.filter((file) => !file.untracked).map((file) => file.path);
+  const untracked = files.filter((file) => file.untracked).map((file) => file.path);
+  try {
+    const output: string[] = [];
+    if (tracked.length) output.push(await git(cwd, ["restore", "--staged", "--worktree", "--", ...tracked]));
+    if (untracked.length) output.push(await git(cwd, ["clean", "-f", "--", ...untracked]));
+    return { ok: true, output: output.join("\n").trim() };
+  } catch (error) {
+    return { ok: false, error: failure(error) };
   }
 }

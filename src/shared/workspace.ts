@@ -100,3 +100,50 @@ export interface GitResult {
   output?: string;
   error?: string;
 }
+
+/* ── source control view ──────────────────────────────────────────────
+ * File-level working tree state, from `git status --porcelain=v2`. The
+ * v2 entry's `XY` pair says which side moved: X is the index (staged),
+ * Y is the worktree (unstaged); an untracked row has no XY at all. */
+
+export type GitFileStatus = "modified" | "added" | "deleted" | "renamed" | "copied" | "typechange" | "unmerged";
+
+export interface GitChangeFile {
+  path: string;
+  /** rename source — `path` is where it lives now */
+  origPath?: string;
+  /** staged-side state; absent when nothing about the file is in the index */
+  index?: GitFileStatus;
+  /** worktree-side state; absent when the file is clean or purely staged */
+  worktree?: GitFileStatus;
+  unmerged?: boolean;
+  untracked?: boolean;
+}
+
+export interface GitChanges {
+  repo: boolean;
+  staged: GitChangeFile[];
+  /** worktree movement, with untracked files folded in (they have no index side) */
+  unstaged: GitChangeFile[];
+  /** the list stopped at the row cap; the repo has more */
+  truncated: boolean;
+}
+
+export function noRepoChanges(): GitChanges {
+  return { repo: false, staged: [], unstaged: [], truncated: false };
+}
+
+export interface GitDiff {
+  path: string;
+  staged: boolean;
+  diff: string;
+  /** the diff was cut at the size cap — the view renders what arrived */
+  truncated: boolean;
+  error?: string;
+}
+
+/** discard needs to know whether `clean` or `restore` is the verb */
+export interface GitDiscardFile {
+  path: string;
+  untracked?: boolean;
+}

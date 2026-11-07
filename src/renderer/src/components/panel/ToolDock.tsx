@@ -6,6 +6,7 @@ import { cn } from "../../lib/cn";
 import { t, useLocale } from "../../lib/i18n";
 // The dock is always mounted but its panels are not; each arrives on demand.
 const ChangesPanel = lazy(() => import("./ChangesPanel").then((m) => ({ default: m.ChangesPanel })));
+const ScmPanel = lazy(() => import("./ScmPanel").then((m) => ({ default: m.ScmPanel })));
 const FileBrowser = lazy(() => import("./FileBrowser").then((m) => ({ default: m.FileBrowser })));
 const TerminalPanel = lazy(() => import("./TerminalPanel").then((m) => ({ default: m.TerminalPanel })));
 const FileViewer = lazy(() => import("./FileViewer").then((m) => ({ default: m.FileViewer })));
@@ -41,6 +42,7 @@ import {
   FilePenIcon,
   FolderIcon,
   GaugeIcon,
+  GitBranchIcon,
   GlobeIcon,
   ListChecksIcon,
   MessageIcon,
@@ -55,13 +57,14 @@ import {
  * something you go looking for in a launcher. The fleet tab is the same idea:
  * it appears in the strip only while sub-agents exist.
  */
-export type DockTool = "file" | "terminal" | "changes" | "browser" | "session" | "plan" | "agents";
+export type DockTool = "file" | "terminal" | "changes" | "scm" | "browser" | "session" | "plan" | "agents";
 
 /* labels are translated at render time, the keys stay stable */
 const TOOL_LABEL: Record<DockTool, string> = {
   file: "Files",
   terminal: "Terminal",
   changes: "Changes",
+  scm: "Source control",
   browser: "Browser",
   session: "Session",
   plan: "Plan",
@@ -72,6 +75,7 @@ const TOOL_ICON: Record<DockTool, (size: number) => ReactNode> = {
   file: (size) => <FolderIcon size={size} />,
   terminal: (size) => <TerminalIcon size={size} />,
   changes: (size) => <FilePenIcon size={size} />,
+  scm: (size) => <GitBranchIcon size={size} />,
   browser: (size) => <GlobeIcon size={size} />,
   session: (size) => <MessageIcon size={size} />,
   plan: (size) => <ListChecksIcon size={size} />,
@@ -79,7 +83,7 @@ const TOOL_ICON: Record<DockTool, (size: number) => ReactNode> = {
 };
 
 /** The launcher's order, read across two columns. */
-const LAUNCHER: DockTool[] = ["changes", "browser", "terminal", "file", "session"];
+const LAUNCHER: DockTool[] = ["changes", "scm", "browser", "terminal", "file", "session"];
 
 /**
  * The dock's landing screen: one tile per tool, big enough to hit without
@@ -372,6 +376,10 @@ export const ToolDock = memo(function ToolDock({
                 {activeTool === "changes" ? (
                   <Suspense fallback={<DockSkeleton />}>
                     <ChangesPanel messages={messages} activeFile={activeChangeFile} onOpen={onOpenDiff} />
+                  </Suspense>
+                ) : activeTool === "scm" ? (
+                  <Suspense fallback={<DockSkeleton />}>
+                    <ScmPanel cwd={cwd} onOpenFile={onOpenFile} />
                   </Suspense>
                 ) : activeTool === "file" ? (
                   /* a file replaces the tree inside the same tab — closing the

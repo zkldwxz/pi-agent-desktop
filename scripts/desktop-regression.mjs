@@ -386,6 +386,44 @@ try {
   await host.setCwd(cwd);
   check("switching back from Home restores the project cwd", () => assert.equal(host.getCwd(), cwd));
 
+  /* The SCM panel buckets porcelain v2 by which side of the index moved:
+   * X is staged, Y is worktree, `?` is untracked, a rename carries its origin
+   * after a tab. A file that moved on both sides appears in both lists. */
+  const { parseChanges } = await jiti.import(join(root, "src/main/git.ts"));
+  check("porcelain v2 splits staged and worktree sides", () => {
+    /* `-z` output: NUL-terminated records, paths never C-quoted, and a
+     * rename's origin rides as the NUL field after its own entry */
+    const parsed = parseChanges(
+      [
+        "# branch.head main",
+        "1 .M N... 100644 100644 100644 abc123 abc123 src/only worktree.ts",
+        "1 M. N... 100644 100644 100644 abc123 abc123 src/only-staged.ts",
+        "1 MM N... 100644 100644 100644 abc123 abc123 src/both-sides.ts",
+        "2 R. N... 100644 100644 100644 abc123 abc123 R100 src/new-name.ts",
+        "src/old name.ts",
+        "? src/fresh.ts",
+        "u UU N... 100644 100644 100644 100644 abc123 abc123 abc123 src/conflict.ts",
+      ].join("\0"),
+    );
+    assert.equal(parsed.repo, true);
+    assert.equal(parsed.truncated, false);
+    assert.deepEqual(parsed.staged.map((file) => file.path), [
+      "src/only-staged.ts",
+      "src/both-sides.ts",
+      "src/new-name.ts",
+    ]);
+    assert.deepEqual(parsed.unstaged.map((file) => file.path), [
+      "src/only worktree.ts",
+      "src/both-sides.ts",
+      "src/fresh.ts",
+      "src/conflict.ts",
+    ]);
+    assert.equal(parsed.staged[2].index, "renamed");
+    assert.equal(parsed.staged[2].origPath, "src/old name.ts");
+    assert.equal(parsed.unstaged[2].untracked, true);
+    assert.equal(parsed.unstaged[3].unmerged, true);
+  });
+
   const { PtyHost } = await jiti.import(join(root, "src/main/pty.ts"));
   let terminalExited;
   const exitPromise = new Promise((resolve) => { terminalExited = resolve; });
