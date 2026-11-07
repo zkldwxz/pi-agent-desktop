@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ChannelApi, ChannelEdit, ChannelInfo, ModelEdit, ModelInfo } from "@shared/types";
 import { inferModelCapabilities, type ModelCapabilityGuess } from "@shared/model-capabilities";
+import { Switch as SettingsSwitch } from "./SettingsParts";
 import { cn } from "../../lib/cn";
 import { formatContext } from "../../lib/format";
 import { t, tf } from "../../lib/i18n";
@@ -192,9 +193,10 @@ export function ModelManagerSection({
           glide highlight is absolutely positioned — outside that box it would
           paint over the search row whenever a row is half scrolled out. Keeping
           it inside the scrolling element is what clips it. */}
-      <Card index={0} className="overflow-hidden">
-        <div className="flex items-center gap-3 border-b border-line px-4 py-3">
-          <span className="min-w-0 flex-1 truncate text-ui-base font-medium text-ink">{t("Model management")}</span>
+      /* a settings group: the heading and its controls over the card */
+      <section className="flex flex-col">
+        <div className="flex items-center gap-3 pr-1 pb-2 pl-2">
+          <h2 className="min-w-0 flex-1 truncate text-ui-caption font-medium text-settings-muted">{t("Model management")}</h2>
           <div className="flex items-center gap-2">
             {/* two readings of one list: the flat catalogue, or a block per
                 endpoint with its keys named once above it */}
@@ -223,9 +225,10 @@ export function ModelManagerSection({
             </Chip>
           </div>
         </div>
+      <Card index={0} className="overflow-hidden">
         {!nothingToMatch ? (
-          <div className="border-b border-line px-4 py-2">
-            <label className="flex h-7 min-w-0 items-center gap-2 rounded-control bg-field px-2.5 shadow-hairline transition-shadow duration-150 focus-within:shadow-[0_0_0_3px_var(--accent-tint)]">
+          <div className="border-b border-[color-mix(in_srgb,var(--ink)_4%,transparent)] px-3 py-2.5">
+            <label className="flex h-7 min-w-0 items-center gap-1.5 rounded-[6px] border border-input-line px-2 transition-colors duration-150 focus-within:border-accent">
               <SearchIcon size={12} className="shrink-0 text-ink-3" />
               <input
                 value={query}
@@ -404,6 +407,7 @@ export function ModelManagerSection({
         </div>
         ) : null}
       </Card>
+      </section>
 
       {editing && typeof document !== "undefined"
         ? createPortal(
@@ -596,7 +600,7 @@ function ChannelHeader({
   );
 }
 
-/** The settings switch, with the disabled state the model list needs. */
+/** the settings switch (SettingsParts), with a title and an accessible name */
 function Switch({
   on,
   onClick,
@@ -612,24 +616,9 @@ function Switch({
   label?: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      aria-label={label}
-      aria-pressed={on}
-      className={cn("pressable relative h-[18px] w-8 shrink-0 rounded-full", on ? "bg-green" : "bg-line-strong", disabled && "opacity-50")}
-      style={{ transition: "background-color 200ms ease-out" }}
-    >
-      <span
-        className="absolute top-[2px] left-[2px] size-[14px] rounded-full bg-white shadow"
-        style={{
-          transform: on ? "translateX(14px)" : "translateX(0)",
-          transition: "transform 240ms var(--ease-out-strong-css)",
-        }}
-      />
-    </button>
+    <span title={title} aria-label={label} className="inline-flex">
+      <SettingsSwitch on={on} onClick={onClick} disabled={disabled} />
+    </span>
   );
 }
 

@@ -77,13 +77,8 @@ export function ShortcutsSection() {
   const labelOf = (id: string) => t(SHORTCUTS.find((spec) => spec.id === id)?.label ?? id);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-baseline justify-between gap-3 px-0.5">
-        <h2 className="text-ui-caption font-medium text-ink">{t("Keyboard shortcuts")}</h2>
-        <span className="min-w-0 truncate text-ui-sm text-ink-3">
-          {t("Click a shortcut, then press the combination you want")}
-        </span>
-      </div>
+    /* the page's title and its note come from the settings page */
+    <div className="flex flex-col gap-5">
 
       {GROUPS.map((group, groupIndex) => (
         <Section

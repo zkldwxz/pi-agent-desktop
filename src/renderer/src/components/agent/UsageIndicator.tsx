@@ -180,9 +180,10 @@ export function PlanQuotaCard() {
   if (!quotas.length) return null;
   const fetchedAt = Math.max(...quotas.map((quota) => quota.fetchedAt));
   return (
-    <section className="mb-3 rounded-card border border-line bg-surface">
-      <header className="flex items-center gap-2 border-b border-line px-4 py-2.5">
-        <span className="text-ui-caption font-medium text-ink">{t("Plan usage")}</span>
+    /* a settings group: the heading (with when and a refresh) over its card */
+    <section className="mb-3 flex flex-col">
+      <header className="flex items-center gap-2 pr-1 pb-2 pl-2">
+        <span className="text-ui-caption font-medium text-settings-muted">{t("Plan usage")}</span>
         <span className="flex-1 text-ui-xs text-ink-4">
           {tf("Last updated {time}", { time: relativeTime(new Date(fetchedAt).toISOString()) })}
         </span>
@@ -195,9 +196,9 @@ export function PlanQuotaCard() {
           {t("Refresh all quotas")}
         </button>
       </header>
-      <div className="grid grid-cols-1 divide-line sm:grid-cols-2 sm:divide-x">
+      <div className="grid grid-cols-1 divide-[color-mix(in_srgb,var(--ink)_4%,transparent)] overflow-hidden rounded-[12px] bg-settings-card sm:grid-cols-2 sm:divide-x">
         {quotas.map((quota) => (
-          <div key={quota.provider} className="flex flex-col gap-2.5 px-4 py-3">
+          <div key={quota.provider} className="flex flex-col gap-2.5 px-3.5 py-3">
             <span className="text-ui-sm font-medium text-ink-2">{planTitle(quota)}</span>
             <QuotaWindows quota={quota} />
           </div>

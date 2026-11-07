@@ -85,7 +85,9 @@ export function Card({
   return (
     <div
       style={index === undefined ? style : { ...stagger(index), ...style }}
-      className={cn("rounded-card bg-surface shadow-card", index !== undefined && "stagger", className)}
+      /* SettingsCard's look everywhere a page lays out cards: radius 12, no
+         outline, the page with 4% ink */
+      className={cn("rounded-[12px] bg-settings-card", index !== undefined && "stagger", className)}
     >
       {children}
     </div>

@@ -944,3 +944,14 @@ html[data-sidebar-times="off"] [data-sidebar-time] {
     transform: scale(1);
   }
 }
+
+/* SettingsCard: a 1px line of 4% ink between two rows, 12px in from the sides */
+.settings-card > [data-row] + [data-row]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 12px;
+  left: 12px;
+  height: 1px;
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}

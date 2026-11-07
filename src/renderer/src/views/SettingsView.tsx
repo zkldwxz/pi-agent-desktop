@@ -5,6 +5,7 @@ import { getCodeTheme, setCodeTheme, type CodeTheme } from "../lib/code-theme";
 import { setSoundsEnabled, soundsEnabled } from "../lib/sound";
 import {
   ArrowLeftIcon,
+  ArrowUpRightIcon,
   BrainIcon,
   CheckCircleIcon,
   DatabaseIcon,
@@ -21,7 +22,8 @@ import {
   TerminalIcon,
   XIcon,
 } from "../components/icons";
-import { Chip, ViewHeader } from "../components/ui";
+import { Chip } from "../components/ui";
+import { WindowControls } from "../components/TitleBar";
 import { GlideList } from "../components/motion";
 import { NavRow } from "../components/NavRow";
 import { TextRow } from "../components/beautiful/atoms/TextRow";
@@ -86,6 +88,13 @@ const GROUPS: Array<{ label?: string; items: SettingsRow[] }> = [
 ];
 
 const ALL_ROWS = GROUPS.flatMap((group) => group.items);
+
+/** what each page says under its title (SettingsPage.description) */
+const PAGE_NOTE: Partial<Record<SettingsCategory, string>> = {
+  general: "Written to ~/.pi/agent/settings.json — the Pi CLI reads the same file",
+  keyboard: "Click a shortcut, then press the combination you want",
+  hooks: "Extensions subscribe to the agent's event stream with pi.on(event, handler)",
+};
 
 export function SettingsView({
   initialCategory,
@@ -228,27 +237,33 @@ export function SettingsView({
   const tokens = state.snapshot?.stats?.tokens;
 
   return (
-    <div className="flex min-h-0 flex-1">
+    <div className="flex min-h-0 flex-1 bg-page">
       {/* category rail — the reference layout: a search field, then grouped
           rows with an icon each and a rule between groups. It runs the full
           height of the window because settings *is* this rail: the session
           pane stands down for this view rather than the app opening a small
           settings panel inside the agent shell. */}
-      <nav className="flex w-[248px] shrink-0 flex-col border-r border-line bg-canvas">
-        {/* Back: settings is a place you enter from the shell, so the first thing
-            in the rail is the way out of it rather than a category. */}
-        <div className="shrink-0 px-3 pt-3.5 pb-1">
-          <NavRow
-            icon={<ArrowLeftIcon size={15} />}
-            label={t("Back")}
-            onClick={onBack}
-            className="h-8.5 text-ink-2"
+      {/* baocode's settings rail (settings_dialog.dart): 240 wide on the
+          window's colour where the sidebar is — under the traffic lights'
+          row, the way back, a 28px search, then 30px rows (icon 15, label 13,
+          radius 6, the 6% ink fill for the one shown and the hovered); groups
+          14px apart, no group labels */}
+      <nav className="flex w-[240px] shrink-0 flex-col bg-canvas">
+        <div className="titlebar-drag h-9 shrink-0" />
+        <div className="shrink-0 px-2 pt-1.5">
+          <button
+            type="button"
             data-nav-back
-          />
+            onClick={onBack}
+            className="pressable flex h-7 w-full items-center gap-1.5 rounded-[6px] px-2 text-left text-ui-step text-settings-muted transition-colors duration-100 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] hover:text-ink"
+          >
+            <ArrowLeftIcon size={15} className="shrink-0" />
+            {t("Back")}
+          </button>
         </div>
-        <div className="shrink-0 px-3 py-2">
-          <label className="flex h-8.5 items-center gap-2 rounded-control bg-surface px-2.5 shadow-hairline transition-shadow duration-150 focus-within:shadow-btn">
-            <SearchIcon size={13} className="shrink-0 text-ink-3" />
+        <div className="shrink-0 px-2 pt-1.5 pb-2.5">
+          <label className="flex h-7 items-center gap-1.5 rounded-[6px] border border-input-line bg-page px-2 transition-colors duration-150 focus-within:border-accent">
+            <SearchIcon size={15} className="shrink-0 text-settings-icon" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -266,93 +281,94 @@ export function SettingsView({
                 onClick={() => setQuery("")}
                 className="pressable flex size-4 shrink-0 items-center justify-center rounded-tiny text-ink-3 hover:text-ink"
               >
-                  <XIcon size={11} />
-                </button>
-              ) : null}
-            </label>
-          </div>
-
-          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-3 pb-3">
-            {groups.map((group, groupIndex) => (
-              <div key={group.label ?? "top"}>
-                {group.label ? (
-                  <div className="px-2 pt-4 pb-1.5 text-ui-xs font-medium tracking-[0.4px] text-ink-3 uppercase">{t(group.label)}</div>
-                ) : (
-                  groupIndex > 0 && <div className="pt-2" />
-                )}
-                <GlideList rowSelector="[data-cat]" highlightClassName="bg-hover-2" radius={7} className="flex flex-col gap-1">
-                  {group.items.map((entry) => {
-                    const active = category === entry.key;
-                    return (
-                      <NavRow
-                        key={entry.key}
-                        data-cat="row"
-                        raised
-                        active={active}
-                        icon={entry.icon}
-                        label={t(entry.label)}
-                        className="h-8.5"
-                        onClick={() => setCategory(entry.key)}
-                      />
-                    );
-                  })}
-                </GlideList>
-                {groupIndex < groups.length - 1 ? <div className="my-2.5 h-px bg-line/80" /> : null}
-              </div>
-            ))}
-            {!groups.length ? (
-              <div className="px-2 py-3 text-ui-sm text-ink-3">
-                {tf("Nothing matches “{query}”. The list has {count} sections.", { query, count: ALL_ROWS.length })}
-              </div>
+                <XIcon size={11} />
+              </button>
             ) : null}
+          </label>
+        </div>
 
-            {/* the reference's trailing external row: jump to the files behind
-                these settings */}
-            <div className="my-2.5 h-px bg-line/80" />
-            <NavRow
-              icon={<FilePenIcon size={13} />}
-              label={t("Transcript")}
+        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+          {groups.map((group, groupIndex) => (
+            <div key={group.label ?? "top"} className={groupIndex > 0 ? "mt-3.5" : undefined}>
+              {group.items.map((entry) => {
+                const active = category === entry.key;
+                return (
+                  <button
+                    key={entry.key}
+                    type="button"
+                    aria-current={active ? "page" : undefined}
+                    onClick={() => setCategory(entry.key)}
+                    className={cn(
+                      "pressable mb-px flex h-[30px] w-full items-center gap-2 rounded-[6px] px-2.5 text-left text-ui-step transition-colors duration-100",
+                      active
+                        ? "bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] text-ink"
+                        : "text-settings-muted hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]",
+                    )}
+                  >
+                    <span className={cn("flex size-[15px] shrink-0 items-center justify-center", active ? "text-ink" : "text-settings-icon")}>
+                      {entry.icon}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{t(entry.label)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+          {!groups.length ? (
+            <div className="px-2.5 py-3 text-ui-sm text-ink-3">
+              {tf("Nothing matches “{query}”. The list has {count} sections.", { query, count: ALL_ROWS.length })}
+            </div>
+          ) : null}
+
+          {/* the files behind these settings: the session transcript */}
+          <div className="mt-3.5">
+            <button
+              type="button"
               disabled={!sessionFile}
               title={sessionFile ?? t("No session file yet")}
-              className="h-8.5"
               onClick={() => sessionFile && void window.pi.showItem(sessionFile)}
-              trailing={
-                <svg
-                  width="11"
-                  height="11"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M7 17 17 7M9 7h8v8" />
-                </svg>
-              }
-            />
+              className="pressable flex h-[30px] w-full items-center gap-2 rounded-[6px] px-2.5 text-left text-ui-step text-settings-muted transition-colors duration-100 hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] disabled:opacity-40"
+            >
+              <FilePenIcon size={15} className="shrink-0 text-settings-icon" />
+              <span className="min-w-0 flex-1 truncate">{t("Transcript")}</span>
+              <ArrowUpRightIcon size={13} className="shrink-0 text-ink-4" />
+            </button>
           </div>
-        </nav>
+        </div>
+      </nav>
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <ViewHeader
-            title={t("Settings")}
-            subtitle={t("Written to ~/.pi/agent/settings.json — the Pi CLI reads the same file")}
-            actions={
-              <div className="flex items-center gap-1.5">
-                <Chip onClick={onReload}>
-                  <RefreshIcon size={12} />
-                  {t("Reload session")}
-                </Chip>
-                {dockToggle}
-              </div>
-            }
-          />
+        {/* the page, as baocode's settings window has it: not an island — the
+            page colour to the window's edges, a 1px line between it and the
+            rail (the IDE's side bar beside its editor); a drag row over it the
+            traffic lights' height (the window buttons off macOS), then the
+            page's own title */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-l border-line bg-page">
+          <div className="titlebar-drag flex h-9 shrink-0 items-center justify-end pr-1.5">
+            <WindowControls />
+          </div>
           <div key={category} className="view-enter scrollbar-thin min-h-0 flex-1 overflow-y-auto">
           {/* the usage dashboards own the full width — charts and tables do not
               read well squeezed into the settings column */}
-          <div className={cn("mx-auto flex w-full flex-col gap-8 px-8 py-8", category === "usage" ? "max-w-[1100px]" : "max-w-[720px]")}>
+          {/* SettingsPage: 32 in, as wide as the conversation (720), 16 under
+              the drag row; groups 20 apart; the title 8 in, with the groups'
+              headings */}
+          <div className={cn("mx-auto flex w-full flex-col gap-5 px-8 pt-2 pb-12", category === "usage" ? "max-w-[1100px]" : "max-w-[784px]")}>
+          <div className="flex items-start gap-3 px-2">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-ui-xl font-semibold text-ink">{t(ALL_ROWS.find((row) => row.key === category)?.label ?? "Settings")}</h1>
+              {PAGE_NOTE[category] ? <p className="mt-1 text-ui-meta leading-[1.5] text-settings-muted">{t(PAGE_NOTE[category]!)}</p> : null}
+            </div>
+            {category === "general" ? (
+              <button
+                type="button"
+                onClick={onReload}
+                className="pressable flex h-6 shrink-0 items-center gap-1.5 rounded-[4px] border border-line-strong px-2 text-ui-meta text-ink transition-colors duration-100 hover:bg-hover"
+              >
+                <RefreshIcon size={12} />
+                {t("Reload session")}
+              </button>
+            ) : null}
+          </div>
           {category === "appearance" ? (
           <div className="flex flex-col gap-6">
             <AppearanceSection
@@ -403,7 +419,7 @@ export function SettingsView({
             {/* the per-model rows read as a catalogue: the key is the row, the
                 section label carries the explanation — eighteen repetitions of
                 "Default level ·" and "per-model override" said nothing */}
-            <div className="border-b border-line bg-canvas/40 px-4 py-1.5 text-ui-xs tracking-[0.4px] text-ink-3 uppercase">
+            <div data-row className="relative px-3.5 pt-3 pb-1 text-ui-meta text-ink-2">
               {t("Per-model overrides · inherit follows the startup level")}
             </div>
             {modelRows.map(({ key, model }) => (
@@ -431,7 +447,7 @@ export function SettingsView({
                       step={512}
                       value={budgetDraft[level] ?? settings.thinkingBudgets?.[level] ?? 0}
                       onChange={(event) => setBudgetDraft({ ...budgetDraft, [level]: Number(event.target.value) || 0 })}
-                      className="h-7 w-20 rounded-control bg-field px-2 font-mono text-ui-sm text-ink tabular-nums outline-none"
+                      className="h-[26px] w-20 rounded-[5px] border border-input-line bg-page px-2 font-mono text-ui-meta text-ink tabular-nums outline-none focus:border-accent"
                     />
                   </label>
                 ))}
@@ -549,7 +565,7 @@ export function SettingsView({
 
           {category === "agent" ? (
           <>
-          <Section title={t("Agent")} index={0}>
+          <Section title={t("Conversation flow")} index={0}>
             <Row title={t("Message delivery")} hint={t("what happens to a message sent while the agent is working")}>
               <Select
                 value={queueBehavior}
@@ -579,7 +595,7 @@ export function SettingsView({
                 defaultValue={terminal?.customPath ?? ""}
                 onBlur={(event) => setCustomShellPath(event.target.value)}
                 placeholder={SHELL_EXAMPLE}
-                className="h-7 w-56 rounded-control bg-field px-2 font-mono text-ui-sm text-ink outline-none"
+                className="h-[26px] w-56 rounded-[5px] border border-input-line bg-page px-2 font-mono text-ui-meta text-ink outline-none placeholder:text-ink-4 focus:border-accent"
               />
             </Row>
           </Section>
@@ -593,7 +609,7 @@ export function SettingsView({
                 defaultValue={settings.shellPath ?? ""}
                 onBlur={(event) => onUpdate({ shellPath: event.target.value.trim() })}
                 placeholder={SHELL_EXAMPLE}
-                className="h-7 w-56 rounded-control bg-field px-2 font-mono text-ui-sm text-ink outline-none"
+                className="h-[26px] w-56 rounded-[5px] border border-input-line bg-page px-2 font-mono text-ui-meta text-ink outline-none placeholder:text-ink-4 focus:border-accent"
               />
             </Row>
             <Row title={t("Command prefix")} hint={t("prepended to every command the agent runs")}>
@@ -601,7 +617,7 @@ export function SettingsView({
                 defaultValue={settings.shellCommandPrefix ?? ""}
                 onBlur={(event) => onUpdate({ shellCommandPrefix: event.target.value.trim() })}
                 placeholder="shopt -s expand_aliases"
-                className="h-7 w-56 rounded-control bg-field px-2 font-mono text-ui-sm text-ink outline-none"
+                className="h-[26px] w-56 rounded-[5px] border border-input-line bg-page px-2 font-mono text-ui-meta text-ink outline-none placeholder:text-ink-4 focus:border-accent"
               />
             </Row>
             <Row title={t("npm command")} hint={t("argv used for package lookups; comma separated")}>
@@ -616,7 +632,7 @@ export function SettingsView({
                   })
                 }
                 placeholder="npm"
-                className="h-7 w-56 rounded-control bg-field px-2 font-mono text-ui-sm text-ink outline-none"
+                className="h-[26px] w-56 rounded-[5px] border border-input-line bg-page px-2 font-mono text-ui-meta text-ink outline-none placeholder:text-ink-4 focus:border-accent"
               />
             </Row>
           </Section>
@@ -627,28 +643,23 @@ export function SettingsView({
           {category === "browser" ? (
           <Section title={t("Browser")} index={0}>
             <Row title={t("Embedded browser")} hint={t("an isolated Chromium session — site logins persist between runs")}>
-              <span className="font-mono text-ui-sm text-ink-3">persist:pi-browser</span>
             </Row>
             <Row title={t("Design mode")} hint={tf("Press {chord} in the browser panel, or the pencil in its top bar", { chord: chords.designMode ? formatChord(chords.designMode) : t("Unassigned") })}>
-              <span className="font-mono text-ui-sm text-ink-3">click to select · drag to draw</span>
             </Row>
             <Row title={t("DevTools")} hint={t("the terminal button in the browser bar docks them on the right")}>
-              <span className="font-mono text-ui-sm text-ink-3">openDevTools(right)</span>
             </Row>
             <Row title={t("Agent tools")} hint={t("registered as a pi extension — seven tools, no MCP layer")}>
-              <span className="font-mono text-ui-sm text-ink-3">browser_*</span>
             </Row>
             <ExternalBrowserRow />
           </Section>
           ) : null}
 
           {category === "tasks" ? (
-          <Section title={t("Tasks")} index={0}>
+          <Section title={t("Task list")} index={0}>
             <Row title={t("Agent task list")} hint={t("the agent keeps it current through todo_write")}>
-              <span className="font-mono text-ui-sm text-ink-3">{state.todos.length} {t("items")}</span>
+              <span className="text-ui-meta text-ink-2 tabular-nums">{state.todos.length} {t("items")}</span>
             </Row>
             <Row title={t("Persistence")} hint={t("written into the session file, so it survives a restart and travels with the session")}>
-              <span className="font-mono text-ui-sm text-ink-3">pi.appendEntry</span>
             </Row>
           </Section>
           ) : null}
